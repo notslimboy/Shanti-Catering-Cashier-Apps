@@ -1,292 +1,293 @@
 # Cashier Web App
 
-Aplikasi kasir lokal untuk Shanti Catering/toko kecil. Fokus utama project ini adalah checkout cepat, import pesanan, stok barang, cetak struk thermal 58mm/80mm, dashboard penjualan, dan penyimpanan transaksi ke SQLite lokal.
+A local-first cashier application for Shanti Catering and small food businesses. The project focuses on fast checkout, order imports, inventory management, 58mm/80mm thermal receipt printing, a sales dashboard, and local SQLite transaction storage.
 
-App ini berjalan di browser dengan backend Python lokal. Targetnya bukan ERP besar, tetapi alat operasional harian yang bisa dipakai kasir dengan cepat.
+The app runs in a browser with a local Python backend. It is not meant to be a large ERP system; it is a practical daily operations tool that cashiers can use quickly.
 
-## Status Scope
+## Scope Status
 
-| Area | Status | Kegunaan |
+| Area | Status | Purpose |
 | --- | --- | --- |
-| Checkout kasir | Ada | Cari barang, tambah ke keranjang, catatan item, ongkir, pajak, pembayaran, validasi, lalu selesaikan transaksi. |
-| Stok barang | Ada | Tambah/edit/hapus barang, stok terbatas atau unlimited, import spreadsheet, sync Google Sheet publik, dan mirror ke SQLite lokal. |
-| Import pesanan | Ada | Import banyak order dari CSV/TSV atau rangkuman AI menjadi draft pesanan. |
-| Customer profile | Ada | Customer lama muncul sebagai saran dan ongkir terakhir bisa dipakai otomatis. |
-| Struk thermal | Ada | Preview, test print, auto print, cetak ulang, layout 58mm/80mm, tinggi print dinamis. |
-| Dashboard penjualan | Ada | Modal dashboard dengan range tanggal, ringkasan omzet, item terlaris, pencarian, tab aktif/terhapus/semua. |
-| Edit dan hapus struk | Ada | Detail struk, edit data dasar, edit item/qty/harga, cetak ulang, soft delete, restore struk terhapus. |
-| Backup database | Ada | Download/restore SQLite, plus `Backup Semua` untuk SQLite dan data app browser. |
-| Offline/PWA dasar | Ada | Shell app dicache, inventory/cart/draft disimpan di browser. |
-| Cloud multi-device | Belum | Belum ada login, cloud database, role user, atau sync multi-kasir. |
+| Cashier checkout | Available | Search items, add to cart, add item notes, shipping fee, tax, payment, validation, and complete sales. |
+| Inventory | Available | Add/edit/delete items, limited or unlimited stock, spreadsheet import, public Google Sheet sync, and local SQLite mirroring. |
+| Order import | Available | Import many orders from CSV/TSV or AI summaries into draft orders. |
+| Customer profiles | Available | Returning customers appear as suggestions and their latest shipping fee can be reused automatically. |
+| Thermal receipts | Available | Preview, test print, auto print, reprint, 58mm/80mm layout, and dynamic print height. |
+| Sales dashboard | Available | Modal dashboard with date ranges, revenue summary, best-selling items, search, and active/deleted/all tabs. |
+| Edit and delete receipts | Available | Receipt details, edit basic data, edit items/qty/price, reprint, soft delete, and restore deleted receipts. |
+| Database backup | Available | Download/restore SQLite, plus `Backup Semua` for SQLite and browser app data. |
+| Basic offline/PWA shell | Available | App shell is cached; inventory/cart/drafts are stored in the browser. |
+| Cloud multi-device | Not yet | No login, cloud database, user roles, or multi-cashier sync yet. |
 
-## Kegunaan Utama
+## Main Use Cases
 
-App ini cocok untuk:
+This app is suitable for:
 
-- Kasir harian catering, toko kecil, booth, atau pre-order rumahan.
-- Mencatat transaksi lokal ke SQLite.
-- Cetak struk ke printer thermal POS 58mm/80mm.
-- Mengelola menu dari Google Sheet, CSV, XLS, atau input manual.
-- Mengubah chat/order AI menjadi draft pesanan massal.
-- Closing harian atau range beberapa hari.
-- Menghapus struk yang salah input tanpa langsung kehilangan data.
-- Memakai sidebar di desktop dan burger drawer di tablet/HP untuk tool besar seperti import, dashboard, edit struk, dan setup printer.
+- Daily cashier operations for catering, small shops, booths, or home-based pre-orders.
+- Recording transactions locally into SQLite.
+- Printing receipts to 58mm/80mm POS thermal printers.
+- Managing menus from Google Sheets, CSV, XLS, or manual entry.
+- Converting AI-assisted chat/order summaries into bulk draft orders.
+- Daily closing or multi-day sales reports.
+- Soft-deleting incorrect receipts without immediately losing data.
+- Using the desktop sidebar or tablet/mobile drawer for larger tools such as import, dashboard, receipt settings, and printer setup.
 
-App ini belum cocok untuk:
+This app is not yet suitable for:
 
-- Banyak cabang/kasir online bersamaan.
-- Payment gateway.
-- Login, role admin/kasir, audit user.
-- Database cloud tanpa perubahan arsitektur.
-- Hosting stateless seperti Vercel jika tetap memakai SQLite lokal.
+- Multiple online branches/cashiers working together.
+- Payment gateway integration.
+- Login, admin/cashier roles, or per-user audit logs.
+- Cloud databases without architectural changes.
+- Stateless hosting such as Vercel while still relying on local SQLite.
 
-## Cara Menjalankan
+## Running Locally
 
-Jalankan backend lokal:
+Start the local backend:
 
 ```bash
 python3 server.py
 ```
 
-Buka app:
+Open the app:
 
 ```text
 http://127.0.0.1:4174/
 ```
 
-Cek backend:
+Check the backend:
 
 ```bash
 curl http://127.0.0.1:4174/api/health
 ```
 
-Database default:
+Default database:
 
 ```text
 kasir-bento.sqlite3
 ```
 
-## Struktur File
+## File Structure
 
-| File | Fungsi |
+| File | Purpose |
 | --- | --- |
-| `index.html` | Struktur UI utama, modal, form, dashboard, dan tombol. |
-| `styles.css` | Styling app, modal, responsive layout, sticky checkout, dan print CSS struk. |
-| `script.js` | Logika frontend: state, cart, inventory, import, customer profile, dashboard, receipt, API calls. |
-| `server.py` | Backend Python lokal untuk static files, API transaksi, soft delete/restore, backup, dan SQLite. |
-| `kasir-bento.sqlite3` | Database transaksi lokal, dibuat otomatis saat server jalan. |
-| `manifest.webmanifest` | Metadata PWA. |
-| `service-worker.js` | Cache dasar app shell. |
-| `sample-items.csv` | Contoh format import barang. |
-| `sample-bulk-orders.csv` | Contoh format import pesanan banyak. |
-| `logocatering.webp` | Logo struk dan branding app. |
-| `drivers/XP PRINTER DRIVER.rar` | Driver thermal printer XP/POS yang dipakai untuk setup printer kasir. |
-| `docs/PROJECT_AGENTS.md` | Panduan tambahan untuk AI/agent berikutnya. |
-| `_forAI/PROJECT_TECHNICAL_CONTEXT.md` | Dokumentasi teknis lengkap untuk AI/engineer berikutnya. |
+| `index.html` | Main UI structure, modals, forms, dashboard, and buttons. |
+| `styles.css` | App styling, modals, responsive layout, sticky checkout, and receipt print CSS. |
+| `script.js` | Frontend logic: state, cart, inventory, imports, customer profiles, dashboard, receipts, and API calls. |
+| `server.py` | Local Python backend for static files, transaction APIs, soft delete/restore, backup, and SQLite. |
+| `kasir-bento.sqlite3` | Local transaction database, created automatically when the server runs. |
+| `manifest.webmanifest` | PWA metadata. |
+| `service-worker.js` | Basic app-shell caching. |
+| `sample-items.csv` | Sample item import format. |
+| `sample-bulk-orders.csv` | Sample bulk order import format. |
+| `logocatering.webp` | Receipt logo and app branding image. |
+| `drivers/XP PRINTER DRIVER.rar` | XP/POS thermal printer driver used during cashier printer setup. This is ignored by Git. |
+| `docs/PROJECT_AGENTS.md` | Additional guide for future AI agents or maintainers. |
+| `_forAI/PROJECT_TECHNICAL_CONTEXT.md` | Detailed technical context for future AI agents or engineers. |
 
-## Alur Checkout
+## Checkout Flow
 
-1. Kasir mencari barang dari daftar produk.
-2. Barang ditambahkan ke keranjang.
-3. Qty dan catatan item bisa diubah.
-4. Kasir mengisi customer, ongkir, pajak, dan metode pembayaran.
-5. App menampilkan validasi checkout.
-6. Klik `Selesaikan Transaksi`.
-7. Frontend mengirim transaksi ke `POST /api/sales`.
-8. Backend membuat nomor struk unik dan menyimpan transaksi ke SQLite.
-9. Stok lokal dikurangi.
-10. Struk dicetak langsung atau dibuka di preview, sesuai pengaturan.
+1. The cashier searches for items from the product list.
+2. Items are added to the cart.
+3. Quantity and item notes can be changed.
+4. The cashier fills in the customer, shipping fee, tax, and payment method.
+5. The app shows checkout validation.
+6. The cashier clicks `Selesaikan Transaksi`.
+7. The frontend sends the transaction to `POST /api/sales`.
+8. The backend creates a unique receipt number and saves the transaction to SQLite.
+9. Local stock is reduced.
+10. The receipt is printed directly or opened in preview, depending on settings.
 
-Catatan validasi:
+Validation notes:
 
-- Error blocking menghentikan transaksi, misalnya keranjang kosong atau stok kurang.
-- Warning tidak langsung menghentikan, tapi kasir harus mengecek dulu. Contoh: customer kosong atau ongkir Rp0.
-- Pada mobile/tablet, total dan tombol checkout dibuat sticky supaya tidak perlu scroll jauh.
+- Blocking errors stop checkout, such as an empty cart or insufficient stock.
+- Warnings do not stop checkout immediately, but the cashier should review them first. Examples: empty customer or Rp0 shipping fee.
+- On mobile/tablet, totals and checkout buttons are sticky so the cashier does not need to scroll far.
 
-Cart juga bisa ditahan dengan `Tahan`, lalu dibuka lagi dari `Buka Hold`.
+Carts can also be held with `Tahan`, then restored from `Buka Hold`.
 
-## Customer Profile
+## Customer Profiles
 
-Customer profile dibuat otomatis dari:
+Customer profiles are built automatically from:
 
-- Tabel SQLite `customers`.
-- Transaksi SQLite aktif sebagai fallback.
-- Draft import.
-- Hold cart.
-- Struk terakhir.
+- The SQLite `customers` table.
+- Active SQLite sales as fallback.
+- Import drafts.
+- Held carts.
+- The last receipt.
 
-Saat nama customer cocok dengan riwayat lama:
+When a customer name matches previous history:
 
-- App menampilkan hint customer lama.
-- Ongkir default diisi otomatis jika berbeda.
-- Customer tetap bisa diedit manual.
+- The app shows a returning-customer hint.
+- The default shipping fee is filled automatically if different.
+- The customer can still be edited manually.
 
-Data customer sengaja sederhana:
+Customer data is intentionally simple:
 
-| Field | Fungsi |
+| Field | Purpose |
 | --- | --- |
-| `name` | Nama/alamat customer untuk autocomplete. |
-| `default_shipping` | Ongkir default yang dipakai otomatis saat customer dipilih. |
-| `last_order_at` | Waktu order terakhir, dipakai untuk prioritas saran customer terbaru. |
+| `name` | Customer name/address for autocomplete. |
+| `default_shipping` | Default shipping fee used when the customer is selected. |
+| `last_order_at` | Latest order time, used to prioritize recent suggestions. |
 
-Saat transaksi baru tersimpan atau data struk diedit, backend otomatis melakukan upsert customer. Kalau customer sudah ada, `default_shipping` dan `last_order_at` mengikuti order terbaru.
+When a new transaction is saved or a receipt is edited, the backend automatically upserts the customer. If the customer already exists, `default_shipping` and `last_order_at` follow the latest order.
 
 ## Inventory
 
-Inventory aktif disimpan di browser melalui `localStorage`, lalu dimirror ke SQLite lokal lewat API `/api/products` saat backend tersedia:
+Active inventory is stored in browser `localStorage`, then mirrored to local SQLite through `/api/products` when the backend is available:
 
 ```text
 kasir-bento-state-v1
 ```
 
-Sumber barang:
+Item sources:
 
-- Tambah manual dari modal `Kelola Barang`.
-- Import CSV/TSV/XLS/XLSX.
-- Sync Google Sheet publik atau published CSV.
+- Manual entry from the `Kelola Barang` modal.
+- CSV/TSV/XLS/XLSX import.
+- Public Google Sheet or published CSV sync.
 
-Kolom default:
+Default columns:
 
 ```csv
 sku,nama,harga,stok,kategori
 COF-001,Es Kopi Susu,18000,24,Minuman
 ```
 
-Kolom penting:
+Important columns:
 
-| Kolom | Keterangan |
+| Column | Description |
 | --- | --- |
-| `sku` | Kode barang, opsional tapi disarankan. |
-| `nama` | Nama barang. |
-| `harga` | Harga Rupiah, angka saja. |
-| `stok` | Jumlah stok. Bisa unlimited lewat UI manual. |
-| `kategori` | Kategori untuk filter produk. |
-| `alias` | Nama lain menu, opsional. Membantu import AI mencocokkan item. |
+| `sku` | Item code, optional but recommended. |
+| `nama` | Item name. |
+| `harga` | Rupiah price, numbers only. |
+| `stok` | Stock quantity. Can be unlimited through the manual UI. |
+| `kategori` | Category for product filtering. |
+| `alias` | Optional alternate menu names, useful for matching AI-imported orders. |
 
-Sync Google Sheet saat ini satu arah: Sheet ke app. Penjualan belum otomatis menulis balik ke Google Sheet.
+Google Sheet sync is currently one-way: Sheet to app. Sales do not automatically write back to Google Sheets.
 
-Catatan penyimpanan:
+Storage notes:
 
-- Saat app dibuka, produk dimuat dari SQLite jika tersedia.
-- Jika SQLite masih kosong tetapi browser punya produk, app akan seed mirror SQL dari cache browser.
-- Setelah import, edit manual, checkout, hapus/restore struk dengan penyesuaian stok, app menyimpan ulang produk ke SQL.
-- Google Sheet tetap sumber satu arah; stok di Google Sheet tidak otomatis berubah setelah penjualan.
+- When the app opens, products are loaded from SQLite if available.
+- If SQLite is empty but the browser has products, the app seeds the SQL mirror from the browser cache.
+- After import, manual edits, checkout, delete/restore with stock adjustments, the app saves products back to SQL.
+- Google Sheets remain a one-way source; stock in Google Sheets is not automatically changed after sales.
 
-## Import Pesanan
+## Order Import
 
-Fitur `Import Pesanan` dipakai untuk membuat banyak draft order sekaligus.
+`Import Pesanan` is used to create many draft orders at once.
 
-Input yang didukung:
+Supported input:
 
 - Upload CSV/TSV.
-- Paste CSV hasil rangkuman AI.
-- Tombol `Salin Prompt AI` untuk meminta AI merapikan chat WhatsApp menjadi CSV.
+- Paste CSV generated from an AI summary.
+- Use `Salin Prompt AI` to ask AI to clean up WhatsApp chats into CSV.
 
-Format kolom:
+Column format:
 
 ```csv
 customer,chatDate,payment,ongkir,item,quantity,note
 "Bu Ani - Jl Melati 12","28/5/2026 10.15","Tunai",10000,"Nasi Box Ayam",20,"tanpa sambal 5 box"
 ```
 
-Draft belum menjadi transaksi sampai kasir memprosesnya ke keranjang atau batch process. Draft siap bisa diproses sekaligus, dan opsi batch print tersedia.
+Drafts do not become transactions until the cashier processes them into the cart or batch process. Ready drafts can be processed together, and batch print is available.
 
-## Struk Dan Printer Thermal
+## Receipts and Thermal Printers
 
-Struk dibuat untuk printer thermal receipt:
+Receipts are designed for thermal receipt printers:
 
-- Default app: 58mm.
-- Print area 58mm dibuat lebih sempit supaya aman di printer thermal kecil.
-- Tinggi halaman print dihitung otomatis dari isi struk.
-- Opsi 80mm tetap tersedia di `Edit Struk`.
-- Teks struk dibuat bold agar lebih terbaca.
-- Customer langsung dicetak sebagai nama/alamat, tanpa label `Customer`.
-- Nomor struk dibuat backend saat transaksi tersimpan.
+- Default app width: 58mm.
+- The 58mm print area is slightly narrower for safer output on small thermal printers.
+- Printed page height is calculated dynamically from receipt content.
+- 80mm remains available in `Edit Struk`.
+- Receipt text is bold for readability.
+- Customer name/address is printed directly without a `Customer` label.
+- Receipt numbers are created by the backend when transactions are saved.
 
-Pengaturan struk:
+Receipt settings:
 
-- Nama toko.
-- Alamat toko.
-- Catatan bawah struk.
-- Lebar struk 58mm/80mm.
-- Ukuran font.
+- Store name.
+- Store address.
+- Receipt footer.
+- 58mm/80mm receipt width.
+- Font size.
 - Auto print.
-- Print langsung atau preview dulu.
+- Direct print or preview first.
 - Test print.
 
-Setup printer:
+Printer setup:
 
-- Tombol `Setup Printer` membuka modal checklist printer.
-- Modal menautkan file `drivers/XP PRINTER DRIVER.rar`.
-- Driver tetap harus diinstall di OS. Web app hanya membantu checklist dan test print.
+- `Setup Printer` opens a printer checklist modal.
+- The modal links to `drivers/XP PRINTER DRIVER.rar`.
+- The driver still must be installed at the operating system level. The web app only provides a checklist and test print.
 
-Rekomendasi custom paper thermal 58mm di macOS:
+Recommended custom 58mm thermal paper settings on macOS:
 
 ```text
 Width: 58 mm
-Height normal: 150 mm
+Normal height: 150 mm
 Margins: 0 mm
 Scale: 100%
 Headers and footers: Off
 ```
 
-Jika harga kanan kepotong:
+If right-side prices are cut off:
 
-- Driver harus POS58/receipt printer, bukan Generic PostScript/AirPrint.
-- Paper size harus 58mm.
-- Margins none/minimum.
-- Scale bisa diturunkan ke 95%.
+- Use a POS58/receipt printer driver, not Generic PostScript/AirPrint.
+- Paper size must be 58mm.
+- Margins should be none/minimum.
+- Scale can be reduced to 95%.
 
-## Dashboard Penjualan
+## Sales Dashboard
 
-`Dashboard Penjualan` ada di modal, bukan halaman terpisah.
+`Dashboard Penjualan` is a modal, not a separate page.
 
-Fitur utama:
+Main features:
 
-- Default buka ke tanggal lokal hari ini.
-- Range `Harian`, `7 Hari`, `30 Hari`, dan `Custom`.
-- Input tanggal `Dari` dan `Sampai`.
-- Tombol tanggal sebelumnya, berikutnya, dan hari ini.
-- Tab status `Aktif`, `Terhapus`, dan `Semua`.
-- Ringkasan jumlah transaksi dan omzet untuk range terpilih.
-- Total transaksi aktif dari database.
-- Breakdown metode pembayaran.
-- Breakdown item terjual.
-- Search nomor struk, item, customer, catatan, atau pembayaran.
-- Card struk menonjolkan customer sebagai judul utama.
-- Aksi cepat per struk: `Cetak`, `Edit`, `Detail`, `Hapus`, atau `Restore`.
-- Form edit struk bisa mengubah customer, pembayaran, ongkir, pajak, chat date, item, qty, harga, SKU, dan catatan item sebelum cetak ulang.
+- Opens to today's local date by default.
+- Ranges: `Harian`, `Mingguan`, `Semua`, and `Custom`.
+- `Dari` and `Sampai` date inputs.
+- Previous date, next date, and today buttons.
+- Status tabs: `Aktif`, `Terhapus`, and `Semua`.
+- Transaction count and revenue summary for the selected range.
+- Total active transactions from the database.
+- Payment method breakdown.
+- Sold item breakdown.
+- Search by receipt number, item, customer, note, or payment method.
+- Receipt cards highlight the customer as the main title.
+- Quick actions per receipt: `Cetak`, `Edit`, `Detail`, `Hapus`, or `Restore`.
+- Receipt edit form can change customer, payment, shipping fee, tax, chat date, item, qty, price, SKU, and item notes before reprinting.
+- Transaction history is paginated at 10 receipts per page.
 
 Soft delete:
 
-- Tombol `Hapus` tidak menghapus permanen dari SQLite.
-- Backend mengisi kolom `deleted_at`.
-- Struk pindah ke tab `Terhapus`.
-- Struk bisa dikembalikan dengan `Restore`.
-- Saat hapus, kasir bisa memilih apakah stok lokal dikembalikan.
-- Jika struk direstore dan sebelumnya stok dikembalikan, stok lokal dikurangi lagi.
+- `Hapus` does not permanently delete from SQLite.
+- The backend fills the `deleted_at` column.
+- Receipts move to the `Terhapus` tab.
+- Receipts can be restored with `Restore`.
+- During delete, the cashier can choose whether local stock should be restored.
+- If a receipt is restored and stock was previously restored, local stock is reduced again.
 
-## Backup Dan Restore Database
+## Backup and Restore
 
-Dashboard menyediakan:
+The dashboard provides:
 
-- `Backup`: download file SQLite saat ini.
-- `Restore`: upload file SQLite backup untuk mengganti database transaksi.
-- `Backup Semua`: download satu file JSON berisi SQLite dan state browser seperti inventory, setting, cart, hold cart, dan draft.
-- `Restore Semua`: restore file JSON backup penuh.
+- `Backup`: download the current SQLite file.
+- `Restore`: upload a SQLite backup to replace the transaction database.
+- `Backup Semua`: download one JSON file containing SQLite and browser state such as inventory, settings, cart, held carts, and drafts.
+- `Restore Semua`: restore a full JSON backup.
 
-Restore backup melakukan validasi:
+Backup restore validation:
 
-- File harus SQLite valid.
-- File harus punya tabel `sales` dan `sale_items`.
-- Jika valid, database lama disalin dulu ke file safety `kasir-bento.before-restore.sqlite3`.
-- Setelah restore, migrasi kolom terbaru tetap dijalankan otomatis.
+- The file must be valid SQLite.
+- The file must contain `sales` and `sale_items` tables.
+- If valid, the old database is copied first to the safety file `kasir-bento.before-restore.sqlite3`.
+- After restore, latest column migrations still run automatically.
 
-Gunakan `Backup Semua` untuk backup paling lengkap. Backup SQLite mentah tetap berguna untuk database transaksi dan tabel SQL, tetapi tidak menyertakan state browser yang sedang aktif.
+Use `Backup Semua` for the most complete backup. Raw SQLite backup remains useful for transactions and SQL tables, but it does not include the active browser state.
 
-## Backend Dan API
+## Backend and API
 
-Backend ada di `server.py`, menggunakan `ThreadingHTTPServer` dan SQLite.
+The backend is in `server.py`, using `ThreadingHTTPServer` and SQLite.
 
 Default host:
 
@@ -294,91 +295,91 @@ Default host:
 127.0.0.1:4174
 ```
 
-Endpoint:
+Endpoints:
 
-| Method | Path | Fungsi |
+| Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/health` | Cek server dan nama database. |
-| `GET` | `/api/customers?limit=300` | Ambil customer untuk autocomplete dan ongkir default. |
-| `GET` | `/api/sales?limit=50` | Ambil transaksi aktif terbaru. Limit maksimal 200. |
-| `GET` | `/api/sales?limit=50&includeDeleted=1` | Ambil transaksi aktif dan terhapus. |
-| `POST` | `/api/sales` | Simpan transaksi baru ke SQLite. |
-| `PUT` | `/api/sales/{id}` | Edit data dasar struk dan, jika ada payload `items`, ganti item struk lalu hitung ulang subtotal/total. |
-| `DELETE` | `/api/sales/{id}` | Soft delete transaksi. Body opsional: `{ "restoreStock": true }`. |
-| `POST` | `/api/sales/{id}/restore` | Restore transaksi yang soft-deleted. |
-| `GET` | `/api/products` | Ambil produk dari mirror SQLite. |
-| `PUT` | `/api/products` | Simpan ulang semua produk dari cache frontend ke SQLite. |
-| `DELETE` | `/api/products` | Hapus mirror produk SQLite. |
-| `GET` | `/api/backup/database` | Download file SQLite backup. |
-| `POST` | `/api/backup/restore` | Restore database dari file SQLite upload. |
+| `GET` | `/api/health` | Check the server and database name. |
+| `GET` | `/api/customers?limit=300` | Fetch customers for autocomplete and default shipping fee. |
+| `GET` | `/api/sales?limit=50` | Fetch latest active transactions. Max limit is 200. |
+| `GET` | `/api/sales?limit=50&includeDeleted=1` | Fetch active and deleted transactions. |
+| `POST` | `/api/sales` | Save a new transaction to SQLite. |
+| `PUT` | `/api/sales/{id}` | Edit basic receipt data and, if `items` is provided, replace receipt items and recalculate subtotal/total. |
+| `DELETE` | `/api/sales/{id}` | Soft-delete a transaction. Optional body: `{ "restoreStock": true }`. |
+| `POST` | `/api/sales/{id}/restore` | Restore a soft-deleted transaction. |
+| `GET` | `/api/products` | Fetch products from the SQLite mirror. |
+| `PUT` | `/api/products` | Save all products from the frontend cache into SQLite. |
+| `DELETE` | `/api/products` | Clear the SQLite product mirror. |
+| `GET` | `/api/backup/database` | Download a SQLite backup file. |
+| `POST` | `/api/backup/restore` | Restore the database from an uploaded SQLite file. |
 
-Tabel SQLite:
+SQLite tables:
 
-| Tabel | Isi |
+| Table | Contents |
 | --- | --- |
-| `sales` | Header transaksi: nomor struk, waktu, toko, payment, subtotal, ongkir/discount, pajak, total, customer, chat date, soft-delete metadata. |
-| `sale_items` | Item transaksi: sale id, SKU, nama, harga, qty, line total, note. |
-| `customers` | Profil customer sederhana: nama, ongkir default, order terakhir. |
-| `products` | Mirror produk/menu: client id, SKU, nama, harga, stok, unlimited, kategori, alias, source. |
+| `sales` | Transaction header: receipt number, time, store, payment, subtotal, shipping/discount, tax, total, customer, chat date, and soft-delete metadata. |
+| `sale_items` | Transaction items: sale id, SKU, name, price, qty, line total, note. |
+| `customers` | Simple customer profiles: name, default shipping fee, latest order. |
+| `products` | Product/menu mirror: client id, SKU, name, price, stock, unlimited flag, category, aliases, source. |
 
-Kolom penting di `sales`:
+Important `sales` columns:
 
-| Kolom | Fungsi |
+| Column | Purpose |
 | --- | --- |
-| `receipt_no` | Nomor struk unik per tanggal. |
-| `completed_at` | Waktu transaksi selesai. |
-| `discount` | Dipakai sebagai ongkir lama untuk kompatibilitas. |
-| `customer_name` | Nama/alamat customer. |
-| `chat_date` | Waktu chat/order dari import. |
-| `deleted_at` | Kosong jika aktif, berisi timestamp jika soft-deleted. |
-| `stock_restored_on_delete` | Penanda stok lokal dikembalikan saat delete. |
+| `receipt_no` | Unique receipt number per date. |
+| `completed_at` | Transaction completion time. |
+| `discount` | Used as legacy shipping fee for compatibility. |
+| `customer_name` | Customer name/address. |
+| `chat_date` | Chat/order time from imports. |
+| `deleted_at` | Empty when active; contains a timestamp when soft-deleted. |
+| `stock_restored_on_delete` | Marks whether local stock was restored during delete. |
 
-Kolom penting di `customers`:
+Important `customers` columns:
 
-| Kolom | Fungsi |
+| Column | Purpose |
 | --- | --- |
-| `name` | Nama/alamat customer, unik. |
-| `default_shipping` | Ongkir default terbaru. |
-| `last_order_at` | Waktu order terakhir. |
-| `created_at` | Waktu customer pertama tersimpan. |
-| `updated_at` | Waktu profil customer terakhir berubah. |
+| `name` | Unique customer name/address. |
+| `default_shipping` | Latest default shipping fee. |
+| `last_order_at` | Latest order time. |
+| `created_at` | First time the customer was stored. |
+| `updated_at` | Last time the customer profile changed. |
 
-## Penyimpanan Data
+## Data Storage
 
-Data tersimpan di dua tempat:
+Data is stored in two places:
 
-| Lokasi | Isi | Risiko |
+| Location | Contents | Risk |
 | --- | --- | --- |
-| Browser `localStorage` | Cache UI produk, cart aktif, hold cart, pengaturan, cache sync, draft import. | Bisa hilang jika browser data dibersihkan. |
-| SQLite `kasir-bento.sqlite3` | Transaksi selesai, item penjualan, customer profile sederhana, dan mirror produk. | Harus rutin dibackup. |
+| Browser `localStorage` | UI product cache, active cart, held carts, settings, sync cache, import drafts. | Can be lost if browser data is cleared. |
+| SQLite `kasir-bento.sqlite3` | Completed transactions, sale items, simple customer profiles, and product mirror. | Must be backed up regularly. |
 
-Untuk pindah perangkat atau recovery lengkap, pakai `Backup Semua` karena ia membawa SQLite dan state browser sekaligus.
+For device migration or full recovery, use `Backup Semua` because it includes both SQLite and browser state.
 
-## Batasan Saat Ini
+## Current Limitations
 
-- Belum ada login atau role pengguna.
-- Belum ada audit log per user.
-- Belum ada cloud database.
-- Belum ada sinkron transaksi antar device.
-- Belum ada write-back otomatis ke Google Sheet.
-- Belum ada modal khusus untuk mengelola customer manual.
-- Belum ada refund/return formal. Koreksi transaksi dilakukan lewat edit, soft delete, dan restore.
-- Printer thermal tetap bergantung pada driver OS dan print dialog browser.
+- No login or user roles yet.
+- No per-user audit log yet.
+- No cloud database yet.
+- No transaction sync across devices yet.
+- No automatic write-back to Google Sheets yet.
+- No dedicated modal for manual customer management yet.
+- No formal refund/return workflow yet. Corrections are handled through edit, soft delete, and restore.
+- Thermal printer behavior still depends on OS drivers and the browser print dialog.
 
-## Catatan Untuk AI/Agent Berikutnya
+## Notes for Future AI Agents
 
-Gunakan bagian ini sebagai konteks sebelum mengubah project:
+Use this section as context before changing the project:
 
-- Jangan menghapus data SQLite atau `localStorage` tanpa instruksi jelas.
-- Jangan mengganti soft delete menjadi hard delete kecuali diminta eksplisit.
-- Jaga pengalaman kasir tetap cepat. Fitur utama harus bisa dipakai tanpa membaca tutorial panjang.
-- Untuk UI, ikuti pola di `index.html`, `styles.css`, dan `script.js`.
-- Untuk perubahan struk, test di print preview dan pikirkan batas 58mm thermal.
-- Untuk perubahan dashboard, tanggal harus mengikuti timezone lokal pengguna.
-- Untuk perubahan inventory, jangan merusak format Google Sheet/CSV yang sudah didukung.
-- Untuk fitur transaksi, pastikan payload tetap cocok dengan `POST /api/sales`.
-- Kalau menambah API baru, dokumentasikan di README ini.
-- Kalau menambah workflow besar, update juga `docs/PROJECT_AGENTS.md` jika role/handoff ikut berubah.
+- Do not delete SQLite data or `localStorage` without clear instruction.
+- Do not replace soft delete with hard delete unless explicitly requested.
+- Keep the cashier experience fast. Core features should work without long tutorials.
+- For UI work, follow the patterns in `index.html`, `styles.css`, and `script.js`.
+- For receipt changes, test print preview and consider the 58mm thermal width limit.
+- For dashboard changes, dates must follow the user's local timezone.
+- For inventory changes, do not break existing Google Sheet/CSV formats.
+- For transaction features, keep payloads compatible with `POST /api/sales`.
+- If you add a new API, document it in this README.
+- If you add a major workflow, also update `docs/PROJECT_AGENTS.md` if role/handoff guidance changes.
 
 Useful handoff guide:
 
