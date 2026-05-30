@@ -1,0 +1,28 @@
+# Python/runtime
+__pycache__/
+*.py[cod]
+.venv*/
+
+# Local databases and backups
+*.sqlite
+*.sqlite3
+*.sqlite3-journal
+*.db
+*.db-journal
+*.backup
+*.bak
+
+# Local exports with potentially sensitive order/customer data
+orders-*.csv
+sales-*.csv
+customers-*.csv
+backups/
+
+# Desktop build output
+build/
+dist/
+*.spec
+
+# Local packaged drivers or vendor archives
+drivers/*.rar
+drivers/*.zip

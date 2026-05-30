@@ -1,0 +1,966 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0f766e">
+    <title>Kasir Shanti Catering</title>
+    <script>
+      (() => {
+        try {
+          const saved = JSON.parse(localStorage.getItem("kasir-bento-state-v1") || "{}");
+          const theme = saved?.settings?.theme === "dark" ? "dark" : "light";
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+          document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#0f1f1c" : "#0f766e");
+        } catch (error) {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <style>
+      html {
+        background: #f6f4ee;
+        color-scheme: light;
+      }
+
+      html[data-theme="dark"] {
+        background: #0f1714;
+        color-scheme: dark;
+      }
+    </style>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="styles.css?v=145">
+    <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script defer src="script.js?v=145"></script>
+  </head>
+  <body>
+    <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-delivery-rider" viewBox="0 0 24 24">
+        <circle cx="6" cy="17" r="2"></circle>
+        <circle cx="18" cy="17" r="2"></circle>
+        <path d="M8 17h6l2-4h2.4l1.6 4"></path>
+        <path d="M4.5 14h6.5"></path>
+        <path d="M11 10.5h3.4l2 2.5"></path>
+        <path d="M12.5 8.2a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8Z"></path>
+        <path d="M11.7 8.8 9.8 12l2.5 1.7"></path>
+        <path d="M3.5 11.8h3"></path>
+      </symbol>
+      <symbol id="icon-import-order" viewBox="0 0 24 24">
+        <path d="M12 3v10"></path>
+        <path d="m8 9 4 4 4-4"></path>
+        <path d="M5 15v3a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-3"></path>
+        <path d="M8 5H6a2 2 0 0 0-2 2v2"></path>
+        <path d="M16 5h2a2 2 0 0 1 2 2v2"></path>
+      </symbol>
+      <symbol id="icon-sales-chart" viewBox="0 0 24 24">
+        <path d="M4 19V5"></path>
+        <path d="M4 19h16"></path>
+        <path d="M8 16v-5"></path>
+        <path d="M12 16V8"></path>
+        <path d="M16 16v-3"></path>
+        <path d="M7 9l4-3 4 4 4-5"></path>
+      </symbol>
+      <symbol id="icon-customer-data" viewBox="0 0 24 24">
+        <circle cx="8.5" cy="8" r="3"></circle>
+        <path d="M3 20a5.5 5.5 0 0 1 11 0"></path>
+        <path d="M16 7h5"></path>
+        <path d="M16 12h5"></path>
+        <path d="M16 17h3"></path>
+      </symbol>
+      <symbol id="icon-receipt-edit" viewBox="0 0 24 24">
+        <path d="M7 3h10a2 2 0 0 1 2 2v16l-3-2-2 2-2-2-2 2-2-2-3 2V5a2 2 0 0 1 2-2Z"></path>
+        <path d="M9 8h6"></path>
+        <path d="M9 12h4"></path>
+        <path d="m14 16 3-3 2 2-3 3h-2v-2Z"></path>
+      </symbol>
+      <symbol id="icon-printer-setup" viewBox="0 0 24 24">
+        <path d="M7 8V3h10v5"></path>
+        <path d="M7 17H5a3 3 0 0 1-3-3v-3a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-2"></path>
+        <path d="M7 14h10v7H7z"></path>
+        <path d="M9 17h6"></path>
+      </symbol>
+      <symbol id="icon-trash" viewBox="0 0 24 24">
+        <path d="M3 6h18"></path>
+        <path d="M8 6V4h8v2"></path>
+        <path d="M6 6l1 15h10l1-15"></path>
+        <path d="M10 11v6"></path>
+        <path d="M14 11v6"></path>
+      </symbol>
+    </svg>
+    <div class="app-shell">
+      <button class="sidebar-overlay" id="sidebarOverlay" type="button" aria-label="Tutup menu"></button>
+      <aside class="app-sidebar" id="appSidebar" aria-label="Menu aplikasi">
+        <div class="sidebar-brand">
+          <img class="sidebar-logo" src="logocatering.webp" alt="Logo Shanti Catering">
+          <div>
+            <p class="eyebrow">Aplikasi Kasir</p>
+            <strong>Kasir Shanti Catering</strong>
+          </div>
+          <button class="icon-button sidebar-close-button" id="closeSidebarButton" type="button" aria-label="Tutup menu">×</button>
+        </div>
+        <nav class="sidebar-nav" aria-label="Navigasi kasir">
+          <button class="secondary-button" id="openBulkImportButton" type="button">
+            <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-import-order"></use></svg></span>
+            <span class="nav-copy"><strong>Import Pesanan</strong><small>Chat WA atau CSV jadi draft order.</small></span>
+          </button>
+          <button class="ghost-button" id="openSalesDashboardButton" type="button">
+            <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sales-chart"></use></svg></span>
+            <span class="nav-copy"><strong>Laporan Penjualan</strong><small>Omzet, closing, struk aktif, dan arsip.</small></span>
+          </button>
+          <button class="ghost-button" id="openCustomerDataButton" type="button">
+            <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-customer-data"></use></svg></span>
+            <span class="nav-copy"><strong>Data Customer</strong><small>Edit nama dan ongkir.</small></span>
+          </button>
+          <button class="ghost-button" id="openReceiptSettingsButton" type="button">
+            <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-receipt-edit"></use></svg></span>
+            <span class="nav-copy"><strong>Edit Struk</strong><small>Atur toko, ukuran kertas, dan test print.</small></span>
+          </button>
+          <button class="ghost-button" id="openPrinterSetupButton" type="button">
+            <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-printer-setup"></use></svg></span>
+            <span class="nav-copy"><strong>Setup Printer</strong><small>Driver XP, checklist thermal, dan test print.</small></span>
+          </button>
+        </nav>
+        <div class="sidebar-footer">
+          <span>Mode Tampilan</span>
+          <button class="ghost-button theme-toggle-button" id="themeToggleButton" type="button" aria-label="Aktifkan mode gelap" title="Aktifkan mode gelap" aria-pressed="false">
+            <span class="nav-icon">
+              <svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"></path>
+              </svg>
+              <svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2"></path>
+                <path d="M12 20v2"></path>
+                <path d="m4.93 4.93 1.41 1.41"></path>
+                <path d="m17.66 17.66 1.41 1.41"></path>
+                <path d="M2 12h2"></path>
+                <path d="M20 12h2"></path>
+                <path d="m6.34 17.66-1.41 1.41"></path>
+                <path d="m19.07 4.93-1.41 1.41"></path>
+              </svg>
+            </span>
+            <span class="nav-copy"><strong id="themeToggleTitle">Mode Gelap</strong><small id="themeToggleCopy">Nyaman untuk shift malam.</small></span>
+          </button>
+        </div>
+      </aside>
+
+      <div class="app-content">
+        <header class="topbar">
+          <div class="brand-lockup">
+            <img class="brand-logo" src="logocatering.webp" alt="Logo Shanti Catering">
+            <div>
+              <p class="eyebrow">Aplikasi Kasir</p>
+              <h1>Kasir Shanti Catering</h1>
+            </div>
+          </div>
+          <button class="icon-button sidebar-menu-button" id="sidebarMenuButton" type="button" aria-label="Buka menu" aria-controls="appSidebar" aria-expanded="false">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+        </header>
+
+        <main class="bento-grid">
+        <section class="panel panel-products" aria-labelledby="productsTitle">
+          <div class="panel-heading">
+            <div>
+              <h2 id="productsTitle">Daftar Barang</h2>
+            </div>
+            <div class="panel-heading-actions">
+              <label class="search-label" aria-label="Cari barang">
+                <input id="searchInput" type="search" placeholder="Cari nama, SKU, atau alias">
+              </label>
+              <button class="secondary-button" id="openInventoryModalButton" type="button">Kelola Barang</button>
+            </div>
+          </div>
+          <div class="daily-menu-bar" aria-label="Filter menu harian">
+            <div>
+              <strong id="dailyMenuTitle">Menu Hari Ini</strong>
+              <p id="dailyMenuStatus">Belum ada menu khusus hari ini.</p>
+            </div>
+            <div class="daily-menu-actions">
+              <button class="ghost-button active" id="showAllMenuButton" type="button">Semua Menu</button>
+              <button class="ghost-button" id="showTodayMenuButton" type="button">Menu Hari Ini</button>
+              <button class="secondary-button" id="openDailyMenuButton" type="button">Atur Menu</button>
+            </div>
+          </div>
+          <div class="category-filter" id="categoryFilter" aria-label="Filter kategori barang"></div>
+          <div class="product-list" id="productList" aria-live="polite"></div>
+          <p class="status inventory-status" id="syncStatus" role="status">Tempel link Google Sheet yang bisa dilihat publik untuk sinkron barang.</p>
+        </section>
+
+        <section class="panel panel-cart" aria-labelledby="cartTitle">
+          <div class="panel-heading">
+            <div class="cart-title-row">
+              <h2 id="cartTitle">Keranjang</h2>
+              <span class="cart-item-badge" id="cartItemBadge">Kosong</span>
+            </div>
+            <div class="cart-heading-actions">
+              <button class="secondary-button" id="holdCartButton" type="button">Tahan</button>
+              <button class="ghost-button" id="openHeldCartsButton" type="button">Buka Hold</button>
+              <button class="ghost-button danger clear-cart-button" id="clearCartButton" type="button" aria-label="Kosongkan keranjang" title="Kosongkan keranjang">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 6h18"></path>
+                  <path d="M8 6V4h8v2"></path>
+                  <path d="M6 6l1 15h10l1-15"></path>
+                  <path d="M10 11v6"></path>
+                  <path d="M14 11v6"></path>
+                </svg>
+                <span class="sr-only">Kosongkan</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="cart-customer-bar">
+            <label class="sale-customer-field">
+              <span class="customer-field-title">Customer / Alamat</span>
+              <input id="customerNameInput" type="text" list="customerSuggestions" autocomplete="off" placeholder="Contoh: Pantai Mentari Blok SF no. 9">
+              <span class="customer-profile-hint" id="customerProfileHint">Customer baru. Ongkir bisa diisi manual.</span>
+            </label>
+            <datalist id="customerSuggestions"></datalist>
+          </div>
+
+          <div class="cart-list" id="cartList"></div>
+
+          <div class="sale-controls">
+            <label>
+              <span class="shipping-label">
+                <svg class="delivery-icon" aria-hidden="true" focusable="false"><use href="#icon-delivery-rider"></use></svg>
+                <span>Ongkir</span>
+              </span>
+              <input id="shippingInput" type="text" inputmode="numeric" pattern="[0-9.]*" autocomplete="off" value="0">
+            </label>
+            <div class="payment-field">
+              <span class="control-label">Pembayaran</span>
+              <div class="payment-segmented" id="paymentSelect" role="radiogroup" aria-label="Pilih pembayaran">
+                  <button class="payment-segment active" type="button" role="radio" aria-checked="true" data-payment-option="Tunai">
+                    <span class="payment-method-icon" aria-hidden="true">Rp</span>
+                    <span>Tunai</span>
+                  </button>
+                  <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="Debit">
+                    <span class="payment-method-icon" aria-hidden="true">▭</span>
+                    <span>Debit</span>
+                  </button>
+                  <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="QRIS">
+                    <span class="payment-method-icon" aria-hidden="true">▦</span>
+                    <span>QRIS</span>
+                  </button>
+                  <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="Transfer">
+                    <span class="payment-method-icon" aria-hidden="true">↗</span>
+                    <span>Transfer</span>
+                  </button>
+                <select class="native-payment-select" id="paymentInput" tabindex="-1" aria-hidden="true">
+                  <option>Tunai</option>
+                  <option>Debit</option>
+                  <option>QRIS</option>
+                  <option>Transfer</option>
+                </select>
+              </div>
+            </div>
+            <button class="ghost-button receipt-preview-button" id="openReceiptPreviewButton" type="button">Preview Struk</button>
+          </div>
+
+          <div class="checkout-validation" id="checkoutValidation" aria-live="polite" hidden></div>
+
+          <div class="checkout-sticky">
+            <div class="totals-card" aria-live="polite">
+              <div><span>Subtotal</span><strong id="subtotalText">Rp0</strong></div>
+              <div><span class="shipping-label"><svg class="delivery-icon" aria-hidden="true" focusable="false"><use href="#icon-delivery-rider"></use></svg><span>Ongkir</span></span><strong id="shippingText">Rp0</strong></div>
+              <div class="grand-total"><span>Total</span><strong id="totalText">Rp0</strong></div>
+            </div>
+            <div class="checkout-actions">
+              <button class="secondary-button full-width checkout-print-button" id="printReceiptButton" type="button">Cetak Struk</button>
+              <button class="primary-button full-width checkout-complete-button" id="completeSaleButton" type="button">Selesaikan Transaksi</button>
+            </div>
+          </div>
+        </section>
+        </main>
+      </div>
+    </div>
+
+    <dialog class="settings-modal sales-modal" id="salesDashboardModal" aria-labelledby="salesModalTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" type="submit" aria-label="Tutup dashboard penjualan">×</button>
+      </form>
+      <section class="modal-panel">
+        <div class="panel-heading sales-modal-heading">
+          <div>
+            <p class="eyebrow">SQL Database</p>
+            <h2 id="salesModalTitle">Dashboard Penjualan</h2>
+            <p class="sales-date-label" id="salesDateLabel">Hari ini</p>
+          </div>
+          <div class="dashboard-actions">
+            <button class="ghost-button" id="refreshSalesButton" type="button">Muat Ulang</button>
+            <button class="secondary-button report-print-button" id="printDailyReportButton" type="button">Cetak Laporan A4</button>
+            <details class="export-menu">
+              <summary>Export</summary>
+              <div class="export-menu-panel">
+                <button class="ghost-button" id="exportDailyReportButton" type="button">CSV Tanggal Ini</button>
+                <button class="ghost-button" id="exportAllSalesButton" type="button">CSV Semua</button>
+                <button class="ghost-button" id="backupDatabaseButton" type="button">Backup DB</button>
+                <button class="ghost-button" id="backupFullAppButton" type="button">Backup Semua</button>
+                <button class="ghost-button" id="restoreFullAppButton" type="button">Restore Semua</button>
+              </div>
+            </details>
+            <button class="ghost-button" id="restoreDatabaseButton" type="button">Restore</button>
+            <input id="restoreDatabaseInput" type="file" accept=".sqlite,.sqlite3,.db,application/vnd.sqlite3,application/x-sqlite3" hidden>
+            <input id="restoreFullAppInput" type="file" accept=".json,application/json" hidden>
+          </div>
+        </div>
+
+        <div class="sales-filter-panel">
+          <div class="sales-date-controls" aria-label="Pilih tanggal dashboard penjualan">
+            <button class="icon-button date-step-button" id="previousSalesDateButton" type="button" aria-label="Tanggal sebelumnya">&lt;</button>
+            <div class="date-picker-field">
+              <span>Dari</span>
+              <button class="date-picker-button" id="salesStartDateButton" type="button" aria-haspopup="dialog" aria-expanded="false">
+                <strong id="salesStartDateText">29/05/2026</strong>
+                <small id="salesStartDateMeta">Pilih tanggal</small>
+              </button>
+              <input class="native-date-input" id="salesStartDateInput" type="date" hidden>
+            </div>
+            <div class="date-picker-field">
+              <span>Sampai</span>
+              <button class="date-picker-button" id="salesEndDateButton" type="button" aria-haspopup="dialog" aria-expanded="false">
+                <strong id="salesEndDateText">29/05/2026</strong>
+                <small id="salesEndDateMeta">Pilih tanggal</small>
+              </button>
+              <input class="native-date-input" id="salesEndDateInput" type="date" hidden>
+            </div>
+            <input class="native-date-input" id="salesDateInput" type="date" hidden>
+            <button class="icon-button date-step-button" id="nextSalesDateButton" type="button" aria-label="Tanggal berikutnya">&gt;</button>
+            <button class="secondary-button" id="todaySalesDateButton" type="button">Hari ini</button>
+            <div class="sales-calendar-popover" id="salesCalendarPopover" role="dialog" aria-label="Kalender transaksi" hidden>
+              <div class="sales-calendar-header">
+                <button class="icon-button" id="previousSalesCalendarMonthButton" type="button" aria-label="Bulan sebelumnya">&lt;</button>
+                <strong id="salesCalendarTitle">Mei 2026</strong>
+                <button class="icon-button" id="nextSalesCalendarMonthButton" type="button" aria-label="Bulan berikutnya">&gt;</button>
+              </div>
+              <div class="sales-calendar-weekdays" aria-hidden="true">
+                <span>Min</span>
+                <span>Sen</span>
+                <span>Sel</span>
+                <span>Rab</span>
+                <span>Kam</span>
+                <span>Jum</span>
+                <span>Sab</span>
+              </div>
+              <div class="sales-calendar-grid" id="salesCalendarGrid"></div>
+              <p class="sales-calendar-info" id="salesCalendarInfo">Pilih tanggal untuk melihat laporan.</p>
+            </div>
+          </div>
+
+          <div class="sales-range-tabs" role="tablist" aria-label="Rentang dashboard">
+            <button class="tab-button active" type="button" data-sales-range="day" aria-selected="true">Harian</button>
+            <button class="tab-button" type="button" data-sales-range="week">Mingguan</button>
+            <button class="tab-button" type="button" data-sales-range="all">Semua</button>
+            <button class="tab-button" type="button" data-sales-range="custom">Custom</button>
+          </div>
+
+          <div class="sales-status-tabs" role="tablist" aria-label="Status struk">
+            <button class="tab-button active" type="button" data-sales-status="active" aria-selected="true">Aktif</button>
+            <button class="tab-button" type="button" data-sales-status="deleted">Terhapus</button>
+            <button class="tab-button" type="button" data-sales-status="all">Semua</button>
+          </div>
+
+        </div>
+
+        <div class="sales-summary">
+          <div class="sales-summary-card sales-count-card" data-summary-icon="Struk">
+            <span id="selectedSalesLabel">Transaksi rentang ini</span>
+            <strong id="selectedSalesText">0</strong>
+          </div>
+          <div class="sales-summary-card sales-revenue-card" data-summary-icon="Rp">
+            <span id="selectedRevenueLabel">Omzet rentang ini</span>
+            <strong id="selectedRevenueText">Rp0</strong>
+          </div>
+          <div class="sales-summary-card sales-total-card" data-summary-icon="All">
+            <span>Total transaksi</span>
+            <strong id="totalSalesText">0</strong>
+          </div>
+        </div>
+
+        <section class="daily-report" aria-labelledby="dailyReportTitle">
+          <div class="daily-report-heading">
+            <div>
+              <p class="eyebrow">Closing Harian</p>
+              <h3 id="dailyReportTitle">Ringkasan tanggal ini</h3>
+            </div>
+            <div class="daily-average-card">
+              <span>Rata-rata</span>
+              <strong id="dailyAverageText">Rp0</strong>
+            </div>
+          </div>
+          <div class="daily-report-grid">
+            <div class="daily-report-card daily-payment-card">
+              <span>Metode pembayaran</span>
+              <div id="dailyPaymentBreakdown" class="mini-list"></div>
+            </div>
+            <div class="daily-report-card daily-items-card">
+              <span>Total item</span>
+              <div id="dailyItemTotals" class="mini-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <div class="sales-list-toolbar">
+          <div class="sales-list-heading">
+            <span>Riwayat</span>
+            <p class="sales-list-title">Semua transaksi</p>
+          </div>
+          <label class="sales-search-label">
+            Cari transaksi
+            <span class="sales-search-control">
+              <span aria-hidden="true">⌕</span>
+              <input id="salesSearchInput" type="search" placeholder="Nomor struk, item, customer, catatan, pembayaran">
+            </span>
+          </label>
+        </div>
+
+        <div class="sales-list" id="salesList" aria-live="polite"></div>
+        <div class="sales-pagination" id="salesPagination" hidden>
+          <button class="icon-button sales-page-button" id="previousSalesPageButton" type="button" aria-label="Halaman sebelumnya">&lt;</button>
+          <span class="sales-page-info" id="salesPageInfo">Halaman 1 dari 1</span>
+          <button class="icon-button sales-page-button" id="nextSalesPageButton" type="button" aria-label="Halaman berikutnya">&gt;</button>
+        </div>
+        <p class="status modal-status" id="databaseStatus" role="status">Dashboard membaca data dari SQLite.</p>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal customer-modal" id="customerDataModal" aria-labelledby="customerDataTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" type="submit" aria-label="Tutup data customer">×</button>
+      </form>
+      <section class="modal-panel customer-panel">
+        <div class="panel-heading customer-heading">
+          <div>
+            <p class="eyebrow">Customer</p>
+            <h2 id="customerDataTitle">Data Customer</h2>
+          </div>
+          <div class="customer-heading-actions">
+            <button class="primary-button" id="openAddCustomerButton" type="button">Tambah Customer</button>
+            <button class="ghost-button" id="refreshCustomersButton" type="button">Muat Ulang</button>
+          </div>
+        </div>
+
+        <label class="customer-search-label">
+          Cari customer
+          <span class="sales-search-control customer-search-control">
+            <span aria-hidden="true">⌕</span>
+            <input id="customerSearchInput" type="search" placeholder="Nama / alamat customer">
+          </span>
+        </label>
+
+        <div class="customer-scroll-area" id="customerScrollArea">
+          <section class="customer-similar-section" id="customerSimilarSection" hidden>
+            <div class="customer-section-heading">
+              <div>
+                <p class="eyebrow">Merge</p>
+                <h3>Cek Data Mirip</h3>
+              </div>
+            </div>
+            <div class="customer-similar-list" id="customerSimilarList"></div>
+          </section>
+
+          <div class="customer-list" id="customerDataList" aria-live="polite"></div>
+        </div>
+        <p class="status modal-status" id="customerDataStatus" role="status">Data customer belum dimuat.</p>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal customer-add-modal" id="addCustomerModal" aria-labelledby="addCustomerTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" type="submit" aria-label="Tutup tambah customer">×</button>
+      </form>
+      <section class="modal-panel customer-add-panel">
+        <div class="panel-heading customer-add-heading">
+          <div>
+            <p class="eyebrow">Customer</p>
+            <h2 id="addCustomerTitle">Tambah Customer</h2>
+          </div>
+        </div>
+
+        <form class="customer-add-form" id="addCustomerForm">
+          <label>
+            Nama customer / alamat
+            <input id="addCustomerNameInput" name="name" type="text" autocomplete="off" placeholder="Contoh: Pantai Mentari Blok SF no. 9">
+          </label>
+          <label>
+            Ongkir
+            <span class="customer-money-input">
+              <span>Rp</span>
+              <input id="addCustomerShippingInput" name="defaultShipping" type="text" inputmode="numeric" value="0">
+            </span>
+          </label>
+          <label>
+            Alias / singkatan
+            <textarea id="addCustomerAliasesInput" name="aliases" rows="3" placeholder="Opsional, contoh: PM SF 9"></textarea>
+          </label>
+          <div class="customer-add-actions">
+            <button class="ghost-button" id="cancelAddCustomerButton" type="button">Batal</button>
+            <button class="primary-button" type="submit">Simpan Customer</button>
+          </div>
+        </form>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal held-carts-modal" id="heldCartsModal" aria-labelledby="heldCartsTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" type="submit" aria-label="Tutup transaksi tertahan">×</button>
+      </form>
+      <section class="modal-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Hold Transaksi</p>
+            <h2 id="heldCartsTitle">Transaksi Tertahan</h2>
+          </div>
+        </div>
+        <div class="held-cart-list" id="heldCartList" aria-live="polite"></div>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal bulk-import-modal" id="bulkImportModal" aria-labelledby="bulkImportTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" type="submit" aria-label="Tutup import pesanan">×</button>
+      </form>
+      <section class="modal-panel bulk-import-panel">
+        <div class="panel-heading bulk-import-heading">
+          <div>
+            <p class="eyebrow">Bulk Input</p>
+            <h2 id="bulkImportTitle">Import Pesanan</h2>
+          </div>
+          <div class="inline-actions bulk-import-actions">
+            <a class="text-link" href="sample-bulk-orders.csv" download>Contoh CSV</a>
+            <button class="ghost-button" id="copyAiPromptButton" type="button">Salin Prompt AI</button>
+          </div>
+        </div>
+
+        <label class="drop-zone bulk-drop-zone" for="bulkImportFileInput">
+          <input id="bulkImportFileInput" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values">
+          <span class="drop-zone-title">File CSV</span>
+          <span class="drop-zone-copy">Summary AI dalam format CSV.</span>
+        </label>
+
+        <label>
+          CSV summary AI
+          <textarea id="bulkSummaryInput" rows="8" placeholder='customer,chatDate,payment,ongkir,item,quantity,note
+"Bu Ani - Jl Melati 12","28/5/2026 10.15","Tunai",10000,"Nasi Goreng Rumahan",20,"sambal pisah"'></textarea>
+        </label>
+
+        <div class="review-panel bulk-import-review" id="bulkImportReview" hidden></div>
+
+        <div class="inline-actions">
+          <button class="primary-button" id="parseBulkSummaryButton" type="button">Buat Draft</button>
+          <button class="ghost-button danger" id="clearBulkDraftsButton" type="button">Hapus Draft</button>
+        </div>
+
+        <div class="bulk-batch-panel" id="bulkBatchPanel" hidden>
+          <div>
+            <strong id="bulkBatchReadyText">0 draft siap</strong>
+            <p id="bulkBatchReviewText">Belum ada draft yang bisa diproses.</p>
+          </div>
+          <div class="bulk-batch-actions">
+            <button class="ghost-button" id="processReadyDraftsButton" type="button">Proses Semua Siap</button>
+            <button class="secondary-button" id="processPrintReadyDraftsButton" type="button">Proses + Cetak Semua</button>
+          </div>
+        </div>
+
+        <div class="bulk-draft-list" id="bulkDraftList" aria-live="polite"></div>
+        <p class="status modal-status" id="bulkImportStatus" role="status">Belum ada draft pesanan.</p>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal sale-detail-modal" id="saleDetailModal" aria-labelledby="saleDetailTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" type="submit" aria-label="Tutup detail struk">×</button>
+      </form>
+      <section class="modal-panel sale-detail-panel">
+        <div class="panel-heading sale-detail-heading">
+          <div>
+            <p class="eyebrow">Detail Struk</p>
+            <h2 id="saleDetailTitle">Detail transaksi</h2>
+          </div>
+          <div class="sale-detail-actions">
+            <button class="ghost-button" id="editSaleDetailButton" type="button">Edit Data</button>
+            <button class="secondary-button" id="printSaleDetailButton" type="button">Cetak Ulang</button>
+          </div>
+        </div>
+        <div class="sale-detail-body" id="saleDetailBody"></div>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal confirm-delete-modal" id="deleteSaleModal" aria-labelledby="deleteSaleTitle">
+      <section class="modal-panel confirm-delete-panel">
+        <div>
+          <p class="eyebrow">Konfirmasi</p>
+          <h2 id="deleteSaleTitle">Hapus struk?</h2>
+          <p class="confirm-delete-copy" id="deleteSaleMessage">Yakin mau hapus transaksi ini?</p>
+        </div>
+        <label class="check-row restore-stock-row">
+          <input id="restoreStockOnDeleteInput" type="checkbox" checked>
+          <span>Kembalikan stok barang dari struk ini</span>
+        </label>
+        <div class="confirm-delete-actions">
+          <button class="ghost-button" id="cancelDeleteSaleButton" type="button">Batal</button>
+          <button class="primary-button danger-button" id="confirmDeleteSaleButton" type="button">Ya, hapus</button>
+        </div>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal confirm-delete-modal" id="deleteProductModal" aria-labelledby="deleteProductTitle">
+      <section class="modal-panel confirm-delete-panel">
+        <div>
+          <p class="eyebrow">Konfirmasi Barang</p>
+          <h2 id="deleteProductTitle">Hapus barang?</h2>
+          <p class="confirm-delete-copy" id="deleteProductMessage">Yakin mau hapus barang ini?</p>
+          <p class="confirm-delete-note">Barang juga akan dilepas dari keranjang aktif dan transaksi hold.</p>
+        </div>
+        <div class="confirm-delete-actions">
+          <button class="ghost-button" id="cancelDeleteProductButton" type="button">Batal</button>
+          <button class="primary-button danger-button" id="confirmDeleteProductButton" type="button">Ya, hapus barang</button>
+        </div>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal confirm-delete-modal" id="appConfirmModal" aria-labelledby="appConfirmTitle">
+      <section class="modal-panel confirm-delete-panel">
+        <div>
+          <p class="eyebrow" id="appConfirmEyebrow">Konfirmasi</p>
+          <h2 id="appConfirmTitle">Lanjutkan?</h2>
+          <p class="confirm-delete-copy" id="appConfirmMessage">Yakin mau lanjut?</p>
+          <p class="confirm-delete-note" id="appConfirmNote" hidden></p>
+        </div>
+        <div class="confirm-delete-actions">
+          <button class="ghost-button" id="cancelAppConfirmButton" type="button">Batal</button>
+          <button class="primary-button" id="confirmAppConfirmButton" type="button">Ya, lanjut</button>
+        </div>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal inventory-modal" id="inventoryModal" aria-labelledby="inventoryModalTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" type="submit" aria-label="Tutup kelola barang">×</button>
+      </form>
+      <section class="modal-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Inventory</p>
+            <h2 id="inventoryModalTitle">Kelola Barang</h2>
+          </div>
+          <a class="text-link" href="sample-items.csv" download>Contoh CSV</a>
+        </div>
+
+        <div class="modal-tabs" role="tablist" aria-label="Pilihan kelola barang">
+          <button class="tab-button active" id="syncTabButton" type="button" role="tab" aria-selected="true" aria-controls="syncTabPanel" data-inventory-tab="sync">Sync Google</button>
+          <button class="tab-button" id="dailyMenuTabButton" type="button" role="tab" aria-selected="false" aria-controls="dailyMenuTabPanel" data-inventory-tab="daily">Menu Hari Ini</button>
+          <button class="tab-button" id="manualTabButton" type="button" role="tab" aria-selected="false" aria-controls="manualTabPanel" data-inventory-tab="manual">Add Manual</button>
+        </div>
+
+        <div class="review-panel inventory-review" id="inventoryReviewPanel" hidden>
+          <div>
+            <strong id="inventoryReviewTitle">Daftar barang perlu dicek</strong>
+            <p id="inventoryReviewCopy">Ada barang yang terdeteksi duplikat.</p>
+          </div>
+          <button class="ghost-button" id="mergeDuplicateProductsButton" type="button">Gabungkan Duplikat</button>
+        </div>
+
+        <section class="tab-panel active" id="syncTabPanel" role="tabpanel" aria-labelledby="syncTabButton" data-inventory-panel="sync">
+          <div class="connection-card" id="connectionCard">
+            <span class="connection-dot" id="connectionDot" aria-hidden="true"></span>
+            <div>
+              <strong id="connectionText">Memeriksa koneksi</strong>
+              <p id="lastSyncText">Data barang disimpan di perangkat untuk dipakai saat tidak ada internet.</p>
+            </div>
+          </div>
+
+          <div class="sheet-grid">
+            <label>
+              Link Google Sheet
+              <input id="sheetUrlInput" type="url" placeholder="https://docs.google.com/spreadsheets/d/...">
+            </label>
+            <label>
+              Nama tab sheet
+              <input id="sheetNameInput" type="text" placeholder="Produk">
+            </label>
+          </div>
+
+          <label class="drop-zone" for="spreadsheetInput">
+            <input id="spreadsheetInput" type="file" accept=".csv,.tsv,.txt,.xlsx,.xls">
+            <span class="drop-zone-title">Impor file cadangan</span>
+            <span class="drop-zone-copy">Pakai CSV/XLSX kalau Google Sheet belum terhubung.</span>
+          </label>
+
+          <div class="mapping-grid">
+            <label>
+              Kolom nama
+              <input id="nameColumnInput" type="text" value="nama" autocomplete="off">
+            </label>
+            <label>
+              Kolom harga
+              <input id="priceColumnInput" type="text" value="harga" autocomplete="off">
+            </label>
+            <label>
+              Kolom stok
+              <input id="stockColumnInput" type="text" value="stok" autocomplete="off">
+            </label>
+            <label>
+              Kolom SKU
+              <input id="skuColumnInput" type="text" value="sku" autocomplete="off">
+            </label>
+          </div>
+
+          <div class="inline-actions">
+            <button class="secondary-button" id="syncSheetButton" type="button">Sinkron Sekarang</button>
+            <button class="ghost-button" id="saveSheetButton" type="button">Simpan Sheet</button>
+            <button class="secondary-button" id="importButton" type="button" disabled>Impor File</button>
+            <button class="ghost-button danger" id="clearInventoryButton" type="button">Hapus Barang</button>
+          </div>
+          <label class="check-row">
+            <input id="autoSyncInput" type="checkbox" checked>
+            <span>Sinkron otomatis saat online</span>
+          </label>
+        </section>
+
+        <section class="tab-panel" id="manualTabPanel" role="tabpanel" aria-labelledby="manualTabButton" data-inventory-panel="manual" hidden>
+          <form id="itemForm" class="item-form">
+            <label>
+              Nama barang
+              <input id="itemNameInput" type="text" placeholder="Es kopi" required>
+            </label>
+            <label>
+              Harga
+              <input id="itemPriceInput" type="number" min="0" step="100" placeholder="18000" required>
+            </label>
+            <label>
+              Kategori
+              <input id="itemCategoryInput" type="text" placeholder="Makanan">
+            </label>
+            <label>
+              Stok
+              <input id="itemStockInput" type="number" min="0" step="1" placeholder="24" required>
+            </label>
+            <label class="check-row stock-unlimited-row">
+              <input id="itemUnlimitedInput" type="checkbox">
+              <span>Stok unlimited</span>
+            </label>
+            <label>
+              SKU
+              <input id="itemSkuInput" type="text" placeholder="COF-001">
+            </label>
+            <label class="item-alias-field">
+              Alias menu
+              <input id="itemAliasInput" type="text" placeholder="ketan duren, ketan durian">
+            </label>
+            <button class="primary-button full-width" id="itemSubmitButton" type="submit">Simpan Barang</button>
+            <button class="ghost-button full-width" id="cancelEditProductButton" type="button" hidden>Batal Edit</button>
+          </form>
+        </section>
+
+        <section class="tab-panel" id="dailyMenuTabPanel" role="tabpanel" aria-labelledby="dailyMenuTabButton" data-inventory-panel="daily" hidden>
+          <div class="daily-menu-editor">
+            <div class="sheet-grid">
+              <div class="date-picker-field daily-menu-date-field">
+                <span>Tanggal menu</span>
+                <button class="date-picker-button daily-menu-date-button" id="dailyMenuDateButton" type="button" aria-haspopup="dialog" aria-expanded="false">
+                  <strong id="dailyMenuDateText">31/05/2026</strong>
+                  <small id="dailyMenuDateMeta">Menu hari ini</small>
+                </button>
+                <input class="native-date-input" id="dailyMenuDateInput" type="date" hidden>
+                <div class="sales-calendar-popover daily-menu-calendar-popover" id="dailyMenuCalendarPopover" role="dialog" aria-label="Kalender menu harian" hidden>
+                  <div class="sales-calendar-header">
+                    <button class="icon-button" id="previousDailyMenuMonthButton" type="button" aria-label="Bulan sebelumnya">&lt;</button>
+                    <strong id="dailyMenuCalendarTitle">Mei 2026</strong>
+                    <button class="icon-button" id="nextDailyMenuMonthButton" type="button" aria-label="Bulan berikutnya">&gt;</button>
+                  </div>
+                  <div class="sales-calendar-weekdays" aria-hidden="true">
+                    <span>M</span>
+                    <span>S</span>
+                    <span>S</span>
+                    <span>R</span>
+                    <span>K</span>
+                    <span>J</span>
+                    <span>S</span>
+                  </div>
+                  <div class="sales-calendar-grid" id="dailyMenuCalendarGrid"></div>
+                  <div class="daily-menu-calendar-actions">
+                    <button class="ghost-button" id="dailyMenuTodayButton" type="button">Hari ini</button>
+                  </div>
+                </div>
+              </div>
+              <label class="check-row daily-menu-check">
+                <input id="dailyMenuOnlyInput" type="checkbox" checked>
+                <span>Tampilkan menu hari ini saja di kasir</span>
+              </label>
+            </div>
+
+            <label class="drop-zone" for="dailyMenuFileInput">
+              <input id="dailyMenuFileInput" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values">
+              <span class="drop-zone-title">Upload CSV menu harian</span>
+              <span class="drop-zone-copy">Format: nama,harga. Contoh: Pepes Tongkol,20000.</span>
+            </label>
+
+            <label>
+              Paste menu hari ini
+              <textarea id="dailyMenuCsvInput" rows="7" placeholder="nama,harga&#10;Pepes Tongkol,20000&#10;Dadar Jagung,10000&#10;atau: Pepes Tongkol - 20000"></textarea>
+            </label>
+
+            <div class="inline-actions">
+              <button class="secondary-button" id="applyDailyMenuButton" type="button">Terapkan Menu</button>
+              <button class="ghost-button danger" id="clearDailyMenuButton" type="button">Kosongkan Menu</button>
+            </div>
+
+            <div class="review-panel daily-menu-review" id="dailyMenuReview" hidden></div>
+          </div>
+        </section>
+
+        <p class="status modal-status" id="syncModalStatus" role="status">Tempel link Google Sheet yang bisa dilihat publik untuk sinkron barang.</p>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal" id="receiptSettingsModal" aria-labelledby="settingsTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" id="closeReceiptSettingsButton" type="submit" aria-label="Tutup pengaturan">×</button>
+      </form>
+      <section class="modal-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Toko</p>
+            <h2 id="settingsTitle">Pengaturan Struk</h2>
+          </div>
+        </div>
+        <form id="settingsForm" class="settings-form">
+          <label>
+            Nama toko
+            <input id="storeNameInput" type="text" value="Kasir Shanti Catering">
+          </label>
+          <label>
+            Alamat
+            <textarea id="storeAddressInput" rows="3">Jl. Contoh No. 12, Jakarta</textarea>
+          </label>
+          <label>
+            Catatan bawah struk
+            <input id="footerInput" type="text" value="Terima kasih sudah berbelanja">
+          </label>
+          <label>
+            Lebar struk
+            <select id="receiptWidthInput">
+              <option value="58" selected>58 mm</option>
+              <option value="80">80 mm</option>
+            </select>
+          </label>
+          <label>
+            Ukuran tulisan struk
+            <select id="receiptFontSizeInput">
+              <option value="small">Kecil</option>
+              <option value="medium" selected>Sedang</option>
+              <option value="large">Besar</option>
+            </select>
+          </label>
+          <label>
+            Saat transaksi selesai
+            <select id="printFlowInput">
+              <option value="direct" selected>Cetak langsung</option>
+              <option value="preview">Preview dulu</option>
+            </select>
+          </label>
+          <label>
+            Format struk
+            <select id="receiptModeInput">
+              <option value="compact" selected>Ringkas hemat kertas</option>
+              <option value="complete">Lengkap</option>
+            </select>
+          </label>
+          <label class="check-row">
+            <input id="autoPrintInput" type="checkbox" checked>
+            <span>Cetak otomatis setelah transaksi selesai</span>
+          </label>
+        </form>
+        <form method="dialog" class="modal-actions">
+          <button class="ghost-button" id="openPrinterSetupFromSettingsButton" type="button">Setup Printer</button>
+          <button class="ghost-button" id="testPrintButton" type="button">Test Print</button>
+          <button class="primary-button" type="submit">Selesai</button>
+        </form>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal printer-setup-modal" id="printerSetupModal" aria-labelledby="printerSetupTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" type="submit" aria-label="Tutup setup printer">×</button>
+      </form>
+      <section class="modal-panel printer-setup-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Printer Thermal</p>
+            <h2 id="printerSetupTitle">Setup Printer XP</h2>
+          </div>
+        </div>
+
+        <div class="printer-driver-card">
+          <div>
+            <strong>Driver yang dipakai</strong>
+            <p>Gunakan arsip driver XP Printer yang sudah disimpan di folder project untuk install printer thermal kasir.</p>
+          </div>
+          <a class="secondary-button printer-driver-link" href="drivers/XP%20PRINTER%20DRIVER.rar" download>Download Driver XP</a>
+        </div>
+
+        <div class="printer-step-list">
+          <article class="printer-step-card">
+            <span>1</span>
+            <div>
+              <strong>Install driver XP Printer</strong>
+              <p>Extract file RAR, install driver sesuai OS, lalu restart browser kalau printer belum muncul.</p>
+            </div>
+          </article>
+          <article class="printer-step-card">
+            <span>2</span>
+            <div>
+              <strong>Pilih ukuran kertas</strong>
+              <p>Untuk printer kecil pilih 58 mm. Kalau struk lebar atau printer 80 mm, ubah di Edit Struk.</p>
+            </div>
+          </article>
+          <article class="printer-step-card">
+            <span>3</span>
+            <div>
+              <strong>Set print dialog</strong>
+              <p>Margins none/minimum, scale 100%, headers and footers off. Kalau kanan kepotong, turunkan scale ke 95%.</p>
+            </div>
+          </article>
+          <article class="printer-step-card">
+            <span>4</span>
+            <div>
+              <strong>Test print</strong>
+              <p>Tekan Test Print lalu pilih printer thermal XP/POS di dialog browser.</p>
+            </div>
+          </article>
+        </div>
+
+        <form method="dialog" class="modal-actions">
+          <button class="ghost-button" id="printerSetupTestPrintButton" type="button">Test Print</button>
+          <button class="primary-button" type="submit">Selesai</button>
+        </form>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal receipt-preview-modal" id="receiptPreviewModal" aria-labelledby="receiptPreviewModalTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" type="submit" aria-label="Tutup preview struk">×</button>
+      </form>
+      <section class="modal-panel receipt-preview-panel">
+        <h2 class="receipt-preview-heading" id="receiptPreviewModalTitle">Preview Struk</h2>
+        <article class="receipt-paper" id="receiptPaper" aria-label="Preview struk"></article>
+        <form method="dialog" class="modal-actions">
+          <button class="ghost-button" id="printPreviewButton" type="button">Cetak Struk</button>
+          <button class="primary-button" type="submit">Tutup</button>
+        </form>
+      </section>
+    </dialog>
+
+    <div class="print-area" id="printArea" aria-hidden="true"></div>
+    <button class="mobile-mini-cart" id="mobileMiniCartButton" type="button" hidden>
+      <span id="mobileMiniCartCount">0 item</span>
+      <strong id="mobileMiniCartTotal">Rp0</strong>
+    </button>
+    <div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+  </body>
+</html>

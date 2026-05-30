@@ -1,0 +1,1209 @@
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from datetime import datetime, timezone
+import json
+import mimetypes
+import os
+from pathlib import Path
+import re
+import shutil
+import sqlite3
+import sys
+from urllib.parse import parse_qs, urlparse
+
+
+ROOT = Path(__file__).resolve().parent
+DB_PATH = Path(os.environ.get("KASIR_DB_PATH", str(ROOT / "kasir-bento.sqlite3"))).expanduser().resolve()
+
+
+def utc_now_text():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def get_connection():
+    connection = sqlite3.connect(DB_PATH)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    return connection
+
+
+def init_database():
+    with get_connection() as connection:
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS sales (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                receipt_no TEXT NOT NULL UNIQUE,
+                completed_at TEXT NOT NULL,
+                store_name TEXT NOT NULL,
+                payment TEXT NOT NULL,
+                subtotal INTEGER NOT NULL DEFAULT 0,
+                discount INTEGER NOT NULL DEFAULT 0,
+                tax INTEGER NOT NULL DEFAULT 0,
+                total INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS sale_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sale_id INTEGER NOT NULL,
+                sku TEXT,
+                name TEXT NOT NULL,
+                price INTEGER NOT NULL DEFAULT 0,
+                quantity INTEGER NOT NULL DEFAULT 0,
+                line_total INTEGER NOT NULL DEFAULT 0,
+                FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS customers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                default_shipping INTEGER NOT NULL DEFAULT 0,
+                last_order_at TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS customer_aliases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_id INTEGER NOT NULL,
+                alias TEXT NOT NULL,
+                alias_key TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id TEXT NOT NULL UNIQUE,
+                sku TEXT NOT NULL DEFAULT '',
+                name TEXT NOT NULL,
+                price INTEGER NOT NULL DEFAULT 0,
+                stock INTEGER NOT NULL DEFAULT 0,
+                stock_unlimited INTEGER NOT NULL DEFAULT 0,
+                category TEXT NOT NULL DEFAULT '',
+                aliases TEXT NOT NULL DEFAULT '[]',
+                source TEXT NOT NULL DEFAULT 'manual',
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_sales_completed_at ON sales(completed_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id);
+            CREATE INDEX IF NOT EXISTS idx_customers_last_order_at ON customers(last_order_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_customer_aliases_customer_id ON customer_aliases(customer_id);
+            CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+            CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+            """
+        )
+        item_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(sale_items)").fetchall()
+        }
+        if "note" not in item_columns:
+            connection.execute("ALTER TABLE sale_items ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+        sale_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(sales)").fetchall()
+        }
+        sale_extra_columns = {
+            "customer_name": "TEXT NOT NULL DEFAULT ''",
+            "customer_address": "TEXT NOT NULL DEFAULT ''",
+            "order_note": "TEXT NOT NULL DEFAULT ''",
+            "due_text": "TEXT NOT NULL DEFAULT ''",
+            "chat_date": "TEXT NOT NULL DEFAULT ''",
+            "deleted_at": "TEXT NOT NULL DEFAULT ''",
+            "stock_restored_on_delete": "INTEGER NOT NULL DEFAULT 0",
+        }
+        for column, column_type in sale_extra_columns.items():
+            if column not in sale_columns:
+                connection.execute(f"ALTER TABLE sales ADD COLUMN {column} {column_type}")
+        backfill_customers_from_sales(connection)
+
+
+def customer_alias_key(value):
+    return re.sub(r"[^0-9a-z]+", "", str(value or "").lower())
+
+
+def split_alias_payload(value):
+    if isinstance(value, list):
+        items = value
+    else:
+        items = re.split(r"[,\n;]+", str(value or ""))
+
+    aliases = []
+    seen = set()
+    for item in items:
+        alias = str(item or "").strip()
+        key = customer_alias_key(alias)
+        if not alias or not key or key in seen:
+            continue
+        seen.add(key)
+        aliases.append(alias)
+    return aliases
+
+
+def fetch_customer_row(connection, customer_id):
+    return connection.execute(
+        """
+        SELECT id, name, default_shipping, last_order_at, created_at, updated_at
+        FROM customers
+        WHERE id = ?
+        """,
+        (customer_id,),
+    ).fetchone()
+
+
+def get_customer_alias_map(connection, customer_ids):
+    alias_map = {int(customer_id): [] for customer_id in customer_ids}
+    if not customer_ids:
+        return alias_map
+
+    placeholders = ",".join("?" for _ in customer_ids)
+    rows = connection.execute(
+        f"""
+        SELECT customer_id, alias
+        FROM customer_aliases
+        WHERE customer_id IN ({placeholders})
+        ORDER BY alias COLLATE NOCASE ASC, id ASC
+        """,
+        [int(customer_id) for customer_id in customer_ids],
+    ).fetchall()
+    for row in rows:
+        alias_map.setdefault(int(row["customer_id"]), []).append(row["alias"])
+    return alias_map
+
+
+def customer_to_dict(row, aliases=None):
+    customer = dict(row)
+    customer["aliases"] = aliases or []
+    return customer
+
+
+def add_customer_alias(connection, customer_id, alias):
+    alias_text = str(alias or "").strip()
+    key = customer_alias_key(alias_text)
+    if not alias_text or not key:
+        return
+
+    customer = fetch_customer_row(connection, customer_id)
+    if customer is None:
+        return
+    if key == customer_alias_key(customer["name"]):
+        return
+
+    connection.execute(
+        """
+        INSERT OR IGNORE INTO customer_aliases (customer_id, alias, alias_key, created_at)
+        VALUES (?, ?, ?, ?)
+        """,
+        (customer_id, alias_text, key, utc_now_text()),
+    )
+
+
+def find_customer_by_name_or_alias(connection, name):
+    customer_name = str(name or "").strip()
+    key = customer_alias_key(customer_name)
+    if not customer_name or not key:
+        return None
+
+    exact = connection.execute(
+        """
+        SELECT id, name, default_shipping, last_order_at, created_at, updated_at
+        FROM customers
+        WHERE LOWER(name) = LOWER(?)
+        LIMIT 1
+        """,
+        (customer_name,),
+    ).fetchone()
+    if exact is not None:
+        return exact
+
+    alias = connection.execute(
+        "SELECT customer_id FROM customer_aliases WHERE alias_key = ? LIMIT 1",
+        (key,),
+    ).fetchone()
+    if alias is not None:
+        return fetch_customer_row(connection, alias["customer_id"])
+
+    rows = connection.execute(
+        "SELECT id, name, default_shipping, last_order_at, created_at, updated_at FROM customers"
+    ).fetchall()
+    for row in rows:
+        if customer_alias_key(row["name"]) == key:
+            return row
+    return None
+
+
+def upsert_customer(connection, name, default_shipping=0, last_order_at=""):
+    customer_name = str(name or "").strip()
+    if not customer_name:
+        return
+
+    shipping = rupiah_number(default_shipping)
+    order_at = str(last_order_at or utc_now_text()).strip()
+    now = utc_now_text()
+    existing = find_customer_by_name_or_alias(connection, customer_name)
+    if existing is not None:
+        connection.execute(
+            """
+            UPDATE customers
+            SET default_shipping = CASE
+                    WHEN COALESCE(last_order_at, '') = ''
+                         OR ? >= last_order_at
+                    THEN ?
+                    ELSE default_shipping
+                END,
+                last_order_at = CASE
+                    WHEN COALESCE(last_order_at, '') = ''
+                         OR ? >= last_order_at
+                    THEN ?
+                    ELSE last_order_at
+                END,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (order_at, shipping, order_at, order_at, now, existing["id"]),
+        )
+        add_customer_alias(connection, existing["id"], customer_name)
+        return existing["id"]
+
+    connection.execute(
+        """
+        INSERT INTO customers (name, default_shipping, last_order_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(name) DO UPDATE SET
+            default_shipping = CASE
+                WHEN COALESCE(customers.last_order_at, '') = ''
+                     OR excluded.last_order_at >= customers.last_order_at
+                THEN excluded.default_shipping
+                ELSE customers.default_shipping
+            END,
+            last_order_at = CASE
+                WHEN COALESCE(customers.last_order_at, '') = ''
+                     OR excluded.last_order_at >= customers.last_order_at
+                THEN excluded.last_order_at
+                ELSE customers.last_order_at
+            END,
+            updated_at = ?
+        """,
+        (customer_name, shipping, order_at, now, now, now),
+    )
+    row = connection.execute("SELECT id FROM customers WHERE name = ?", (customer_name,)).fetchone()
+    return row["id"] if row else None
+
+
+def backfill_customers_from_sales(connection):
+    rows = connection.execute(
+        """
+        SELECT customer_name, discount, completed_at
+        FROM sales
+        WHERE TRIM(COALESCE(customer_name, '')) != ''
+          AND COALESCE(deleted_at, '') = ''
+        ORDER BY completed_at ASC, id ASC
+        """
+    ).fetchall()
+    for row in rows:
+        upsert_customer(connection, row["customer_name"], row["discount"], row["completed_at"])
+
+
+def rupiah_number(value):
+    try:
+        return max(0, int(round(float(value))))
+    except (TypeError, ValueError):
+        return 0
+
+
+def receipt_date_key(payload):
+    explicit_date = str(payload.get("receiptDateKey") or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", explicit_date):
+        return explicit_date.replace("-", "")
+
+    completed_at = str(payload.get("completedAt") or "").strip()
+    if re.match(r"^\d{4}-\d{2}-\d{2}", completed_at):
+        return completed_at[:10].replace("-", "")
+
+    return "00000000"
+
+
+def next_receipt_number(connection, date_key):
+    prefix = f"SH-{date_key}-"
+    row = connection.execute(
+        """
+        SELECT receipt_no
+        FROM sales
+        WHERE receipt_no LIKE ?
+        ORDER BY receipt_no DESC
+        LIMIT 1
+        """,
+        (f"{prefix}%",),
+    ).fetchone()
+
+    next_number = 1
+    if row:
+        suffix = str(row["receipt_no"]).removeprefix(prefix)
+        if suffix.isdigit():
+            next_number = int(suffix) + 1
+
+    return f"{prefix}{next_number:04d}"
+
+
+def normalize_aliases(value):
+    if isinstance(value, list):
+        items = value
+    else:
+        text = str(value or "").strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+            items = parsed if isinstance(parsed, list) else [text]
+        except json.JSONDecodeError:
+            items = re.split(r"[,\n;]+", text)
+
+    aliases = []
+    seen = set()
+    for item in items:
+        alias = str(item or "").strip()
+        key = re.sub(r"[\s_-]+", "", alias.lower())
+        if not alias or key in seen:
+            continue
+        seen.add(key)
+        aliases.append(alias)
+    return aliases
+
+
+def product_from_row(row):
+    product = dict(row)
+    return {
+        "id": product["client_id"],
+        "sku": product["sku"],
+        "name": product["name"],
+        "price": product["price"],
+        "stock": product["stock"],
+        "stockUnlimited": bool(product["stock_unlimited"]),
+        "category": product["category"],
+        "aliases": normalize_aliases(product["aliases"]),
+        "source": product["source"],
+        "updatedAt": product["updated_at"],
+    }
+
+
+def sanitize_product_payload(product):
+    if not isinstance(product, dict):
+        return None
+
+    name = str(product.get("name") or "").strip()
+    price = rupiah_number(product.get("price"))
+    if not name or price <= 0:
+        return None
+
+    client_id = str(product.get("id") or product.get("client_id") or "").strip()
+    if not client_id:
+        client_id = f"sql-{re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')}-{price}"
+
+    stock_unlimited = 1 if product.get("stockUnlimited") or product.get("stock_unlimited") or product.get("unlimitedStock") else 0
+    return {
+        "client_id": client_id,
+        "sku": str(product.get("sku") or "").strip(),
+        "name": name,
+        "price": price,
+        "stock": 0 if stock_unlimited else rupiah_number(product.get("stock")),
+        "stock_unlimited": stock_unlimited,
+        "category": str(product.get("category") or "").strip(),
+        "aliases": json.dumps(normalize_aliases(product.get("aliases") or product.get("alias")), ensure_ascii=False),
+        "source": str(product.get("source") or "manual").strip() or "manual",
+    }
+
+
+class CashierHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=str(ROOT), **kwargs)
+
+    def end_headers(self):
+        if self.path == "/" or self.path.startswith("/index.html") or self.path.startswith("/service-worker.js"):
+            self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        super().end_headers()
+
+    def do_GET(self):
+        path = urlparse(self.path).path
+        if path == "/api/products":
+            self.handle_list_products()
+            return
+        if path == "/api/sales":
+            self.handle_list_sales()
+            return
+        if path == "/api/customers":
+            self.handle_list_customers()
+            return
+        if path == "/api/backup/database":
+            self.handle_backup_database()
+            return
+        if path == "/api/health":
+            self.send_json({"ok": True, "database": str(DB_PATH.name)})
+            return
+        super().do_GET()
+
+    def do_POST(self):
+        path = urlparse(self.path).path
+        if path == "/api/sales":
+            self.handle_create_sale()
+            return
+        if path == "/api/customers":
+            self.handle_create_customer()
+            return
+        if path == "/api/customers/merge":
+            self.handle_merge_customers()
+            return
+        if path == "/api/backup/restore":
+            self.handle_restore_database()
+            return
+        if path.startswith("/api/sales/") and path.endswith("/restore"):
+            self.handle_restore_sale(path)
+            return
+        self.send_error(404, "Not found")
+
+    def do_PUT(self):
+        path = urlparse(self.path).path
+        if path == "/api/products":
+            self.handle_save_products()
+            return
+        if path.startswith("/api/customers/"):
+            self.handle_update_customer(path)
+            return
+        if path.startswith("/api/sales/"):
+            self.handle_update_sale(path)
+            return
+        self.send_error(404, "Not found")
+
+    def do_DELETE(self):
+        path = urlparse(self.path).path
+        if path == "/api/products":
+            self.handle_clear_products()
+            return
+        if path.startswith("/api/customers/"):
+            self.handle_delete_customer(path)
+            return
+        if path.startswith("/api/sales/"):
+            self.handle_delete_sale(path)
+            return
+        self.send_error(404, "Not found")
+
+    def send_json(self, payload, status=200):
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def read_json(self):
+        length = int(self.headers.get("Content-Length", "0"))
+        if length <= 0:
+            return {}
+        raw_body = self.rfile.read(length)
+        return json.loads(raw_body.decode("utf-8"))
+
+    def send_file(self, path, filename, content_type):
+        if not path.exists():
+            self.send_json({"error": "File backup belum tersedia."}, status=404)
+            return
+
+        body = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def handle_list_products(self):
+        init_database()
+        with get_connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT client_id, sku, name, price, stock, stock_unlimited, category, aliases, source, updated_at
+                FROM products
+                ORDER BY name COLLATE NOCASE ASC, price ASC, id ASC
+                """
+            ).fetchall()
+
+        self.send_json({"products": [product_from_row(row) for row in rows]})
+
+    def handle_save_products(self):
+        try:
+            payload = self.read_json()
+        except json.JSONDecodeError:
+            self.send_json({"error": "Data barang tidak valid."}, status=400)
+            return
+
+        products = payload.get("products") if isinstance(payload, dict) else None
+        if not isinstance(products, list):
+            self.send_json({"error": "Payload barang harus berisi daftar products."}, status=400)
+            return
+
+        sanitized = [sanitize_product_payload(product) for product in products]
+        sanitized = [product for product in sanitized if product]
+        now = utc_now_text()
+
+        with get_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("DELETE FROM products")
+            connection.executemany(
+                """
+                INSERT INTO products (
+                    client_id, sku, name, price, stock, stock_unlimited, category, aliases, source, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        product["client_id"],
+                        product["sku"],
+                        product["name"],
+                        product["price"],
+                        product["stock"],
+                        product["stock_unlimited"],
+                        product["category"],
+                        product["aliases"],
+                        product["source"],
+                        now,
+                    )
+                    for product in sanitized
+                ],
+            )
+
+        self.send_json({"ok": True, "count": len(sanitized)})
+
+    def handle_clear_products(self):
+        with get_connection() as connection:
+            connection.execute("DELETE FROM products")
+        self.send_json({"ok": True, "count": 0})
+
+    def handle_backup_database(self):
+        init_database()
+        self.send_file(DB_PATH, "backup-kasir-shanti-catering.sqlite3", "application/vnd.sqlite3")
+
+    def handle_restore_database(self):
+        length = int(self.headers.get("Content-Length", "0"))
+        if length <= 0:
+            self.send_json({"error": "File backup kosong."}, status=400)
+            return
+
+        body = self.rfile.read(length)
+        temp_path = DB_PATH.with_suffix(".restore.tmp")
+        safety_path = DB_PATH.with_suffix(".before-restore.sqlite3")
+        temp_path.write_bytes(body)
+
+        try:
+            with sqlite3.connect(temp_path) as connection:
+                integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
+                if integrity != "ok":
+                    raise ValueError("File SQLite tidak valid.")
+                tables = {
+                    row[0]
+                    for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+                }
+                if "sales" not in tables or "sale_items" not in tables:
+                    raise ValueError("Backup bukan database kasir yang lengkap.")
+        except (sqlite3.DatabaseError, ValueError) as error:
+            temp_path.unlink(missing_ok=True)
+            self.send_json({"error": str(error) or "File backup tidak bisa dibaca."}, status=400)
+            return
+
+        if DB_PATH.exists():
+            shutil.copy2(DB_PATH, safety_path)
+        temp_path.replace(DB_PATH)
+        init_database()
+        self.send_json({"ok": True, "message": "Backup database berhasil direstore."})
+
+    def handle_list_sales(self):
+        query = parse_qs(urlparse(self.path).query)
+        limit = min(max(int(query.get("limit", ["50"])[0]), 1), 1000)
+        include_deleted = query.get("includeDeleted", ["0"])[0] in {"1", "true", "yes"}
+
+        with get_connection() as connection:
+            sales_rows = connection.execute(
+                """
+                SELECT id, receipt_no, completed_at, store_name, payment, subtotal, discount, tax, total,
+                       customer_name, customer_address, order_note, due_text, chat_date,
+                       deleted_at, stock_restored_on_delete
+                FROM sales
+                WHERE (? OR COALESCE(deleted_at, '') = '')
+                ORDER BY completed_at DESC, id DESC
+                LIMIT ?
+                """,
+                (1 if include_deleted else 0, limit),
+            ).fetchall()
+
+            sale_ids = [row["id"] for row in sales_rows]
+            items_by_sale = {sale_id: [] for sale_id in sale_ids}
+            if sale_ids:
+                placeholders = ",".join("?" for _ in sale_ids)
+                item_rows = connection.execute(
+                    f"""
+                    SELECT sale_id, sku, name, price, quantity, line_total, note
+                    FROM sale_items
+                    WHERE sale_id IN ({placeholders})
+                    ORDER BY id ASC
+                    """,
+                    sale_ids,
+                ).fetchall()
+                for item in item_rows:
+                    items_by_sale[item["sale_id"]].append(dict(item))
+
+            totals = connection.execute(
+                """
+                SELECT
+                    SUM(CASE WHEN COALESCE(deleted_at, '') = '' THEN 1 ELSE 0 END) AS count,
+                    COALESCE(SUM(CASE WHEN COALESCE(deleted_at, '') = '' THEN total ELSE 0 END), 0) AS revenue,
+                    SUM(CASE WHEN COALESCE(deleted_at, '') != '' THEN 1 ELSE 0 END) AS deleted_count
+                FROM sales
+                """
+            ).fetchone()
+
+        sales = []
+        for row in sales_rows:
+            sale = dict(row)
+            sale["items"] = items_by_sale.get(row["id"], [])
+            sales.append(sale)
+
+        self.send_json(
+            {
+                "sales": sales,
+                "summary": {
+                    "totalSales": totals["count"],
+                    "totalRevenue": totals["revenue"],
+                    "deletedSales": totals["deleted_count"],
+                },
+            }
+        )
+
+    def handle_list_customers(self):
+        query = parse_qs(urlparse(self.path).query)
+        limit = min(max(int(query.get("limit", ["300"])[0]), 1), 500)
+        search = str(query.get("q", [""])[0] or "").strip()
+        search_key = customer_alias_key(search)
+
+        with get_connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, name, default_shipping, last_order_at, created_at, updated_at
+                FROM customers
+                WHERE TRIM(COALESCE(name, '')) != ''
+                ORDER BY COALESCE(last_order_at, '') DESC, name ASC
+                """,
+            ).fetchall()
+            alias_map = get_customer_alias_map(connection, [row["id"] for row in rows])
+
+        customers = [customer_to_dict(row, alias_map.get(row["id"], [])) for row in rows]
+        if search:
+            search_text = search.lower()
+            customers = [
+                customer
+                for customer in customers
+                if search_text in str(customer["name"]).lower()
+                or any(search_text in str(alias).lower() for alias in customer["aliases"])
+                or (search_key and search_key in customer_alias_key(customer["name"]))
+                or any(search_key and search_key in customer_alias_key(alias) for alias in customer["aliases"])
+            ]
+
+        self.send_json({"customers": customers[:limit]})
+
+    def handle_create_customer(self):
+        try:
+            payload = self.read_json()
+        except json.JSONDecodeError:
+            self.send_json({"error": "Data customer tidak valid."}, status=400)
+            return
+
+        if not isinstance(payload, dict):
+            self.send_json({"error": "Data customer tidak valid."}, status=400)
+            return
+
+        customer_name = str(payload.get("name") or payload.get("customerName") or "").strip()
+        if not customer_name:
+            self.send_json({"error": "Nama customer tidak boleh kosong."}, status=400)
+            return
+
+        shipping_source = payload.get("defaultShipping")
+        if shipping_source is None:
+            shipping_source = payload.get("default_shipping")
+        if shipping_source is None:
+            shipping_source = payload.get("shipping")
+        shipping = rupiah_number(shipping_source)
+        aliases = split_alias_payload(payload.get("aliases"))
+
+        try:
+            with get_connection() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                if find_customer_by_name_or_alias(connection, customer_name) is not None:
+                    self.send_json({"error": "Customer sudah ada di data customer."}, status=409)
+                    return
+
+                for alias in aliases:
+                    if find_customer_by_name_or_alias(connection, alias) is not None:
+                        self.send_json({"error": f"Alias {alias} sudah dipakai customer lain."}, status=409)
+                        return
+
+                now = utc_now_text()
+                cursor = connection.execute(
+                    """
+                    INSERT INTO customers (name, default_shipping, last_order_at, created_at, updated_at)
+                    VALUES (?, ?, '', ?, ?)
+                    """,
+                    (customer_name, shipping, now, now),
+                )
+                customer_id = cursor.lastrowid
+                for alias in aliases:
+                    add_customer_alias(connection, customer_id, alias)
+
+                row = fetch_customer_row(connection, customer_id)
+                alias_map = get_customer_alias_map(connection, [customer_id])
+        except sqlite3.IntegrityError:
+            self.send_json({"error": "Customer atau alias sudah ada."}, status=409)
+            return
+
+        self.send_json({"ok": True, "customer": customer_to_dict(row, alias_map.get(customer_id, []))}, status=201)
+
+    def handle_update_customer(self, path):
+        customer_id_value = path.removeprefix("/api/customers/").strip("/")
+        try:
+            customer_id = int(customer_id_value)
+        except ValueError:
+            self.send_json({"error": "ID customer tidak valid."}, status=400)
+            return
+
+        try:
+            payload = self.read_json()
+        except json.JSONDecodeError:
+            self.send_json({"error": "Data customer tidak valid."}, status=400)
+            return
+
+        if not isinstance(payload, dict):
+            self.send_json({"error": "Data customer tidak valid."}, status=400)
+            return
+
+        customer_name = str(payload.get("name") or payload.get("customerName") or "").strip()
+        if not customer_name:
+            self.send_json({"error": "Nama customer tidak boleh kosong."}, status=400)
+            return
+
+        shipping_source = payload.get("defaultShipping")
+        if shipping_source is None:
+            shipping_source = payload.get("default_shipping")
+        if shipping_source is None:
+            shipping_source = payload.get("shipping")
+        shipping = rupiah_number(shipping_source)
+
+        try:
+            with get_connection() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                existing = connection.execute(
+                    """
+                    SELECT id, name
+                    FROM customers
+                    WHERE id = ?
+                    """,
+                    (customer_id,),
+                ).fetchone()
+                if existing is None:
+                    self.send_json({"error": "Customer tidak ditemukan."}, status=404)
+                    return
+
+                matched = find_customer_by_name_or_alias(connection, customer_name)
+                if matched is not None and int(matched["id"]) != customer_id:
+                    self.send_json({"error": "Nama customer sudah dipakai data lain."}, status=409)
+                    return
+
+                connection.execute(
+                    """
+                    UPDATE customers
+                    SET name = ?, default_shipping = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (customer_name, shipping, utc_now_text(), customer_id),
+                )
+                add_customer_alias(connection, customer_id, existing["name"])
+                updated = fetch_customer_row(connection, customer_id)
+                alias_map = get_customer_alias_map(connection, [customer_id])
+        except sqlite3.IntegrityError:
+            self.send_json({"error": "Nama customer sudah ada."}, status=409)
+            return
+
+        self.send_json({"ok": True, "customer": customer_to_dict(updated, alias_map.get(customer_id, []))})
+
+    def handle_delete_customer(self, path):
+        customer_id_value = path.removeprefix("/api/customers/").strip("/")
+        try:
+            customer_id = int(customer_id_value)
+        except ValueError:
+            self.send_json({"error": "ID customer tidak valid."}, status=400)
+            return
+
+        with get_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            existing = fetch_customer_row(connection, customer_id)
+            if existing is None:
+                self.send_json({"error": "Customer tidak ditemukan."}, status=404)
+                return
+
+            connection.execute("DELETE FROM customers WHERE id = ?", (customer_id,))
+
+        self.send_json({"ok": True, "customerId": customer_id, "name": existing["name"]})
+
+    def handle_merge_customers(self):
+        try:
+            payload = self.read_json()
+        except json.JSONDecodeError:
+            self.send_json({"error": "Data merge customer tidak valid."}, status=400)
+            return
+
+        if not isinstance(payload, dict):
+            self.send_json({"error": "Data merge customer tidak valid."}, status=400)
+            return
+
+        try:
+            target_id = int(payload.get("targetId") or payload.get("target_id"))
+        except (TypeError, ValueError):
+            self.send_json({"error": "Customer utama belum dipilih."}, status=400)
+            return
+
+        duplicate_ids = []
+        for value in payload.get("duplicateIds") or payload.get("duplicate_ids") or []:
+            try:
+                duplicate_id = int(value)
+            except (TypeError, ValueError):
+                continue
+            if duplicate_id != target_id and duplicate_id not in duplicate_ids:
+                duplicate_ids.append(duplicate_id)
+
+        if not duplicate_ids:
+            self.send_json({"error": "Pilih minimal satu customer untuk merge."}, status=400)
+            return
+
+        with get_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            target = fetch_customer_row(connection, target_id)
+            if target is None:
+                self.send_json({"error": "Customer utama tidak ditemukan."}, status=404)
+                return
+
+            placeholders = ",".join("?" for _ in duplicate_ids)
+            duplicates = connection.execute(
+                f"""
+                SELECT id, name, default_shipping, last_order_at, created_at, updated_at
+                FROM customers
+                WHERE id IN ({placeholders})
+                """,
+                duplicate_ids,
+            ).fetchall()
+            if len(duplicates) != len(duplicate_ids):
+                self.send_json({"error": "Ada customer yang tidak ditemukan."}, status=404)
+                return
+
+            duplicate_alias_map = get_customer_alias_map(connection, duplicate_ids)
+            for duplicate in duplicates:
+                add_customer_alias(connection, target_id, duplicate["name"])
+                for alias in duplicate_alias_map.get(duplicate["id"], []):
+                    add_customer_alias(connection, target_id, alias)
+
+            connection.execute(
+                f"DELETE FROM customers WHERE id IN ({placeholders})",
+                duplicate_ids,
+            )
+            connection.execute(
+                "UPDATE customers SET updated_at = ? WHERE id = ?",
+                (utc_now_text(), target_id),
+            )
+            updated = fetch_customer_row(connection, target_id)
+            alias_map = get_customer_alias_map(connection, [target_id])
+
+        self.send_json(
+            {
+                "ok": True,
+                "customer": customer_to_dict(updated, alias_map.get(target_id, [])),
+                "mergedCount": len(duplicate_ids),
+            }
+        )
+
+    def handle_create_sale(self):
+        try:
+            payload = self.read_json()
+        except json.JSONDecodeError:
+            self.send_json({"error": "Data transaksi tidak valid."}, status=400)
+            return
+
+        items = payload.get("items")
+        if not isinstance(items, list) or not items:
+            self.send_json({"error": "Transaksi harus punya minimal satu barang."}, status=400)
+            return
+
+        completed_at = str(payload.get("completedAt") or "").strip()
+        if not completed_at:
+            self.send_json({"error": "Waktu transaksi kosong."}, status=400)
+            return
+
+        try:
+            with get_connection() as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                receipt_no = next_receipt_number(connection, receipt_date_key(payload))
+                sale_values = (
+                    receipt_no,
+                    completed_at,
+                    str(payload.get("storeName") or "Toko").strip(),
+                    str(payload.get("payment") or "Tunai").strip(),
+                    rupiah_number(payload.get("subtotal")),
+                    rupiah_number(payload.get("shipping") if payload.get("shipping") is not None else payload.get("discount")),
+                    rupiah_number(payload.get("tax")),
+                    rupiah_number(payload.get("total")),
+                    str(payload.get("customerName") or payload.get("customer") or payload.get("customerAddress") or payload.get("address") or "").strip(),
+                    "",
+                    "",
+                    "",
+                    str(payload.get("chatDate") or "").strip(),
+                )
+                customer_name = sale_values[8]
+                shipping = sale_values[5]
+                cursor = connection.execute(
+                    """
+                    INSERT INTO sales (
+                        receipt_no, completed_at, store_name, payment, subtotal, discount, tax, total,
+                        customer_name, customer_address, order_note, due_text, chat_date
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    sale_values,
+                )
+                sale_id = cursor.lastrowid
+                for item in items:
+                    quantity = rupiah_number(item.get("quantity"))
+                    price = rupiah_number(item.get("price"))
+                    line_total = rupiah_number(item.get("lineTotal")) or price * quantity
+                    connection.execute(
+                        """
+                        INSERT INTO sale_items (sale_id, sku, name, price, quantity, line_total, note)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            sale_id,
+                            str(item.get("sku") or "").strip(),
+                            str(item.get("name") or "Barang").strip(),
+                            price,
+                            quantity,
+                            line_total,
+                            str(item.get("note") or "").strip(),
+                        ),
+                    )
+                upsert_customer(connection, customer_name, shipping, completed_at)
+        except sqlite3.IntegrityError:
+            self.send_json({"error": "Nomor struk sudah ada. Coba selesaikan transaksi lagi."}, status=409)
+            return
+
+        self.send_json({"ok": True, "saleId": sale_id, "receiptNo": receipt_no}, status=201)
+
+    def fetch_sale(self, connection, sale_id):
+        row = connection.execute(
+            """
+            SELECT id, receipt_no, completed_at, store_name, payment, subtotal, discount, tax, total,
+                   customer_name, customer_address, order_note, due_text, chat_date,
+                   deleted_at, stock_restored_on_delete
+            FROM sales
+            WHERE id = ?
+            """,
+            (sale_id,),
+        ).fetchone()
+        if row is None:
+            return None
+
+        item_rows = connection.execute(
+            """
+            SELECT sale_id, sku, name, price, quantity, line_total, note
+            FROM sale_items
+            WHERE sale_id = ?
+            ORDER BY id ASC
+            """,
+            (sale_id,),
+        ).fetchall()
+        sale = dict(row)
+        sale["items"] = [dict(item) for item in item_rows]
+        return sale
+
+    def handle_update_sale(self, path):
+        sale_id_value = path.removeprefix("/api/sales/").strip("/")
+        try:
+            sale_id = int(sale_id_value)
+        except ValueError:
+            self.send_json({"error": "ID transaksi tidak valid."}, status=400)
+            return
+
+        try:
+            payload = self.read_json()
+        except json.JSONDecodeError:
+            self.send_json({"error": "Data edit transaksi tidak valid."}, status=400)
+            return
+
+        with get_connection() as connection:
+            sale = connection.execute(
+                """
+                SELECT id, completed_at, payment, subtotal, discount, tax, customer_name, chat_date
+                FROM sales
+                WHERE id = ?
+                """,
+                (sale_id,),
+            ).fetchone()
+            if sale is None:
+                self.send_json({"error": "Transaksi tidak ditemukan."}, status=404)
+                return
+
+            item_update_requested = "items" in payload
+            sanitized_items = []
+            if item_update_requested:
+                items = payload.get("items")
+                if not isinstance(items, list) or not items:
+                    self.send_json({"error": "Edit struk harus punya minimal satu item."}, status=400)
+                    return
+
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    quantity = rupiah_number(item.get("quantity"))
+                    price = rupiah_number(item.get("price"))
+                    name = str(item.get("name") or "").strip()
+                    if not name or quantity <= 0 or price <= 0:
+                        continue
+                    sanitized_items.append(
+                        {
+                            "sku": str(item.get("sku") or "").strip(),
+                            "name": name,
+                            "price": price,
+                            "quantity": quantity,
+                            "line_total": price * quantity,
+                            "note": str(item.get("note") or "").strip(),
+                        }
+                    )
+
+                if not sanitized_items:
+                    self.send_json({"error": "Item edit struk belum valid."}, status=400)
+                    return
+
+            tax_source = payload.get("tax", sale["tax"])
+            shipping_source = payload.get("shipping") if payload.get("shipping") is not None else payload.get("discount", sale["discount"])
+            shipping = rupiah_number(shipping_source)
+            tax = rupiah_number(tax_source)
+            subtotal = sum(item["line_total"] for item in sanitized_items) if item_update_requested else rupiah_number(sale["subtotal"])
+            total = subtotal + shipping + tax
+            payment = str(payload.get("payment", sale["payment"]) or "Tunai").strip()
+            customer_name = str(payload.get("customerName", payload.get("customer_name", sale["customer_name"])) or "").strip()
+            chat_date = str(payload.get("chatDate", payload.get("chat_date", sale["chat_date"])) or "").strip()
+
+            connection.execute(
+                """
+                UPDATE sales
+                SET payment = ?, subtotal = ?, discount = ?, tax = ?, total = ?, customer_name = ?, chat_date = ?
+                WHERE id = ?
+                """,
+                (payment, subtotal, shipping, tax, total, customer_name, chat_date, sale_id),
+            )
+            if item_update_requested:
+                connection.execute("DELETE FROM sale_items WHERE sale_id = ?", (sale_id,))
+                connection.executemany(
+                    """
+                    INSERT INTO sale_items (sale_id, sku, name, price, quantity, line_total, note)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            sale_id,
+                            item["sku"],
+                            item["name"],
+                            item["price"],
+                            item["quantity"],
+                            item["line_total"],
+                            item["note"],
+                        )
+                        for item in sanitized_items
+                    ],
+                )
+            upsert_customer(connection, customer_name, shipping, sale["completed_at"])
+            updated_sale = self.fetch_sale(connection, sale_id)
+
+        self.send_json({"ok": True, "sale": updated_sale})
+
+    def handle_delete_sale(self, path):
+        sale_id_value = path.removeprefix("/api/sales/").strip("/")
+        try:
+            sale_id = int(sale_id_value)
+        except ValueError:
+            self.send_json({"error": "ID transaksi tidak valid."}, status=400)
+            return
+
+        payload = {}
+        if int(self.headers.get("Content-Length", "0")) > 0:
+            try:
+                payload = self.read_json()
+            except json.JSONDecodeError:
+                self.send_json({"error": "Data hapus transaksi tidak valid."}, status=400)
+                return
+        stock_restored = 1 if payload.get("restoreStock") else 0
+
+        with get_connection() as connection:
+            sale = connection.execute(
+                "SELECT receipt_no, deleted_at FROM sales WHERE id = ?",
+                (sale_id,),
+            ).fetchone()
+            if sale is None:
+                self.send_json({"error": "Transaksi tidak ditemukan."}, status=404)
+                return
+
+            connection.execute(
+                """
+                UPDATE sales
+                SET deleted_at = CASE WHEN COALESCE(deleted_at, '') = '' THEN ? ELSE deleted_at END,
+                    stock_restored_on_delete = ?
+                WHERE id = ?
+                """,
+                (utc_now_text(), stock_restored, sale_id),
+            )
+            deleted_sale = self.fetch_sale(connection, sale_id)
+
+        self.send_json({"ok": True, "saleId": sale_id, "receiptNo": sale["receipt_no"], "sale": deleted_sale})
+
+    def handle_restore_sale(self, path):
+        sale_id_value = path.removeprefix("/api/sales/").removesuffix("/restore").strip("/")
+        try:
+            sale_id = int(sale_id_value)
+        except ValueError:
+            self.send_json({"error": "ID transaksi tidak valid."}, status=400)
+            return
+
+        with get_connection() as connection:
+            sale = connection.execute(
+                "SELECT receipt_no FROM sales WHERE id = ?",
+                (sale_id,),
+            ).fetchone()
+            if sale is None:
+                self.send_json({"error": "Transaksi tidak ditemukan."}, status=404)
+                return
+
+            connection.execute(
+                "UPDATE sales SET deleted_at = '', stock_restored_on_delete = 0 WHERE id = ?",
+                (sale_id,),
+            )
+            restored_sale = self.fetch_sale(connection, sale_id)
+
+        self.send_json({"ok": True, "saleId": sale_id, "receiptNo": sale["receipt_no"], "sale": restored_sale})
+
+
+def main():
+    init_database()
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 4174
+    mimetypes.add_type("application/manifest+json", ".webmanifest")
+    server = ThreadingHTTPServer(("127.0.0.1", port), CashierHandler)
+    print(f"Kasir Shanti Catering running at http://127.0.0.1:{port}/")
+    print(f"SQLite database: {DB_PATH}")
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()
