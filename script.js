@@ -5040,34 +5040,44 @@ function getTestReceiptPayload() {
 
 function formatReportItemList(items = []) {
   if (!items.length) return "Tidak ada item";
-  return items
-    .map((item) => {
-      const quantity = Number(item.quantity || 0);
-      const name = String(item.name || "Item").trim();
-      const note = String(item.note || "").trim();
-      return `${quantity}x ${escapeHtml(name)}${note ? ` (${escapeHtml(note)})` : ""}`;
-    })
-    .join("<br>");
+  return `
+    <div class="report-item-grid">
+      ${items
+        .map((item) => {
+          const quantity = Number(item.quantity || 0);
+          const name = String(item.name || "Item").trim();
+          const note = String(item.note || "").trim();
+          const price = Number(item.price || 0);
+          const lineTotal = Number(item.lineTotal || item.line_total || price * quantity);
+          return `
+            <span class="qty">${quantity}x</span>
+            <span class="name">${escapeHtml(name)}${note ? ` <small class="item-note">(${escapeHtml(note)})</small>` : ""}</span>
+            <span class="price">@ ${currency.format(price)}</span>
+            <span class="total">${currency.format(lineTotal)}</span>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
 }
 
-const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 38;
-const REPORT_DETAIL_PAGE_UNIT_LIMIT = 52;
+const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 30;
+const REPORT_DETAIL_PAGE_UNIT_LIMIT = 46;
 const REPORT_DETAIL_ROW_MIN_UNITS = 2;
 
 function estimateReportDetailRowUnits(sale) {
   const customerName = getCustomerNameFromSale(sale) || "Customer belum diisi";
   const items = Array.isArray(sale.items) ? sale.items : [];
-  const customerUnits = Math.max(1, Math.ceil(customerName.length / 32));
-  const itemUnits = Math.max(
-    1,
-    items.reduce((total, item) => {
-      const quantity = Number(item.quantity || 0);
-      const name = String(item.name || "Item").trim();
-      const note = String(item.note || "").trim();
-      const text = `${quantity}x ${name}${note ? ` (${note})` : ""}`;
-      return total + Math.max(1, Math.ceil(text.length / 42));
-    }, 0)
-  );
+  const customerUnits = Math.max(1, Math.ceil(customerName.length / 24));
+  
+  const itemUnits = items.reduce((total, item) => {
+    const name = String(item.name || "Item").trim();
+    const note = String(item.note || "").trim();
+    const text = `${name}${note ? ` (${note})` : ""}`;
+    const itemRowUnits = Math.max(1, Math.ceil(text.length / 32));
+    return total + itemRowUnits;
+  }, 0);
+  
   return Math.max(REPORT_DETAIL_ROW_MIN_UNITS, Math.max(customerUnits, itemUnits));
 }
 
@@ -5119,26 +5129,75 @@ function salesReportA4Html() {
     hour: "2-digit",
     minute: "2-digit",
   });
-  const renderTransactionRow = (sale, index) => {
-    const completedAt = new Date(sale.completed_at);
-    const customerName = getCustomerNameFromSale(sale) || "Customer belum diisi";
-    const items = Array.isArray(sale.items) ? sale.items : [];
-    return `
-      <tr>
-        <td>${index + 1}</td>
-        <td>${escapeHtml(completedAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }))}</td>
-        <td>${escapeHtml(customerName)}</td>
-        <td>${formatReportItemList(items)}</td>
-        <td class="number">${currency.format(getSaleShipping(sale))}</td>
-        <td class="number">${currency.format(Number(sale.total || 0))}</td>
-        <td>${escapeHtml(sale.payment || "Tunai")}</td>
-      </tr>
-    `;
-  };
-  const renderTransactionRows = (chunk) =>
-    chunk.sales
-      .map((sale, offset) => renderTransactionRow(sale, chunk.startIndex + offset))
+  const renderTransactionRows = (chunk) => {
+    return chunk.sales
+      .map((sale, offset) => {
+        const index = chunk.startIndex + offset;
+        const completedAt = new Date(sale.completed_at);
+        const jamStr = completedAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+        const customerName = getCustomerNameFromSale(sale) || "Customer belum diisi";
+        const items = Array.isArray(sale.items) ? sale.items : [];
+        const rowspan = Math.max(1, items.length);
+        const ongkir = getSaleShipping(sale);
+        const total = Number(sale.total || 0);
+        const bayar = sale.payment || "Tunai";
+
+        if (items.length === 0) {
+          return `
+            <tr>
+              <td>${index + 1}</td>
+              <td>${escapeHtml(jamStr)}</td>
+              <td>${escapeHtml(customerName)}</td>
+              <td>-</td>
+              <td class="number">0</td>
+              <td class="number">0</td>
+              <td class="number">0</td>
+              <td class="number">${currency.format(ongkir)}</td>
+              <td class="number">${currency.format(total)}</td>
+              <td>${escapeHtml(bayar)}</td>
+            </tr>
+          `;
+        }
+
+        return items
+          .map((item, itemIdx) => {
+            const quantity = Number(item.quantity || 0);
+            const name = String(item.name || "Item").trim();
+            const note = String(item.note || "").trim();
+            const price = Number(item.price || 0);
+            const lineTotal = Number(item.lineTotal || item.line_total || price * quantity);
+            const menuStr = `${escapeHtml(name)}${note ? ` <small class="item-note">(${escapeHtml(note)})</small>` : ""}`;
+
+            if (itemIdx === 0) {
+              return `
+                <tr>
+                  <td rowspan="${rowspan}">${index + 1}</td>
+                  <td rowspan="${rowspan}">${escapeHtml(jamStr)}</td>
+                  <td rowspan="${rowspan}">${escapeHtml(customerName)}</td>
+                  <td>${menuStr}</td>
+                  <td class="number">${quantity}</td>
+                  <td class="number">${currency.format(price)}</td>
+                  <td class="number">${currency.format(lineTotal)}</td>
+                  <td rowspan="${rowspan}" class="number">${currency.format(ongkir)}</td>
+                  <td rowspan="${rowspan}" class="number">${currency.format(total)}</td>
+                  <td rowspan="${rowspan}">${escapeHtml(bayar)}</td>
+                </tr>
+              `;
+            } else {
+              return `
+                <tr>
+                  <td>${menuStr}</td>
+                  <td class="number">${quantity}</td>
+                  <td class="number">${currency.format(price)}</td>
+                  <td class="number">${currency.format(lineTotal)}</td>
+                </tr>
+              `;
+            }
+          })
+          .join("");
+      })
       .join("");
+  };
   const getDetailPageLabel = (chunk) => {
     const startNo = chunk.sales.length ? chunk.startIndex + 1 : 0;
     const endNo = chunk.sales.length ? chunk.startIndex + chunk.sales.length : 0;
@@ -5147,9 +5206,20 @@ function salesReportA4Html() {
   const renderDetailTable = (chunk) => `
     <table class="print-report-transactions">
       <thead>
-        <tr><th>No</th><th>Jam</th><th>Customer</th><th>Pesanan</th><th class="number">Ongkir</th><th class="number">Total</th><th>Bayar</th></tr>
+        <tr>
+          <th>No</th>
+          <th>Jam</th>
+          <th>Customer</th>
+          <th>Menu</th>
+          <th class="number">Qty</th>
+          <th class="number">Satuan</th>
+          <th class="number">Jumlah</th>
+          <th class="number">Ongkir</th>
+          <th class="number">Total</th>
+          <th>Bayar</th>
+        </tr>
       </thead>
-      <tbody>${renderTransactionRows(chunk) || `<tr><td colspan="7">Belum ada transaksi pada rentang ini.</td></tr>`}</tbody>
+      <tbody>${renderTransactionRows(chunk) || `<tr><td colspan="10">Belum ada transaksi pada rentang ini.</td></tr>`}</tbody>
     </table>
   `;
   const paymentRows = report.payments

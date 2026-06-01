@@ -2836,38 +2836,33 @@ label {
   width: 24mm;
 }
 
-.print-report-transactions td:nth-child(4) {
-  width: auto;
-  font-size: 8.8pt;
-  line-height: 1.22;
+.print-report-transactions th,
+.print-report-transactions td,
+.print-report-transactions .number {
+  text-align: center;
+  vertical-align: middle;
 }
 
-.print-report-transactions th:nth-child(1),
-.print-report-transactions td:nth-child(1) {
-  width: 8mm;
+.print-report-transactions td {
+  font-size: 8.2pt;
+  line-height: 1.25;
 }
 
-.print-report-transactions th:nth-child(2),
-.print-report-transactions td:nth-child(2) {
-  width: 12mm;
+.print-report-transactions td .item-note {
+  color: #6b7280;
+  font-size: 7.5pt;
 }
 
-.print-report-transactions th:nth-child(3),
-.print-report-transactions td:nth-child(3) {
-  width: 32mm;
-}
-
-.print-report-transactions th:nth-child(5),
-.print-report-transactions td:nth-child(5),
-.print-report-transactions th:nth-child(6),
-.print-report-transactions td:nth-child(6) {
-  width: 22mm;
-}
-
-.print-report-transactions th:nth-child(7),
-.print-report-transactions td:nth-child(7) {
-  width: 14mm;
-}
+.print-report-transactions th:nth-child(1) { width: 8mm; }
+.print-report-transactions th:nth-child(2) { width: 11mm; }
+.print-report-transactions th:nth-child(3) { width: 26mm; }
+.print-report-transactions th:nth-child(4) { width: auto; }
+.print-report-transactions th:nth-child(5) { width: 8mm; }
+.print-report-transactions th:nth-child(6) { width: 20mm; }
+.print-report-transactions th:nth-child(7) { width: 22mm; }
+.print-report-transactions th:nth-child(8) { width: 18mm; }
+.print-report-transactions th:nth-child(9) { width: 22mm; }
+.print-report-transactions th:nth-child(10) { width: 14mm; }
 
 .toast-container {
   position: fixed;
