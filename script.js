@@ -103,6 +103,7 @@ const state = {
   salesRange: "day",
   salesStatus: "active",
   salesSearch: "",
+  salesSort: "newest",
   salesPage: 1,
   salesCalendar: {
     field: "start",
@@ -122,6 +123,10 @@ const state = {
     lastImportAt: "",
   },
   heldCarts: [],
+  piutang: {
+    tab: "belum_lunas",
+    search: "",
+  },
   editingProductId: null,
   pendingDeleteProductId: null,
   pendingDeleteSale: null,
@@ -158,6 +163,10 @@ const els = {
   connectionDot: document.querySelector("#connectionDot"),
   connectionText: document.querySelector("#connectionText"),
   lastSyncText: document.querySelector("#lastSyncText"),
+  topbarConnectionDot: document.querySelector("#topbarConnectionDot"),
+  topbarConnectionText: document.querySelector("#topbarConnectionText"),
+  sidebarConnectionDot: document.querySelector("#sidebarConnectionDot"),
+  sidebarConnectionText: document.querySelector("#sidebarConnectionText"),
   spreadsheetInput: document.querySelector("#spreadsheetInput"),
   importButton: document.querySelector("#importButton"),
   syncStatus: document.querySelector("#syncStatus"),
@@ -215,6 +224,18 @@ const els = {
   openCustomerDataButton: document.querySelector("#openCustomerDataButton"),
   customerDataModal: document.querySelector("#customerDataModal"),
   customerSearchInput: document.querySelector("#customerSearchInput"),
+  customerDepositHint: document.querySelector("#customerDepositHint"),
+  openPiutangButton: document.querySelector("#openPiutangButton"),
+  piutangModal: document.querySelector("#piutangModal"),
+  piutangSearchInput: document.querySelector("#piutangSearchInput"),
+  piutangScrollArea: document.querySelector("#piutangScrollArea"),
+  piutangList: document.querySelector("#piutangList"),
+  piutangStatus: document.querySelector("#piutangStatus"),
+  piutangTotalBadge: document.querySelector("#piutangTotalBadge"),
+  refreshPiutangButton: document.querySelector("#refreshPiutangButton"),
+  tabPiutangBelumLunas: document.querySelector("#tabPiutangBelumLunas"),
+  tabPiutangLunas: document.querySelector("#tabPiutangLunas"),
+  tabPiutangSemua: document.querySelector("#tabPiutangSemua"),
   customerScrollArea: document.querySelector("#customerScrollArea"),
   customerSimilarSection: document.querySelector("#customerSimilarSection"),
   customerSimilarList: document.querySelector("#customerSimilarList"),
@@ -225,6 +246,7 @@ const els = {
   addCustomerForm: document.querySelector("#addCustomerForm"),
   addCustomerNameInput: document.querySelector("#addCustomerNameInput"),
   addCustomerShippingInput: document.querySelector("#addCustomerShippingInput"),
+  addCustomerDepositInput: document.querySelector("#addCustomerDepositInput"),
   addCustomerAliasesInput: document.querySelector("#addCustomerAliasesInput"),
   cancelAddCustomerButton: document.querySelector("#cancelAddCustomerButton"),
   refreshCustomersButton: document.querySelector("#refreshCustomersButton"),
@@ -285,6 +307,7 @@ const els = {
   salesRangeButtons: document.querySelectorAll("[data-sales-range]"),
   salesStatusButtons: document.querySelectorAll("[data-sales-status]"),
   salesSearchInput: document.querySelector("#salesSearchInput"),
+  salesSortInput: document.querySelector("#salesSortInput"),
   salesDateLabel: document.querySelector("#salesDateLabel"),
   salesList: document.querySelector("#salesList"),
   salesPagination: document.querySelector("#salesPagination"),
@@ -299,6 +322,7 @@ const els = {
   dailyAverageText: document.querySelector("#dailyAverageText"),
   dailyPaymentBreakdown: document.querySelector("#dailyPaymentBreakdown"),
   dailyItemTotals: document.querySelector("#dailyItemTotals"),
+  dailyReportSection: document.querySelector("#dailyReportSection"),
   printDailyReportButton: document.querySelector("#printDailyReportButton"),
   exportDailyReportButton: document.querySelector("#exportDailyReportButton"),
   exportAllSalesButton: document.querySelector("#exportAllSalesButton"),
@@ -348,6 +372,8 @@ const els = {
   subtotalText: document.querySelector("#subtotalText"),
   shippingText: document.querySelector("#shippingText"),
   totalText: document.querySelector("#totalText"),
+  checkoutDepositRow: document.querySelector("#checkoutDepositRow"),
+  depositText: document.querySelector("#depositText"),
   checkoutValidation: document.querySelector("#checkoutValidation"),
   storeNameInput: document.querySelector("#storeNameInput"),
   storeAddressInput: document.querySelector("#storeAddressInput"),
@@ -405,6 +431,7 @@ function loadState() {
     const parsedSalesRange = String(parsed.salesRange || "day");
     state.salesRange = parsedSalesRange === "7" ? "week" : parsedSalesRange === "30" ? "custom" : ["day", "week", "all", "custom"].includes(parsedSalesRange) ? parsedSalesRange : "day";
     state.salesStatus = ["active", "deleted", "all"].includes(String(parsed.salesStatus)) ? String(parsed.salesStatus) : "active";
+    state.salesSort = ["newest", "oldest"].includes(String(parsed.salesSort)) ? String(parsed.salesSort) : "newest";
     state.salesPage = Math.max(1, Number.parseInt(parsed.salesPage, 10) || 1);
     state.salesDate = typeof parsed.salesDate === "string" ? parsed.salesDate : state.salesDate;
     state.salesStartDate = typeof parsed.salesStartDate === "string" ? parsed.salesStartDate : state.salesDate;
@@ -448,6 +475,7 @@ function getLocalStateSnapshot() {
     salesSearch: state.salesSearch,
     salesRange: state.salesRange,
     salesStatus: state.salesStatus,
+    salesSort: state.salesSort,
     salesPage: state.salesPage,
     salesDate: state.salesDate,
     salesStartDate: state.salesStartDate,
@@ -712,6 +740,7 @@ function updateSidebarActiveState() {
     [els.openBulkImportButton, els.bulkImportModal],
     [els.openSalesDashboardButton, els.salesDashboardModal],
     [els.openCustomerDataButton, els.customerDataModal],
+    [els.openPiutangButton, els.piutangModal],
     [els.openReceiptSettingsButton, els.receiptSettingsModal],
     [els.openPrinterSetupButton, els.printerSetupModal],
   ];
@@ -979,6 +1008,17 @@ function isSameLocalDate(value, dateKey) {
   return getLocalDateKey(date) === dateKey;
 }
 
+function getSaleDateKey(sale) {
+  const receiptMatch = String(sale?.receipt_no || sale?.receiptNo || "").match(/(?:^|-)(\d{8})(?:-|$)/);
+  if (receiptMatch) {
+    return `${receiptMatch[1].slice(0, 4)}-${receiptMatch[1].slice(4, 6)}-${receiptMatch[1].slice(6, 8)}`;
+  }
+
+  const date = new Date(sale?.completed_at || sale?.completedAt || sale?.created_at || "");
+  if (Number.isNaN(date.getTime())) return "";
+  return getLocalDateKey(date);
+}
+
 function addDaysToDateKey(dateKey, days) {
   const date = parseLocalDateKey(dateKey || getLocalDateKey());
   date.setDate(date.getDate() + days);
@@ -999,7 +1039,7 @@ function normalizeDateRange(startDate, endDate) {
 function getAllSalesDateRange() {
   const dates = state.sales
     .filter(saleMatchesStatus)
-    .map((sale) => getLocalDateKey(new Date(sale.completed_at)))
+    .map(getSaleDateKey)
     .filter(Boolean)
     .sort(compareDateKeys);
   if (!dates.length) {
@@ -1029,7 +1069,7 @@ function getSalesRangeDates() {
 }
 
 function isSaleInDateRange(sale, range = getSalesRangeDates()) {
-  const dateKey = getLocalDateKey(new Date(sale.completed_at));
+  const dateKey = getSaleDateKey(sale);
   return compareDateKeys(dateKey, range.start) >= 0 && compareDateKeys(dateKey, range.end) <= 0;
 }
 
@@ -1144,10 +1184,12 @@ function renderDailyMenuControls() {
   const dateLabel = formatDateLabel(todayDate);
   const editorDateLabel = formatDateLabel(editorDate);
   const active = isDailyMenuFilterActive();
-  if (els.dailyMenuTitle) els.dailyMenuTitle.textContent = active ? "Menu Hari Ini Aktif" : "Menu Harian";
+  if (els.dailyMenuTitle) els.dailyMenuTitle.textContent = active ? "Menu Terjadwal Aktif" : "Menu Katering Harian";
   els.dailyMenuStatus.textContent = menuProducts.length
-    ? `${menuProducts.length} menu disiapkan untuk ${dateLabel}. ${active ? "Kasir cuma menampilkan menu ini." : "Filter belum aktif."}`
-    : `Belum ada menu khusus untuk ${dateLabel}.`;
+    ? (active 
+        ? `Hanya menampilkan ${menuProducts.length} menu yang terjadwal untuk ${dateLabel}.`
+        : `Tersedia ${menuProducts.length} menu terjadwal untuk ${dateLabel}. Menampilkan semua barang.`)
+    : `Belum ada menu terjadwal untuk ${dateLabel}. Tekan 'Atur Menu' untuk menambahkan.`;
   els.showAllMenuButton?.classList.toggle("active", !active);
   els.showTodayMenuButton?.classList.toggle("active", active);
   if (els.showTodayMenuButton) els.showTodayMenuButton.disabled = !menuProducts.length;
@@ -1465,19 +1507,33 @@ function getCustomerMatchSignatures(value) {
 
 function getCustomerProfiles() {
   const profiles = new Map();
-  const addProfile = (name, shipping = 0, dateValue = "") => {
+  const addProfile = (name, shipping = 0, dateValue = "", newDepositBalance) => {
     const customerName = String(name || "").trim();
     const key = normalizeKey(customerName);
     if (!key) return;
 
     const timestamp = dateValue ? new Date(dateValue).getTime() || 0 : 0;
     const current = profiles.get(key);
+    
+    // Preserve existing deposit balance if newDepositBalance is not provided
+    const resolvedDeposit = newDepositBalance !== undefined 
+      ? Number(newDepositBalance || 0) 
+      : (current ? current.depositBalance : 0);
+
+    // Always keep the highest deposit balance we've seen for this customer
+    // because only state.customers provides the true balance
+    const maxDeposit = Math.max(current ? current.depositBalance : 0, resolvedDeposit);
+
     if (!current || timestamp >= current.timestamp) {
       profiles.set(key, {
         name: customerName,
         shipping: Number(shipping || 0),
+        depositBalance: maxDeposit,
         timestamp,
       });
+    } else if (maxDeposit > current.depositBalance) {
+      // If we don't update the timestamp/shipping, at least ensure deposit balance isn't lost
+      current.depositBalance = maxDeposit;
     }
   };
 
@@ -1486,9 +1542,10 @@ function getCustomerProfiles() {
     addProfile(
       normalized.name,
       normalized.shipping,
-      normalized.lastOrderAt
+      normalized.lastOrderAt,
+      normalized.depositBalance
     );
-    normalized.aliases.forEach((alias) => addProfile(alias, normalized.shipping, normalized.lastOrderAt));
+    normalized.aliases.forEach((alias) => addProfile(alias, normalized.shipping, normalized.lastOrderAt, normalized.depositBalance));
   });
   getActiveSales().forEach((sale) => addProfile(getCustomerNameFromSale(sale), getSaleShipping(sale), sale.completed_at));
   state.importDrafts.forEach((draft) => addProfile(draft.customerName, draft.shipping, draft.importedAt));
@@ -1524,6 +1581,12 @@ function applyCustomerDefaults(customerName, targetSale = state.sale) {
 function renderCustomerProfileHint() {
   if (!els.customerProfileHint) return;
   const customerName = String(state.sale.customerName || "").trim();
+
+  if (els.customerDepositHint) {
+    els.customerDepositHint.hidden = true;
+    els.customerDepositHint.textContent = "";
+  }
+
   if (!customerName) {
     els.customerProfileHint.textContent = "Customer/alamat kosong. Isi field ini supaya ongkir terakhir bisa kepakai otomatis.";
     els.customerProfileHint.className = "customer-profile-hint warning";
@@ -1535,6 +1598,11 @@ function renderCustomerProfileHint() {
     const lastText = profile.timestamp ? ` terakhir ${new Date(profile.timestamp).toLocaleDateString("id-ID")}` : "";
     els.customerProfileHint.textContent = `Customer/alamat lama${lastText}. Ongkir terakhir ${currency.format(profile.shipping)} dipakai otomatis.`;
     els.customerProfileHint.className = "customer-profile-hint success";
+
+    if (profile.depositBalance > 0 && els.customerDepositHint) {
+      els.customerDepositHint.textContent = `Pelanggan memiliki saldo deposit ${currency.format(profile.depositBalance)} yang akan otomatis digunakan pada order ini.`;
+      els.customerDepositHint.hidden = false;
+    }
     return;
   }
 
@@ -1561,6 +1629,7 @@ function normalizeCustomerRecord(customer) {
     id: String(customer?.id ?? "").trim(),
     name: String(customer?.name ?? customer?.customerName ?? "").trim(),
     shipping: parseIntegerInput(customer?.default_shipping ?? customer?.defaultShipping ?? customer?.shipping ?? 0),
+    depositBalance: parseIntegerInput(customer?.deposit_balance ?? customer?.depositBalance ?? 0),
     lastOrderAt,
     timestamp: lastOrderAt ? new Date(lastOrderAt).getTime() || 0 : 0,
     aliases: parseAliasList(customer?.aliases ?? customer?.alias ?? []),
@@ -1698,6 +1767,13 @@ function renderCustomerDataList(statusMessage = "") {
             <input name="defaultShipping" type="text" inputmode="numeric" value="${escapeHtml(formatIntegerInput(customer.shipping))}">
           </span>
         </label>
+        <label class="customer-deposit-field">
+          Deposit
+          <span class="customer-money-input">
+            <span>Rp</span>
+            <input name="depositBalance" type="text" inputmode="numeric" value="${escapeHtml(formatIntegerInput(customer.depositBalance))}">
+          </span>
+        </label>
         <button class="primary-button customer-save-button" type="submit">Simpan</button>
         <button class="ghost-button danger customer-remove-button" type="button" data-delete-customer="${escapeHtml(customer.id)}" data-customer-name="${escapeHtml(customer.name)}" aria-label="Hapus ${escapeHtml(customer.name)}" title="Hapus customer">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
@@ -1724,16 +1800,19 @@ async function openCustomerDataManager() {
 function openAddCustomerDialog() {
   els.addCustomerForm?.reset();
   if (els.addCustomerShippingInput) els.addCustomerShippingInput.value = "0";
+  if (els.addCustomerDepositInput) els.addCustomerDepositInput.value = "0";
   openModal(els.addCustomerModal, els.addCustomerNameInput);
 }
 
 async function saveNewCustomer(form) {
   const nameInput = form?.elements?.name;
   const shippingInput = form?.elements?.defaultShipping;
+  const depositInput = form?.elements?.depositBalance;
   const aliasesInput = form?.elements?.aliases;
   const submitButton = form?.querySelector('button[type="submit"]');
   const customerName = String(nameInput?.value || "").trim();
   const defaultShipping = parseIntegerInput(shippingInput?.value || 0);
+  const depositBalance = parseIntegerInput(depositInput?.value || 0);
   const aliases = String(aliasesInput?.value || "").trim();
 
   if (!customerName) {
@@ -1743,6 +1822,7 @@ async function saveNewCustomer(form) {
   }
 
   if (shippingInput) shippingInput.value = formatIntegerInput(defaultShipping);
+  if (depositInput) depositInput.value = formatIntegerInput(depositBalance);
   if (submitButton) submitButton.disabled = true;
   setCustomerDataStatus("Menyimpan customer baru...");
 
@@ -1750,6 +1830,7 @@ async function saveNewCustomer(form) {
     const data = await createCustomerInDatabase({
       name: customerName,
       defaultShipping,
+      depositBalance,
       aliases,
     });
     if (data.customer) state.customers.unshift(data.customer);
@@ -1834,9 +1915,11 @@ async function saveCustomerDataForm(form) {
   const originalName = String(form?.dataset?.originalName || "").trim();
   const nameInput = form?.elements?.name;
   const shippingInput = form?.elements?.defaultShipping;
+  const depositInput = form?.elements?.depositBalance;
   const submitButton = form?.querySelector('button[type="submit"]');
   const customerName = String(nameInput?.value || "").trim();
   const defaultShipping = parseIntegerInput(shippingInput?.value || 0);
+  const depositBalance = parseIntegerInput(depositInput?.value || 0);
 
   if (!customerId) {
     setCustomerDataStatus("ID customer tidak valid.", { toast: true, variant: "error" });
@@ -1849,6 +1932,7 @@ async function saveCustomerDataForm(form) {
   }
 
   if (shippingInput) shippingInput.value = formatIntegerInput(defaultShipping);
+  if (depositInput) depositInput.value = formatIntegerInput(depositBalance);
   if (submitButton) submitButton.disabled = true;
   setCustomerDataStatus("Menyimpan data customer...");
 
@@ -1856,6 +1940,7 @@ async function saveCustomerDataForm(form) {
     const data = await updateCustomerInDatabase(customerId, {
       name: customerName,
       defaultShipping,
+      depositBalance,
     });
     const updated = data.customer || {};
     const normalized = normalizeCustomerRecord(updated);
@@ -1881,7 +1966,7 @@ async function saveCustomerDataForm(form) {
     renderCustomerSuggestions();
     renderCustomerProfileHint();
     renderCustomerDataList("Data customer tersimpan.");
-    showToast("Nama customer dan ongkir tersimpan.", { title: "Data Customer", variant: "success" });
+    showToast("Data customer berhasil diperbarui.", { title: "Data Customer", variant: "success" });
   } catch (error) {
     setCustomerDataStatus(error.message || "Data customer gagal disimpan.", { toast: true, variant: "error" });
   } finally {
@@ -1989,9 +2074,21 @@ function saleMatchesSearch(sale, query) {
   return haystack.includes(query);
 }
 
+function getSaleSortTime(sale) {
+  const time = Date.parse(sale.completed_at || sale.completedAt || sale.created_at || "");
+  return Number.isFinite(time) ? time : 0;
+}
+
 function getVisibleSales() {
   const query = normalizeKey(state.salesSearch);
-  return getSelectedSales().filter((sale) => saleMatchesSearch(sale, query));
+  const direction = state.salesSort === "oldest" ? 1 : -1;
+  return getSelectedSales()
+    .filter((sale) => saleMatchesSearch(sale, query))
+    .sort((saleA, saleB) => {
+      const timeDiff = getSaleSortTime(saleA) - getSaleSortTime(saleB);
+      if (timeDiff) return timeDiff * direction;
+      return String(saleA.receipt_no || "").localeCompare(String(saleB.receipt_no || "")) * direction;
+    });
 }
 
 function getSaleShipping(sale) {
@@ -2003,7 +2100,7 @@ function getSaleItemCount(sale) {
 }
 
 function getSalesCalendarStats(dateKey) {
-  const sales = state.sales.filter((sale) => saleMatchesStatus(sale) && isSameLocalDate(sale.completed_at, dateKey));
+  const sales = state.sales.filter((sale) => saleMatchesStatus(sale) && getSaleDateKey(sale) === dateKey);
   return {
     count: sales.length,
     revenue: sales.reduce((sum, sale) => sum + Number(sale.total || 0), 0),
@@ -2168,6 +2265,7 @@ function saleToReceiptPayload(sale) {
     shipping: getSaleShipping(sale),
     tax: 0,
     total: Number(sale.total || 0),
+    usedDeposit: Number(sale.usedDeposit || 0),
     items: Array.isArray(sale.items) ? sale.items : [],
   };
 }
@@ -2270,7 +2368,36 @@ function updateConnectionUI() {
   els.connectionCard.classList.toggle("online", online);
   els.connectionText.textContent = online ? "Terhubung - siap sinkron" : "Tidak ada internet - pakai data tersimpan";
   els.lastSyncText.textContent = `${formatSyncTime(state.sync.lastSyncAt)}. ${state.products.length} barang tersimpan.`;
+  checkBackendConnection();
 }
+
+async function checkBackendConnection() {
+  const dots = [els.topbarConnectionDot, els.sidebarConnectionDot];
+  const texts = [els.topbarConnectionText, els.sidebarConnectionText];
+  
+  const setStatus = (status, label) => {
+    dots.forEach((dot) => {
+      if (dot) dot.className = `status-dot ${status}`;
+    });
+    texts.forEach((txt) => {
+      if (txt) txt.textContent = label;
+    });
+  };
+
+  setStatus("connecting", "Menghubungkan...");
+
+  try {
+    const res = await window.fetch("/api/health", { cache: "no-store" });
+    if (res.ok) {
+      setStatus("online", "Online");
+    } else {
+      setStatus("offline", "Offline");
+    }
+  } catch (err) {
+    setStatus("offline", "Offline");
+  }
+}
+
 
 function parseMoney(value) {
   if (typeof value === "number") return Math.max(0, value);
@@ -2401,6 +2528,37 @@ function getProductTokens(value) {
     .split(/\s+/)
     .filter((token) => token.length > 1);
 }
+
+function getStringSimilarity(str1, str2) {
+  const s1 = String(str1 || "").toLowerCase().trim();
+  const s2 = String(str2 || "").toLowerCase().trim();
+  if (s1 === s2) return 1.0;
+  if (!s1 || !s2) return 0.0;
+  
+  const getBigrams = (s) => {
+    const list = [];
+    for (let i = 0; i < s.length - 1; i++) {
+      list.push(s.substring(i, i + 2));
+    }
+    return list;
+  };
+  
+  const b1 = getBigrams(s1);
+  const b2 = getBigrams(s2);
+  if (!b1.length || !b2.length) return 0.0;
+  
+  const set2 = new Set(b2);
+  let intersection = 0;
+  b1.forEach((bigram) => {
+    if (set2.has(bigram)) {
+      intersection++;
+      set2.delete(bigram);
+    }
+  });
+  
+  return (2.0 * intersection) / (b1.length + b2.length);
+}
+
 
 function findUniqueProductMatch(products, rawName, sku = "", price = 0, options = {}) {
   const normalizedSku = normalizeKey(sku);
@@ -2726,14 +2884,51 @@ function renderBulkImportReview(drafts = state.importDrafts) {
   `;
 }
 
-function getProductSelectOptions(selectedProductId) {
-  return [
-    `<option value="">Pilih barang</option>`,
-    ...state.products.map((product) => {
+function getProductSelectOptions(selectedProductId, rawName = "") {
+  const recommendations = [];
+  const cleanRawName = String(rawName || "").trim();
+  
+  if (cleanRawName) {
+    state.products.forEach((product) => {
+      const aliases = Array.isArray(product.aliases) ? product.aliases : [];
+      const score = Math.max(
+        getStringSimilarity(cleanRawName, product.name),
+        product.sku ? getStringSimilarity(cleanRawName, product.sku) : 0,
+        ...aliases.map((alias) => getStringSimilarity(cleanRawName, alias))
+      );
+      if (score >= 0.35) {
+        recommendations.push({ product, score });
+      }
+    });
+    
+    recommendations.sort((a, b) => b.score - a.score);
+  }
+
+  const topRecommendations = recommendations.slice(0, 3).map((r) => r.product);
+  const options = [`<option value="">Pilih barang</option>`];
+
+  if (topRecommendations.length > 0) {
+    options.push(`<optgroup label="Saran Cocok (Fuzzy Match)">`);
+    topRecommendations.forEach((product) => {
       const selected = product.id === selectedProductId ? "selected" : "";
-      return `<option value="${escapeHtml(product.id)}" ${selected}>${escapeHtml(product.name)} · ${currency.format(product.price)}</option>`;
-    }),
-  ].join("");
+      options.push(`<option value="${escapeHtml(product.id)}" ${selected}>${escapeHtml(product.name)} · ${currency.format(product.price)}</option>`);
+    });
+    options.push(`</optgroup>`);
+    
+    options.push(`<optgroup label="Semua Menu">`);
+    state.products.forEach((product) => {
+      const selected = product.id === selectedProductId ? "selected" : "";
+      options.push(`<option value="${escapeHtml(product.id)}" ${selected}>${escapeHtml(product.name)} · ${currency.format(product.price)}</option>`);
+    });
+    options.push(`</optgroup>`);
+  } else {
+    state.products.forEach((product) => {
+      const selected = product.id === selectedProductId ? "selected" : "";
+      options.push(`<option value="${escapeHtml(product.id)}" ${selected}>${escapeHtml(product.name)} · ${currency.format(product.price)}</option>`);
+    });
+  }
+
+  return options.join("");
 }
 
 function setBulkImportStatus(message, options = {}) {
@@ -2780,7 +2975,7 @@ function renderBulkDrafts() {
               <label>
                 Barang
                 <select data-draft-item-product="${escapeHtml(item.id)}">
-                  ${getProductSelectOptions(item.productId)}
+                  ${getProductSelectOptions(item.productId, item.rawName)}
                 </select>
               </label>
               <label>
@@ -3182,17 +3377,28 @@ function getProduct(productId) {
   return state.products.find((product) => product.id === productId);
 }
 
+function getCustomerDepositBalance() {
+  const customerName = String(state.sale.customerName || "").trim();
+  if (!customerName) return 0;
+  const profile = getCustomerProfile(customerName);
+  return profile ? Number(profile.depositBalance || 0) : 0;
+}
+
 function getTotals() {
   const subtotal = state.cart.reduce((sum, cartItem) => {
     const product = getProduct(cartItem.productId);
     return sum + (product ? product.price * cartItem.quantity : 0);
   }, 0);
   const shipping = Math.max(0, state.sale.shipping);
+  const grossTotal = subtotal + shipping;
+  const depositBalance = getCustomerDepositBalance();
+  const usedDeposit = Math.min(depositBalance, grossTotal);
   return {
     subtotal,
     shipping,
     tax: 0,
-    total: subtotal + shipping,
+    deposit: usedDeposit,
+    total: grossTotal - usedDeposit,
   };
 }
 
@@ -3236,7 +3442,8 @@ function buildSalePayload() {
     shipping: totals.shipping,
     discount: totals.shipping,
     tax: 0,
-    total: totals.total,
+    total: totals.subtotal + totals.shipping,
+    usedDeposit: totals.deposit,
     items: getCartItems(),
   };
 }
@@ -3272,7 +3479,7 @@ function getCheckoutValidationIssues() {
     issues.push({ type: "warning", blocking: false, message: "Ongkir masih Rp0. Pastikan memang gratis/pickup." });
   }
 
-  if (state.cart.length && totals.total <= 0) {
+  if (state.cart.length && (totals.subtotal + totals.shipping) <= 0) {
     issues.push({ type: "error", blocking: true, message: "Total transaksi belum valid." });
   }
 
@@ -3636,6 +3843,7 @@ function renderSalesDashboard() {
   renderSalesDateControls(range);
   renderSalesCalendar();
   els.salesSearchInput.value = state.salesSearch;
+  if (els.salesSortInput) els.salesSortInput.value = state.salesSort;
   els.salesDateLabel.textContent = formatSalesDateLabel();
   els.salesRangeButtons.forEach((button) => {
     const active = button.dataset.salesRange === state.salesRange;
@@ -3655,7 +3863,12 @@ function renderSalesDashboard() {
   els.selectedSalesText.textContent = String(selectedSales.length);
   els.selectedRevenueText.textContent = currency.format(selectedRevenue);
   els.totalSalesText.textContent = String(state.salesSummary.totalSales || getActiveSales().length);
-  renderDailyReport(selectedSales.filter((sale) => !isSaleDeleted(sale)));
+  if (els.dailyReportSection) {
+    els.dailyReportSection.hidden = state.salesStatus === "deleted";
+  }
+  if (state.salesStatus !== "deleted") {
+    renderDailyReport(selectedSales.filter((sale) => !isSaleDeleted(sale)));
+  }
 
   if (!state.sales.length) {
     updateSalesPagination(0);
@@ -4457,6 +4670,14 @@ function renderCart() {
   const totals = getTotals();
   els.subtotalText.textContent = currency.format(totals.subtotal);
   els.shippingText.textContent = currency.format(totals.shipping);
+  if (els.checkoutDepositRow && els.depositText) {
+    if (totals.deposit > 0) {
+      els.depositText.textContent = `-${currency.format(totals.deposit)}`;
+      els.checkoutDepositRow.hidden = false;
+    } else {
+      els.checkoutDepositRow.hidden = true;
+    }
+  }
   els.totalText.textContent = currency.format(totals.total);
   renderCustomerProfileHint();
   renderCheckoutValidation();
@@ -4491,6 +4712,7 @@ function receiptHtmlFromSale(sale) {
   const subtotal = Number(sale.subtotal || 0);
   const shipping = Number(sale.shipping || sale.discount || 0);
   const total = Number(sale.total || 0);
+  const usedDeposit = Number(sale.usedDeposit || 0);
   const customerName = String(sale.customerName || sale.customer_name || sale.customerAddress || sale.customer_address || "").trim();
   const chatDate = String(sale.chatDate || sale.chat_date || "").trim();
   const compact = (sale.receiptMode || state.settings.receiptMode || "compact") === "compact";
@@ -4540,9 +4762,10 @@ function receiptHtmlFromSale(sale) {
     <div class="receipt-line"></div>
     <div class="receipt-row"><span>Subtotal</span><strong>${currency.format(subtotal)}</strong></div>
     ${adjustmentRows}
+    ${usedDeposit > 0 ? `<div class="receipt-row"><span>Potongan Deposit</span><strong>-${currency.format(usedDeposit)}</strong></div>` : ""}
     <div class="receipt-row"><span>Pembayaran</span><strong>${escapeHtml(sale.payment || state.sale.payment)}</strong></div>
     <div class="receipt-line"></div>
-    <div class="receipt-row"><strong>Total</strong><strong>${currency.format(total)}</strong></div>
+    <div class="receipt-row"><strong>Total Bayar</strong><strong>${currency.format(total - usedDeposit)}</strong></div>
     ${footerHtml}
   `;
 }
@@ -4569,7 +4792,8 @@ function getCurrentReceiptPayload() {
     subtotal: totals.subtotal,
     shipping: totals.shipping,
     tax: 0,
-    total: totals.total,
+    total: totals.subtotal + totals.shipping,
+    usedDeposit: totals.deposit,
     items: getCartItems(),
   };
 }
@@ -4826,7 +5050,7 @@ function formatReportItemList(items = []) {
     .join("<br>");
 }
 
-const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 28;
+const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 38;
 const REPORT_DETAIL_PAGE_UNIT_LIMIT = 52;
 const REPORT_DETAIL_ROW_MIN_UNITS = 2;
 
@@ -5008,16 +5232,6 @@ function salesReportA4Html() {
             <tr><th>Metode</th><th class="number">Transaksi</th><th class="number">Total</th></tr>
           </thead>
           <tbody>${paymentRows || `<tr><td colspan="3">Belum ada pembayaran.</td></tr>`}</tbody>
-        </table>
-      </section>
-
-      <section class="print-report-section">
-        <h2>Rekap Menu</h2>
-        <table class="print-report-menu-table">
-          <thead>
-            <tr><th>No</th><th>Menu</th><th class="number">Qty</th><th class="number">Subtotal</th></tr>
-          </thead>
-          <tbody>${itemRows || `<tr><td colspan="4">Belum ada item terjual.</td></tr>`}</tbody>
         </table>
       </section>
 
@@ -5559,10 +5773,13 @@ function renderHeldCarts() {
         .filter(Boolean)
         .join(", ");
 
+      const customerName = String(heldCart.sale?.customerName || "").trim();
+      const titleSuffix = customerName ? ` - ${customerName}` : "";
+
       return `
         <article class="held-cart-card">
           <div>
-            <p class="sale-card-title">Hold ${index + 1}</p>
+            <p class="sale-card-title">Hold ${index + 1}${escapeHtml(titleSuffix)}</p>
             <p class="sale-card-meta">${new Date(heldCart.createdAt).toLocaleString("id-ID")} · ${itemCount} item · ${currency.format(total)}</p>
             <p class="sale-card-items">${escapeHtml(itemNames || "Item tidak ditemukan")}</p>
           </div>
@@ -5871,6 +6088,7 @@ async function completeSale() {
   try {
     const savedSale = await saveSaleToDatabase(salePayload);
     if (savedSale.receiptNo) salePayload.receiptNo = savedSale.receiptNo;
+    if (savedSale.usedDeposit) salePayload.usedDeposit = savedSale.usedDeposit;
   } catch (error) {
     setSyncStatus(`${error.message} Transaksi belum diselesaikan.`);
     els.completeSaleButton.disabled = false;
@@ -6065,6 +6283,9 @@ function bindEvents() {
   els.addCustomerShippingInput.addEventListener("input", () => {
     els.addCustomerShippingInput.value = formatIntegerInput(els.addCustomerShippingInput.value);
   });
+  els.addCustomerDepositInput.addEventListener("input", () => {
+    els.addCustomerDepositInput.value = formatIntegerInput(els.addCustomerDepositInput.value);
+  });
   els.addCustomerForm.addEventListener("submit", (event) => {
     event.preventDefault();
     saveNewCustomer(event.target);
@@ -6079,7 +6300,7 @@ function bindEvents() {
     mergeCustomerGroup(event.target);
   });
   els.customerDataList.addEventListener("input", (event) => {
-    if (event.target.matches('input[name="defaultShipping"]')) {
+    if (event.target.matches('input[name="defaultShipping"]') || event.target.matches('input[name="depositBalance"]')) {
       event.target.value = formatIntegerInput(event.target.value);
     }
   });
@@ -6095,6 +6316,40 @@ function bindEvents() {
   els.customerDataModal.addEventListener("click", (event) => {
     if (event.target === els.customerDataModal) {
       els.customerDataModal.close();
+    }
+  });
+  els.openPiutangButton.addEventListener("click", openPiutangManager);
+  els.refreshPiutangButton.addEventListener("click", () => {
+    loadPiutangData({ toast: true });
+  });
+  els.piutangSearchInput.addEventListener("input", () => {
+    state.piutang.search = els.piutangSearchInput.value;
+    renderPiutangList();
+  });
+  els.tabPiutangBelumLunas.addEventListener("click", () => {
+    switchPiutangTab("belum_lunas", els.tabPiutangBelumLunas);
+  });
+  els.tabPiutangLunas.addEventListener("click", () => {
+    switchPiutangTab("lunas", els.tabPiutangLunas);
+  });
+  els.tabPiutangSemua.addEventListener("click", () => {
+    switchPiutangTab("semua", els.tabPiutangSemua);
+  });
+  els.piutangModal.addEventListener("click", (event) => {
+    if (event.target === els.piutangModal) {
+      els.piutangModal.close();
+    }
+  });
+
+  els.piutangList.addEventListener("submit", (event) => {
+    if (!event.target.matches(".piutang-pay-form")) return;
+    event.preventDefault();
+    submitPiutangPayment(event.target);
+  });
+  els.piutangList.addEventListener("click", (event) => {
+    const revokeButton = event.target.closest("[data-revoke-sale-id]");
+    if (revokeButton) {
+      revokePiutangPayment(revokeButton.dataset.revokeSaleId);
     }
   });
   els.printDailyReportButton.addEventListener("click", printDailyReport);
@@ -6158,6 +6413,12 @@ function bindEvents() {
   });
   els.salesSearchInput.addEventListener("input", () => {
     state.salesSearch = els.salesSearchInput.value;
+    resetSalesPage();
+    renderSalesDashboard();
+    saveState();
+  });
+  els.salesSortInput?.addEventListener("change", () => {
+    state.salesSort = ["newest", "oldest"].includes(els.salesSortInput.value) ? els.salesSortInput.value : "newest";
     resetSalesPage();
     renderSalesDashboard();
     saveState();
@@ -6535,6 +6796,7 @@ function bindEvents() {
   });
 
   window.setInterval(refreshTodayDateIfChanged, 60000);
+  window.setInterval(checkBackendConnection, 15000);
 }
 
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
@@ -6555,3 +6817,290 @@ updateConnectionUI();
 startAutoSync();
 loadProductsFromDatabase({ toast: false });
 loadSalesDashboard();
+
+// === CATATAN PIUTANG & DEPOSIT MANAGEMENT ===
+
+function openPiutangManager() {
+  if (els.piutangSearchInput) {
+    els.piutangSearchInput.value = "";
+    state.piutang.search = "";
+  }
+
+  switchPiutangTab("belum_lunas", els.tabPiutangBelumLunas);
+  openModal(els.piutangModal, els.piutangSearchInput);
+  loadPiutangData();
+}
+
+async function loadPiutangData(options = {}) {
+  const { toast = false } = options;
+  setPiutangStatus("Memuat data piutang...");
+
+  try {
+    const salesData = await requestJson("/api/sales?limit=1000");
+    if (salesData && Array.isArray(salesData.sales)) {
+      state.sales = salesData.sales;
+    }
+
+    await loadCustomers({ toast: false });
+
+    renderPiutangList();
+    setPiutangStatus("");
+    if (toast) showToast("Data piutang dan deposit dimuat ulang.");
+  } catch (error) {
+    console.error("Error loading piutang data:", error);
+    setPiutangStatus(`Gagal memuat data piutang: ${error.message}`);
+    if (toast) showToast(`Gagal memuat: ${error.message}`);
+  }
+}
+
+function setPiutangStatus(message) {
+  if (!els.piutangStatus) return;
+  els.piutangStatus.textContent = message;
+  els.piutangStatus.hidden = !message;
+}
+
+function switchPiutangTab(tabName, activeBtn) {
+  state.piutang.tab = tabName;
+
+  [els.tabPiutangBelumLunas, els.tabPiutangLunas, els.tabPiutangSemua].forEach(btn => {
+    if (btn) btn.classList.remove("active");
+  });
+
+  if (activeBtn) activeBtn.classList.add("active");
+  renderPiutangList();
+}
+
+function renderPiutangList() {
+  if (!els.piutangList) return;
+
+  const tab = state.piutang.tab;
+  const search = (state.piutang.search || "").trim().toLowerCase();
+
+  let filtered = state.sales.filter(sale => {
+    if (sale.deleted_at || sale.deletedAt) return false;
+
+    const remaining = Number(sale.total || 0) - Number(sale.paid_amount || 0);
+    const isLunas = remaining <= 0;
+
+    if (tab === "belum_lunas" && isLunas) return false;
+    if (tab === "lunas" && !isLunas) return false;
+
+    return true;
+  });
+
+  if (search) {
+    filtered = filtered.filter(sale => {
+      const name = String(sale.customer_name || sale.customerName || "").toLowerCase();
+      const receiptNo = String(sale.receipt_no || sale.receiptNo || "").toLowerCase();
+      return name.includes(search) || receiptNo.includes(search);
+    });
+  }
+
+  const allBelumLunasSales = state.sales.filter(sale => {
+    if (sale.deleted_at || sale.deletedAt) return false;
+    return (Number(sale.total || 0) - Number(sale.paid_amount || 0)) > 0;
+  });
+
+  const totalPiutangAmount = allBelumLunasSales.reduce((acc, sale) => {
+    return acc + (Number(sale.total || 0) - Number(sale.paid_amount || 0));
+  }, 0);
+
+  if (els.piutangTotalBadge) {
+    els.piutangTotalBadge.textContent = `Total Piutang: ${currency.format(totalPiutangAmount)}`;
+    els.piutangTotalBadge.classList.toggle("lunas", totalPiutangAmount <= 0);
+  }
+
+  if (!filtered.length) {
+    els.piutangList.innerHTML = `
+      <div class="empty-state">
+        <p>Tidak ada data piutang yang cocok.</p>
+      </div>
+    `;
+    return;
+  }
+
+  els.piutangList.innerHTML = filtered.map(sale => {
+    const total = Number(sale.total || 0);
+    const paid = Number(sale.paid_amount || 0);
+    const remaining = total - paid;
+    const isLunas = remaining <= 0;
+    const items = Array.isArray(sale.items) ? sale.items : [];
+    const payments = Array.isArray(sale.payments) ? sale.payments : [];
+
+    const dateStr = sale.completed_at || sale.completedAt || "";
+    const formattedDate = dateStr ? new Date(dateStr).toLocaleString("id-ID", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    }) : "-";
+
+    const itemRowsHtml = items.map(item => `
+      <div class="piutang-card-item-row">
+        <span><span class="item-qty">${item.quantity}x</span> ${escapeHtml(item.name)}</span>
+        <span>${currency.format(Number(item.price || 0) * Number(item.quantity || 0))}</span>
+      </div>
+    `).join("");
+
+    const paymentRowsHtml = payments.map(pay => {
+      const payDate = pay.payment_date || pay.paymentDate || pay.created_at || "";
+      const formattedPayDate = payDate ? new Date(payDate).toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric"
+      }) : "-";
+
+      const isDeposit = pay.note && (pay.note.includes("Deposit") || pay.note.includes("deposit"));
+      const logClass = isDeposit ? "payment-log-row deposit-type" : "payment-log-row";
+      const noteCopy = pay.note ? ` (${escapeHtml(pay.note)})` : "";
+
+      return `
+        <div class="${logClass}">
+          <span>${escapeHtml(formattedPayDate)}${noteCopy}</span>
+          <strong>+ ${currency.format(pay.amount)}</strong>
+        </div>
+      `;
+    }).join("");
+
+    const payFormHtml = isLunas ? `
+      <div class="piutang-revoke-action">
+        <button class="ghost-button danger piutang-revoke-button" type="button" data-revoke-sale-id="${sale.id}">
+          Ubah ke Belum Lunas
+        </button>
+      </div>
+    ` : `
+      <form class="piutang-pay-form" data-sale-id="${sale.id}">
+        <label>
+          Input Pembayaran
+          <input class="piutang-payment-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="Contoh: 50.000" autocomplete="off" required>
+        </label>
+        <button class="primary-button" type="submit">Simpan</button>
+      </form>
+    `;
+
+    return `
+      <article class="piutang-card" id="piutangCard-${sale.id}">
+        <div class="piutang-card-header">
+          <div class="piutang-card-title-group">
+            <h3 class="piutang-card-title">${escapeHtml(sale.receipt_no || sale.receiptNo || "")}</h3>
+            <span class="piutang-card-date">${formattedDate}</span>
+          </div>
+          <span class="piutang-status-pill ${isLunas ? 'paid' : 'unpaid'}">${isLunas ? 'Lunas' : 'Belum Lunas'}</span>
+        </div>
+
+        <div class="piutang-card-body">
+          <div class="piutang-cust-info">
+            <strong>${escapeHtml(sale.customer_name || sale.customerName || "Tanpa Nama")}</strong>
+            <p>${escapeHtml(sale.customer_address || sale.customerAddress || "Tidak ada alamat")}</p>
+
+            <div class="piutang-card-items-detail" id="piutangItems-${sale.id}">
+              ${itemRowsHtml || "<p>Tidak ada rincian item barang.</p>"}
+            </div>
+          </div>
+
+          <div class="piutang-financial-summary">
+            <div class="piutang-financial-row">
+              <span>Total Transaksi</span>
+              <strong>${currency.format(total)}</strong>
+            </div>
+            <div class="piutang-financial-row">
+              <span>Sudah Dibayar</span>
+              <strong>${currency.format(paid)}</strong>
+            </div>
+            <div class="piutang-financial-row debt ${isLunas ? 'lunas' : ''}">
+              <span>Sisa Tagihan</span>
+              <strong>${currency.format(remaining)}</strong>
+            </div>
+          </div>
+        </div>
+
+        ${payments.length ? `
+          <div class="piutang-payment-logs">
+            <h4 class="piutang-payment-title">Riwayat Pembayaran:</h4>
+            ${paymentRowsHtml}
+          </div>
+        ` : ""}
+
+        ${payFormHtml}
+      </article>
+    `;
+  }).join("");
+
+  els.piutangList.querySelectorAll(".piutang-payment-input").forEach(input => {
+    input.addEventListener("input", () => {
+      input.value = formatIntegerInput(input.value);
+    });
+  });
+}
+
+async function submitPiutangPayment(form) {
+  const saleId = form.dataset.saleId;
+  const input = form.querySelector(".piutang-payment-input");
+  const amount = parseIntegerInput(input.value);
+  const submitBtn = form.querySelector("button[type='submit']");
+
+  if (amount <= 0) {
+    showToast("Nominal pembayaran tidak valid.");
+    return;
+  }
+
+  submitBtn.disabled = true;
+  setPiutangStatus("Menyimpan pembayaran...");
+
+  try {
+    const response = await requestJson(`/api/sales/${encodeURIComponent(saleId)}/payments`, {
+      method: "POST",
+      body: JSON.stringify({
+        amount: amount,
+        paymentDate: new Date().toISOString()
+      })
+    });
+
+    if (response.ok) {
+      showToast("Pembayaran cicilan berhasil disimpan.");
+      await loadPiutangData();
+      await loadSalesDashboard();
+      await loadCustomers({ toast: false });
+    }
+  } catch (error) {
+    console.error("Error submitting piutang payment:", error);
+    showToast(`Gagal menyimpan: ${error.message}`);
+    setPiutangStatus(`Error: ${error.message}`);
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
+async function revokePiutangPayment(saleId) {
+  const confirmed = await openAppConfirm({
+    eyebrow: "Batalkan Status Lunas",
+    title: "Ubah Kembali ke Belum Lunas?",
+    message: "Apakah kamu yakin ingin membatalkan status lunas transaksi ini dan mengembalikannya ke Belum Lunas?",
+    note: "Semua riwayat pembayaran (cicilan) untuk transaksi ini akan dihapus dari sistem, dan saldo deposit customer akan disesuaikan otomatis.",
+    confirmText: "Ya, Batalkan Lunas",
+    variant: "danger",
+  });
+  if (!confirmed) return;
+
+  setPiutangStatus("Membatalkan status lunas...");
+
+  try {
+    const response = await requestJson(`/api/sales/${encodeURIComponent(saleId)}/revoke-lunas`, {
+      method: "POST"
+    });
+
+    if (response.ok) {
+      showToast("Status pembayaran dikembalikan ke Belum Lunas.");
+      await loadPiutangData();
+      await loadSalesDashboard();
+      await loadCustomers({ toast: false });
+    }
+  } catch (error) {
+    console.error("Error revoking piutang payment:", error);
+    showToast(`Gagal membatalkan lunas: ${error.message}`);
+    setPiutangStatus(`Error: ${error.message}`);
+  } finally {
+    setPiutangStatus("");
+  }
+}

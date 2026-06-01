@@ -30,9 +30,9 @@
       }
     </style>
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=145">
+    <link rel="stylesheet" href="styles.css?v=163">
     <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <script defer src="script.js?v=145"></script>
+    <script defer src="script.js?v=163"></script>
   </head>
   <body>
     <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
@@ -96,6 +96,10 @@
           <div>
             <p class="eyebrow">Aplikasi Kasir</p>
             <strong>Kasir Shanti Catering</strong>
+            <div class="sidebar-status" id="sidebarConnectionStatus" title="Status koneksi ke server SQLite lokal">
+              <span class="status-dot offline" id="sidebarConnectionDot"></span>
+              <span class="status-text" id="sidebarConnectionText">Offline</span>
+            </div>
           </div>
           <button class="icon-button sidebar-close-button" id="closeSidebarButton" type="button" aria-label="Tutup menu">×</button>
         </div>
@@ -111,6 +115,10 @@
           <button class="ghost-button" id="openCustomerDataButton" type="button">
             <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-customer-data"></use></svg></span>
             <span class="nav-copy"><strong>Data Customer</strong><small>Edit nama dan ongkir.</small></span>
+          </button>
+          <button class="ghost-button" id="openPiutangButton" type="button">
+            <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-delivery-rider"></use></svg></span>
+            <span class="nav-copy"><strong>Catatan Piutang</strong><small>Reconcile kurir & deposit.</small></span>
           </button>
           <button class="ghost-button" id="openReceiptSettingsButton" type="button">
             <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-receipt-edit"></use></svg></span>
@@ -154,6 +162,10 @@
               <h1>Kasir Shanti Catering</h1>
             </div>
           </div>
+          <div class="topbar-status" id="topbarConnectionStatus" title="Status koneksi ke server SQLite lokal">
+            <span class="status-dot offline" id="topbarConnectionDot"></span>
+            <span class="status-text" id="topbarConnectionText">Offline</span>
+          </div>
           <button class="icon-button sidebar-menu-button" id="sidebarMenuButton" type="button" aria-label="Buka menu" aria-controls="appSidebar" aria-expanded="false">
             <span></span>
             <span></span>
@@ -175,13 +187,15 @@
             </div>
           </div>
           <div class="daily-menu-bar" aria-label="Filter menu harian">
-            <div>
+            <div class="daily-menu-info">
               <strong id="dailyMenuTitle">Menu Hari Ini</strong>
               <p id="dailyMenuStatus">Belum ada menu khusus hari ini.</p>
             </div>
             <div class="daily-menu-actions">
-              <button class="ghost-button active" id="showAllMenuButton" type="button">Semua Menu</button>
-              <button class="ghost-button" id="showTodayMenuButton" type="button">Menu Hari Ini</button>
+              <div class="menu-filter-toggle">
+                <button class="filter-toggle-btn active" id="showAllMenuButton" type="button">Semua Menu</button>
+                <button class="filter-toggle-btn" id="showTodayMenuButton" type="button">Menu Hari Ini</button>
+              </div>
               <button class="secondary-button" id="openDailyMenuButton" type="button">Atur Menu</button>
             </div>
           </div>
@@ -217,6 +231,7 @@
               <span class="customer-field-title">Customer / Alamat</span>
               <input id="customerNameInput" type="text" list="customerSuggestions" autocomplete="off" placeholder="Contoh: Pantai Mentari Blok SF no. 9">
               <span class="customer-profile-hint" id="customerProfileHint">Customer baru. Ongkir bisa diisi manual.</span>
+              <span class="customer-deposit-hint" id="customerDepositHint" hidden></span>
             </label>
             <datalist id="customerSuggestions"></datalist>
           </div>
@@ -267,6 +282,7 @@
             <div class="totals-card" aria-live="polite">
               <div><span>Subtotal</span><strong id="subtotalText">Rp0</strong></div>
               <div><span class="shipping-label"><svg class="delivery-icon" aria-hidden="true" focusable="false"><use href="#icon-delivery-rider"></use></svg><span>Ongkir</span></span><strong id="shippingText">Rp0</strong></div>
+              <div class="deposit-row" id="checkoutDepositRow" hidden><span>Potongan Deposit</span><strong id="depositText">-Rp0</strong></div>
               <div class="grand-total"><span>Total</span><strong id="totalText">Rp0</strong></div>
             </div>
             <div class="checkout-actions">
@@ -381,7 +397,7 @@
           </div>
         </div>
 
-        <section class="daily-report" aria-labelledby="dailyReportTitle">
+        <section class="daily-report" id="dailyReportSection" aria-labelledby="dailyReportTitle">
           <div class="daily-report-heading">
             <div>
               <p class="eyebrow">Closing Harian</p>
@@ -415,6 +431,13 @@
               <span aria-hidden="true">⌕</span>
               <input id="salesSearchInput" type="search" placeholder="Nomor struk, item, customer, catatan, pembayaran">
             </span>
+          </label>
+          <label class="sales-sort-label">
+            Urut waktu
+            <select id="salesSortInput">
+              <option value="newest">Terbaru dulu</option>
+              <option value="oldest">Paling awal dulu</option>
+            </select>
           </label>
         </div>
 
@@ -469,6 +492,47 @@
       </section>
     </dialog>
 
+    <dialog class="settings-modal customer-modal piutang-modal" id="piutangModal" aria-labelledby="piutangTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" type="submit" aria-label="Tutup catatan piutang">×</button>
+      </form>
+      <section class="modal-panel customer-panel piutang-panel">
+        <div class="panel-heading customer-heading piutang-heading">
+          <div>
+            <p class="eyebrow">Piutang & Deposit</p>
+            <h2 id="piutangTitle">Catatan Piutang</h2>
+          </div>
+          <div class="customer-heading-actions">
+            <span class="piutang-summary-badge" id="piutangTotalBadge">Total Piutang: Rp 0</span>
+            <button class="ghost-button" id="refreshPiutangButton" type="button">Muat Ulang</button>
+          </div>
+        </div>
+
+        <div class="piutang-filters">
+          <label class="customer-search-label" style="margin-bottom: 0; flex-grow: 1;">
+            Cari customer / nomor struk
+            <span class="sales-search-control customer-search-control">
+              <span aria-hidden="true">⌕</span>
+              <input id="piutangSearchInput" type="search" placeholder="Ketik nama customer atau nomor struk...">
+            </span>
+          </label>
+        </div>
+
+        <div class="piutang-tab-bar">
+          <button class="tab-button active" id="tabPiutangBelumLunas" type="button">Belum Lunas</button>
+          <button class="tab-button" id="tabPiutangLunas" type="button">Lunas</button>
+          <button class="tab-button" id="tabPiutangSemua" type="button">Semua Transaksi</button>
+        </div>
+
+        <div class="customer-scroll-area" id="piutangScrollArea">
+          <div class="piutang-list" id="piutangList" aria-live="polite">
+            <!-- Kartu transaksi di-render secara dinamis di sini -->
+          </div>
+        </div>
+        <p class="status modal-status" id="piutangStatus" role="status">Data piutang belum dimuat.</p>
+      </section>
+    </dialog>
+
     <dialog class="settings-modal customer-add-modal" id="addCustomerModal" aria-labelledby="addCustomerTitle">
       <form method="dialog" class="modal-close-form">
         <button class="icon-button modal-close-button" type="submit" aria-label="Tutup tambah customer">×</button>
@@ -491,6 +555,13 @@
             <span class="customer-money-input">
               <span>Rp</span>
               <input id="addCustomerShippingInput" name="defaultShipping" type="text" inputmode="numeric" value="0">
+            </span>
+          </label>
+          <label>
+            Deposit Awal
+            <span class="customer-money-input">
+              <span>Rp</span>
+              <input id="addCustomerDepositInput" name="depositBalance" type="text" inputmode="numeric" value="0">
             </span>
           </label>
           <label>
@@ -794,16 +865,23 @@
               </label>
             </div>
 
-            <label class="drop-zone" for="dailyMenuFileInput">
-              <input id="dailyMenuFileInput" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values">
-              <span class="drop-zone-title">Upload CSV menu harian</span>
-              <span class="drop-zone-copy">Format: nama,harga. Contoh: Pepes Tongkol,20000.</span>
-            </label>
+            <div class="daily-menu-inputs">
+              <div class="daily-menu-input-group">
+                <span>Upload file CSV</span>
+                <label class="drop-zone" for="dailyMenuFileInput">
+                  <input id="dailyMenuFileInput" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values">
+                  <span class="drop-zone-title">Pilih file CSV</span>
+                  <span class="drop-zone-copy">Format: nama,harga. Contoh: Pepes Tongkol,20000.</span>
+                </label>
+              </div>
 
-            <label>
-              Paste menu hari ini
-              <textarea id="dailyMenuCsvInput" rows="7" placeholder="nama,harga&#10;Pepes Tongkol,20000&#10;Dadar Jagung,10000&#10;atau: Pepes Tongkol - 20000"></textarea>
-            </label>
+              <div class="daily-menu-input-group">
+                <span>Paste teks menu harian</span>
+                <label class="daily-menu-textarea-label">
+                  <textarea id="dailyMenuCsvInput" rows="7" placeholder="nama,harga&#10;Pepes Tongkol,20000&#10;Dadar Jagung,10000&#10;atau: Pepes Tongkol - 20000"></textarea>
+                </label>
+              </div>
+            </div>
 
             <div class="inline-actions">
               <button class="secondary-button" id="applyDailyMenuButton" type="button">Terapkan Menu</button>

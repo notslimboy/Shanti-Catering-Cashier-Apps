@@ -1,6 +1,6 @@
 # Kasir Shanti Catering - Technical Context for AI Agents
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 This document is written for future AI agents, engineers, and maintainers who need to understand, continue, regenerate, or safely modify the Kasir Shanti Catering cashier web app.
 
@@ -17,6 +17,8 @@ Primary goals:
 - Keep usable product data cached locally when offline.
 - Save completed sales into a local SQL database.
 - Print thermal receipts on common Indonesian online-shop POS thermal printers.
+- Print A4 sales reports for the selected dashboard date/range.
+- Import externally summarized WhatsApp group orders from CSV into editable draft orders.
 - Support phone, tablet, and desktop screen sizes.
 - Keep UI copy in Indonesian because the cashier/employees use Indonesian.
 - Keep implementation simple enough for local use, not a full ERP.
@@ -29,6 +31,7 @@ Non-goals for the current version:
 - Automatic write-back from sales to Google Sheets.
 - Multi-branch inventory reconciliation.
 - A hosted stateless deployment such as Vercel while still using local SQLite.
+- In-app AI or direct WhatsApp integration. AI summarization happens outside the app; the app only receives CSV output.
 
 ## 2. Current Technology Stack
 
@@ -97,6 +100,14 @@ Health check:
 curl http://127.0.0.1:4174/api/health
 ```
 
+Optional port override:
+
+```bash
+python3 server.py 4175
+```
+
+The desktop wrapper prefers port `4174`; if it is unavailable, it searches `4175` through `4199`.
+
 Default SQLite database:
 
 ```text
@@ -124,6 +135,12 @@ Design/UX principles already used:
 - Dashboard is a modal, not a separate page.
 - Product list hierarchy prioritizes price over stock badge.
 - Dark/light theme toggle uses simple moon/sun icons.
+- Dashboard controls should stay aligned with the `Dashboard Penjualan` heading and not float awkwardly above it.
+- Transaction cards should show item lines as clear bullets/rows rather than comma-heavy prose.
+- Shipping/ongkir should be visually called out in app UI with the delivery rider icon when shown outside the receipt.
+- Date pickers for reports use the custom themed calendar, not the native browser date picker as the primary UI.
+- Dates with transactions are marked with a small dot; empty selected dates are highlighted as an empty/error state.
+- Receipt customer/address text is intentionally boxed, large, and extra bold for delivery clarity.
 
 Keep future UI changes practical:
 
@@ -156,6 +173,9 @@ Important state sections:
 | `sales` | Sales loaded from SQLite API for dashboard. |
 | `customers` | Customer profiles loaded from SQLite API. |
 | `salesSummary` | Aggregate counts/revenue from backend. |
+| `salesRange` | Dashboard range mode: `day`, `week`, `all`, or `custom`. |
+| `salesStartDate` / `salesEndDate` | Active dashboard/report range boundaries. |
+| `salesCalendar` | Custom sales calendar UI state: month, active field, hover date. |
 | `dailyMenu` | Date-specific menu filter/import state. |
 | `heldCarts` | Saved carts that can be resumed later. |
 | `importDrafts` | Bulk imported order drafts. |
@@ -499,6 +519,16 @@ Receipt modes:
 - `compact`: minimal receipt for daily cashier thermal printing.
 - `complete`: includes more store information and footer details.
 
+Current receipt behavior:
+
+- Compact receipt does not print the receipt number; it prioritizes customer/address, items, subtotal, ongkir when present, payment, and total.
+- Complete receipt includes the grayscale Shanti logo, store name/address, and footer.
+- The customer/address line uses `.receipt-customer`: boxed, centered, larger, and extra bold. Keep this prominent because the customer field is effectively the delivery address.
+- Item notes print under the relevant item only. Do not move item-specific notes into a separate global receipt section.
+- Ongkir still prints as plain text in the receipt. Delivery icons are only for app UI, not receipt paper.
+- The receipt print page size is measured dynamically and written as a concrete `@page` rule through `dynamic-print-page-style`; avoid returning to nested CSS variables for print page size because Chrome/printer drivers may fallback to a tall sheet and create large blank top/bottom gaps.
+- Receipt print padding is intentionally tight (`0.5mm` top padding) to reduce wasted thermal paper.
+
 Receipt settings modal:
 
 - Button label in UI: `Edit Struk`.
@@ -536,6 +566,7 @@ Thermal printer notes:
 - 58mm print CSS uses a narrower print width to avoid right-side clipping.
 - Receipt page height is dynamically measured before printing.
 - Long item names and multiple items should remain readable.
+- A4 report printing uses a separate `report-print-mode` and iframe flow, so report `@page` settings should not leak into receipt printing.
 
 Common printer setup:
 
@@ -554,14 +585,19 @@ Capabilities:
 
 - Load sales from SQLite.
 - Date range filters:
-  - Daily.
-  - Last 7 days.
-  - Last 30 days.
-  - Custom.
+  - `Harian`.
+  - `Mingguan`.
+  - `Semua`.
+  - `Custom`.
 - Date stepping:
   - Previous date.
   - Next date.
   - Today.
+- Custom themed calendar:
+  - Start/end date buttons replace native date inputs in the main UI.
+  - Dates with transactions show a small dot.
+  - Selected empty dates use an error/empty highlight and detail copy.
+  - Calendar detail text shows small stats such as transaction count, total item, and revenue.
 - Status tabs:
   - Active.
   - Deleted.
@@ -574,6 +610,7 @@ Capabilities:
   - Payment method breakdown.
   - Item totals.
   - Average transaction amount.
+  - Payment rows use supporting icons, such as `Rp` for cash/payment values.
 - Search:
   - Receipt number.
   - Item name.
@@ -581,23 +618,30 @@ Capabilities:
   - Note.
   - Payment method.
 - Per-sale actions:
-  - Print.
+  - `Cetak Struk`.
   - Edit.
   - Detail.
   - Delete.
   - Restore for deleted sales.
+- A4 report print:
+  - Button label: `Cetak Laporan A4`.
+  - Prints the detail transaction report for the selected dashboard range/date, not a receipt.
+  - Supports daily, weekly, all, and custom range based on current dashboard filters.
 - CSV export:
-  - Current date/range.
-  - All sales.
+  - `CSV Tanggal Ini` / `CSV Rentang`.
+  - `CSV Semua`.
 - Backup/restore SQLite.
 - Full app backup/restore:
   - `Backup Semua` exports browser state plus SQLite into one JSON file.
   - `Restore Semua` restores both parts.
+- Export actions are grouped inside an `Export` menu to keep the dashboard header clean.
 
 Recent UX expectation:
 
 - The search box should be near the transaction list, not far above the list.
 - Transaction card actions should be responsive and not overflow in narrow modals/screens.
+- Transaction item summaries should be easy to scan as separate lines/points.
+- Ongkir in transaction cards should include the delivery rider icon.
 
 ## 16. Edit, Reprint, Delete, and Restore Sale
 
@@ -634,7 +678,15 @@ Stock behavior during delete:
 
 ## 17. Bulk Order Import Workflow
 
-The app can turn WhatsApp-style orders into draft transactions.
+The app can turn externally summarized WhatsApp-style orders into draft transactions. The app itself should not contain an AI model or direct WhatsApp integration. The intended workflow is:
+
+1. User exports/copies WhatsApp group chat outside the app.
+2. User uses external AI to summarize orders into the required CSV.
+3. User imports/pastes the CSV into the app.
+4. App creates editable draft orders.
+5. User reviews and edits every draft.
+6. User can open one draft into the cart, or process all ready drafts into completed transactions.
+7. Ready drafts can also be processed and batch-printed.
 
 Expected CSV format:
 
@@ -642,6 +694,16 @@ Expected CSV format:
 customer,chatDate,payment,ongkir,item,quantity,note
 "Bu Ani - Jl Melati 12","28/5/2026 10.15","Tunai",10000,"Nasi Goreng Rumahan",20,"sambal pisah untuk 5 porsi"
 ```
+
+CSV rules:
+
+- `customer` is the WhatsApp contact name and should be treated as the delivery address/customer identifier. Do not add a separate `address` field unless a future feature explicitly changes this model.
+- Repeat `customer`, `chatDate`, `payment`, and `ongkir` for every item row from the same customer. The parser can inherit repeated metadata when rows are grouped, but generated CSV should be explicit for admin readability.
+- `note` belongs to the item row, e.g. `mie tidak pakai udang`, `bakso sambal pisah`, or `es cao kotak-kotak`.
+- Use `ongkir` for shipping/delivery fee. Old `diskon` language should not be used for this workflow.
+- Payment defaults to `Tunai` if omitted.
+- Imported item names are matched against products by SKU/name/alias and price context when available.
+- If there are duplicate menu names or ambiguous item matches, the draft should show a warning/action instead of silently choosing the wrong product.
 
 Input methods:
 
@@ -653,9 +715,12 @@ Draft behavior:
 
 - Each customer can have multiple item rows.
 - Drafts are stored in localStorage.
-- Drafts can be loaded into the cart.
+- Drafts can be loaded into the cart for manual review/checkout.
 - Ready drafts can be processed in batch.
 - Batch print exists for ready drafts.
+- Draft status summarizes missing customer, missing items, duplicate/ambiguous menu matches, and ready count.
+- `Proses Semua Siap` converts all ready drafts into completed transactions.
+- The batch print action converts ready drafts and prepares the receipt batch.
 
 AI prompt language:
 
@@ -701,6 +766,8 @@ The service worker caches the static app shell:
 
 It does not cache `/api/*`.
 
+Current frontend cache version at this handoff: `v145`.
+
 When changing frontend assets:
 
 1. Update query strings in `index.html` for `styles.css?v=...` and `script.js?v=...`.
@@ -716,6 +783,7 @@ Current limitations:
 
 - Product inventory is mirrored to local SQLite, but this is not real multi-device conflict-safe sync.
 - Google Sheet sync is one-way.
+- WhatsApp/AI summarization is external; the app only imports CSV.
 - No login or role tracking.
 - No cashier/user audit trail.
 - No cloud sync for multiple devices.
@@ -728,7 +796,9 @@ Risk areas:
 
 - Do not hard-delete sales unless explicitly requested.
 - Be careful changing receipt CSS because 58mm thermal printers clip easily.
+- Be careful changing receipt print page sizing; dynamic concrete `@page` values are used to prevent large blank gaps.
 - Be careful with Google Sheet matching; same-name different-price items are valid.
+- Be careful with bulk order matching; duplicate menu names must show warnings/actions instead of silently selecting the wrong product.
 - Be careful with localStorage migrations; existing user data should not be reset.
 - Be careful with cache versions; stale UI has caused confusion.
 - Be careful with Indonesian employee-facing labels; do not convert app UI to English.
@@ -739,10 +809,12 @@ High-value improvements:
 
 - Add explicit product availability by date in database instead of localStorage-only daily menu.
 - Build on the SQLite product mirror if local-network multi-device inventory becomes a requirement.
-- Add customer management modal.
+- Improve customer management further with merge/review flows for similar customer-address strings.
 - Add local network mode instructions for tablets/phones on the same Wi-Fi.
 - Add duplicate product review screen with better visual comparison.
 - Add a printer-specific troubleshooting page for common 58mm/80mm driver clipping issues.
+- Add better printed A4 report variants, e.g. compact daily kitchen prep, finance recap, and stock-shopping list.
+- Add a bulk import audit trail so imported CSV rows can be traced back to source chat/date.
 - Add a test harness for:
   - cart math,
   - receipt totals,

@@ -4,4 +4,6 @@ Start with:
 
 - `PROJECT_TECHNICAL_CONTEXT.md`
 
-That file contains the full English technical handoff for Kasir Shanti Catering: project purpose, workflows, frontend state, SQLite schema, APIs, Google Sheets sync, receipt printing, dashboard behavior, known limitations, and development guidelines.
+That file contains the full English technical handoff for Kasir Shanti Catering: project purpose, workflows, frontend state, SQLite schema, APIs, Google Sheets sync, receipt printing, bulk CSV order import, A4 report printing, dashboard behavior, known limitations, and development guidelines.
+
+Latest covered changes: 2026-05-31.

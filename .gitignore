@@ -16,6 +16,7 @@ __pycache__/
 orders-*.csv
 sales-*.csv
 customers-*.csv
+_chat*.txt
 backups/
 
 # Desktop build output

@@ -60,7 +60,8 @@ def init_database():
                 default_shipping INTEGER NOT NULL DEFAULT 0,
                 last_order_at TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                deposit_balance INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS customer_aliases (
@@ -86,12 +87,23 @@ def init_database():
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS sale_payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sale_id INTEGER NOT NULL,
+                amount INTEGER NOT NULL,
+                payment_date TEXT NOT NULL,
+                note TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_sales_completed_at ON sales(completed_at DESC);
             CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id);
             CREATE INDEX IF NOT EXISTS idx_customers_last_order_at ON customers(last_order_at DESC);
             CREATE INDEX IF NOT EXISTS idx_customer_aliases_customer_id ON customer_aliases(customer_id);
             CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
             CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+            CREATE INDEX IF NOT EXISTS idx_sale_payments_sale_id ON sale_payments(sale_id);
             """
         )
         item_columns = {
@@ -112,11 +124,50 @@ def init_database():
             "chat_date": "TEXT NOT NULL DEFAULT ''",
             "deleted_at": "TEXT NOT NULL DEFAULT ''",
             "stock_restored_on_delete": "INTEGER NOT NULL DEFAULT 0",
+            "paid_amount": "INTEGER NOT NULL DEFAULT 0",
         }
         for column, column_type in sale_extra_columns.items():
             if column not in sale_columns:
                 connection.execute(f"ALTER TABLE sales ADD COLUMN {column} {column_type}")
+
+        customer_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(customers)").fetchall()
+        }
+        if "deposit_balance" not in customer_columns:
+            connection.execute("ALTER TABLE customers ADD COLUMN deposit_balance INTEGER NOT NULL DEFAULT 0")
+
+        payment_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(sale_payments)").fetchall()
+        }
+        if "note" not in payment_columns:
+            connection.execute("ALTER TABLE sale_payments ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+        if "created_at" not in payment_columns:
+            connection.execute("ALTER TABLE sale_payments ADD COLUMN created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
+
         backfill_customers_from_sales(connection)
+
+
+def trigger_auto_backup():
+    try:
+        backup_dir = DB_PATH.parent / "backups"
+        backup_dir.mkdir(exist_ok=True)
+
+        for i in range(4, 0, -1):
+            src = backup_dir / f"kasir-bento.backup-{i}.sqlite3"
+            dst = backup_dir / f"kasir-bento.backup-{i+1}.sqlite3"
+            if src.exists():
+                if dst.exists():
+                    dst.unlink()
+                src.rename(dst)
+
+        new_backup = backup_dir / "kasir-bento.backup-1.sqlite3"
+        if DB_PATH.exists():
+            shutil.copy2(DB_PATH, new_backup)
+    except Exception as e:
+        print(f"Error rotating backup: {e}", file=sys.stderr)
+
 
 
 def customer_alias_key(value):
@@ -144,7 +195,7 @@ def split_alias_payload(value):
 def fetch_customer_row(connection, customer_id):
     return connection.execute(
         """
-        SELECT id, name, default_shipping, last_order_at, created_at, updated_at
+        SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance
         FROM customers
         WHERE id = ?
         """,
@@ -207,7 +258,7 @@ def find_customer_by_name_or_alias(connection, name):
 
     exact = connection.execute(
         """
-        SELECT id, name, default_shipping, last_order_at, created_at, updated_at
+        SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance
         FROM customers
         WHERE LOWER(name) = LOWER(?)
         LIMIT 1
@@ -225,7 +276,7 @@ def find_customer_by_name_or_alias(connection, name):
         return fetch_customer_row(connection, alias["customer_id"])
 
     rows = connection.execute(
-        "SELECT id, name, default_shipping, last_order_at, created_at, updated_at FROM customers"
+        "SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance FROM customers"
     ).fetchall()
     for row in rows:
         if customer_alias_key(row["name"]) == key:
@@ -460,6 +511,12 @@ class CashierHandler(SimpleHTTPRequestHandler):
         if path.startswith("/api/sales/") and path.endswith("/restore"):
             self.handle_restore_sale(path)
             return
+        if path.startswith("/api/sales/") and path.endswith("/payments"):
+            self.handle_add_sale_payment(path)
+            return
+        if path.startswith("/api/sales/") and path.endswith("/revoke-lunas"):
+            self.handle_revoke_sale_payments(path)
+            return
         self.send_error(404, "Not found")
 
     def do_PUT(self):
@@ -627,7 +684,7 @@ class CashierHandler(SimpleHTTPRequestHandler):
                 """
                 SELECT id, receipt_no, completed_at, store_name, payment, subtotal, discount, tax, total,
                        customer_name, customer_address, order_note, due_text, chat_date,
-                       deleted_at, stock_restored_on_delete
+                       deleted_at, stock_restored_on_delete, paid_amount
                 FROM sales
                 WHERE (? OR COALESCE(deleted_at, '') = '')
                 ORDER BY completed_at DESC, id DESC
@@ -638,6 +695,7 @@ class CashierHandler(SimpleHTTPRequestHandler):
 
             sale_ids = [row["id"] for row in sales_rows]
             items_by_sale = {sale_id: [] for sale_id in sale_ids}
+            payments_by_sale = {sale_id: [] for sale_id in sale_ids}
             if sale_ids:
                 placeholders = ",".join("?" for _ in sale_ids)
                 item_rows = connection.execute(
@@ -651,6 +709,18 @@ class CashierHandler(SimpleHTTPRequestHandler):
                 ).fetchall()
                 for item in item_rows:
                     items_by_sale[item["sale_id"]].append(dict(item))
+
+                payment_rows = connection.execute(
+                    f"""
+                    SELECT id, sale_id, amount, payment_date, note, created_at
+                    FROM sale_payments
+                    WHERE sale_id IN ({placeholders})
+                    ORDER BY id ASC
+                    """,
+                    sale_ids,
+                ).fetchall()
+                for pay in payment_rows:
+                    payments_by_sale[pay["sale_id"]].append(dict(pay))
 
             totals = connection.execute(
                 """
@@ -666,6 +736,9 @@ class CashierHandler(SimpleHTTPRequestHandler):
         for row in sales_rows:
             sale = dict(row)
             sale["items"] = items_by_sale.get(row["id"], [])
+            pays = payments_by_sale.get(row["id"], [])
+            sale["payments"] = pays
+            sale["usedDeposit"] = sum(pay["amount"] for pay in pays if pay["note"] == "Otomatis Potong Deposit")
             sales.append(sale)
 
         self.send_json(
@@ -688,7 +761,7 @@ class CashierHandler(SimpleHTTPRequestHandler):
         with get_connection() as connection:
             rows = connection.execute(
                 """
-                SELECT id, name, default_shipping, last_order_at, created_at, updated_at
+                SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance
                 FROM customers
                 WHERE TRIM(COALESCE(name, '')) != ''
                 ORDER BY COALESCE(last_order_at, '') DESC, name ASC
@@ -734,6 +807,11 @@ class CashierHandler(SimpleHTTPRequestHandler):
         shipping = rupiah_number(shipping_source)
         aliases = split_alias_payload(payload.get("aliases"))
 
+        deposit_source = payload.get("depositBalance")
+        if deposit_source is None:
+            deposit_source = payload.get("deposit_balance")
+        deposit = rupiah_number(deposit_source) if deposit_source is not None else 0
+
         try:
             with get_connection() as connection:
                 connection.execute("BEGIN IMMEDIATE")
@@ -749,10 +827,10 @@ class CashierHandler(SimpleHTTPRequestHandler):
                 now = utc_now_text()
                 cursor = connection.execute(
                     """
-                    INSERT INTO customers (name, default_shipping, last_order_at, created_at, updated_at)
-                    VALUES (?, ?, '', ?, ?)
+                    INSERT INTO customers (name, default_shipping, last_order_at, created_at, updated_at, deposit_balance)
+                    VALUES (?, ?, '', ?, ?, ?)
                     """,
-                    (customer_name, shipping, now, now),
+                    (customer_name, shipping, now, now, deposit),
                 )
                 customer_id = cursor.lastrowid
                 for alias in aliases:
@@ -796,6 +874,11 @@ class CashierHandler(SimpleHTTPRequestHandler):
             shipping_source = payload.get("shipping")
         shipping = rupiah_number(shipping_source)
 
+        deposit_source = payload.get("depositBalance")
+        if deposit_source is None:
+            deposit_source = payload.get("deposit_balance")
+        deposit_balance = rupiah_number(deposit_source) if deposit_source is not None else None
+
         try:
             with get_connection() as connection:
                 connection.execute("BEGIN IMMEDIATE")
@@ -816,14 +899,24 @@ class CashierHandler(SimpleHTTPRequestHandler):
                     self.send_json({"error": "Nama customer sudah dipakai data lain."}, status=409)
                     return
 
-                connection.execute(
-                    """
-                    UPDATE customers
-                    SET name = ?, default_shipping = ?, updated_at = ?
-                    WHERE id = ?
-                    """,
-                    (customer_name, shipping, utc_now_text(), customer_id),
-                )
+                if deposit_balance is not None:
+                    connection.execute(
+                        """
+                        UPDATE customers
+                        SET name = ?, default_shipping = ?, deposit_balance = ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (customer_name, shipping, deposit_balance, utc_now_text(), customer_id),
+                    )
+                else:
+                    connection.execute(
+                        """
+                        UPDATE customers
+                        SET name = ?, default_shipping = ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (customer_name, shipping, utc_now_text(), customer_id),
+                    )
                 add_customer_alias(connection, customer_id, existing["name"])
                 updated = fetch_customer_row(connection, customer_id)
                 alias_map = get_customer_alias_map(connection, [customer_id])
@@ -944,10 +1037,25 @@ class CashierHandler(SimpleHTTPRequestHandler):
             self.send_json({"error": "Waktu transaksi kosong."}, status=400)
             return
 
+        used_deposit = 0
+
         try:
             with get_connection() as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 receipt_no = next_receipt_number(connection, receipt_date_key(payload))
+                customer_name = str(payload.get("customerName") or payload.get("customer") or payload.get("customerAddress") or payload.get("address") or "").strip()
+                total_amount = rupiah_number(payload.get("total"))
+                paid_amount = rupiah_number(payload.get("paidAmount", 0))
+
+                used_deposit = 0
+                customer_id_for_deposit = None
+                if customer_name:
+                    cust = find_customer_by_name_or_alias(connection, customer_name)
+                    if cust and cust["deposit_balance"] > 0:
+                        customer_id_for_deposit = cust["id"]
+                        used_deposit = min(cust["deposit_balance"], total_amount)
+                        paid_amount += used_deposit
+
                 sale_values = (
                     receipt_no,
                     completed_at,
@@ -956,26 +1064,53 @@ class CashierHandler(SimpleHTTPRequestHandler):
                     rupiah_number(payload.get("subtotal")),
                     rupiah_number(payload.get("shipping") if payload.get("shipping") is not None else payload.get("discount")),
                     rupiah_number(payload.get("tax")),
-                    rupiah_number(payload.get("total")),
-                    str(payload.get("customerName") or payload.get("customer") or payload.get("customerAddress") or payload.get("address") or "").strip(),
+                    total_amount,
+                    customer_name,
                     "",
                     "",
                     "",
                     str(payload.get("chatDate") or "").strip(),
+                    paid_amount,
                 )
-                customer_name = sale_values[8]
                 shipping = sale_values[5]
                 cursor = connection.execute(
                     """
                     INSERT INTO sales (
                         receipt_no, completed_at, store_name, payment, subtotal, discount, tax, total,
-                        customer_name, customer_address, order_note, due_text, chat_date
+                        customer_name, customer_address, order_note, due_text, chat_date, paid_amount
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     sale_values,
                 )
                 sale_id = cursor.lastrowid
+
+                if used_deposit > 0:
+                    connection.execute(
+                        """
+                        UPDATE customers
+                        SET deposit_balance = deposit_balance - ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (used_deposit, utc_now_text(), customer_id_for_deposit)
+                    )
+                    connection.execute(
+                        """
+                        INSERT INTO sale_payments (sale_id, amount, payment_date, note)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (sale_id, used_deposit, completed_at, "Otomatis Potong Deposit")
+                    )
+
+                remaining_initial_pay = paid_amount - used_deposit
+                if remaining_initial_pay > 0:
+                    connection.execute(
+                        """
+                        INSERT INTO sale_payments (sale_id, amount, payment_date, note)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (sale_id, remaining_initial_pay, completed_at, "Pembayaran Awal")
+                    )
                 for item in items:
                     quantity = rupiah_number(item.get("quantity"))
                     price = rupiah_number(item.get("price"))
@@ -1000,14 +1135,15 @@ class CashierHandler(SimpleHTTPRequestHandler):
             self.send_json({"error": "Nomor struk sudah ada. Coba selesaikan transaksi lagi."}, status=409)
             return
 
-        self.send_json({"ok": True, "saleId": sale_id, "receiptNo": receipt_no}, status=201)
+        trigger_auto_backup()
+        self.send_json({"ok": True, "saleId": sale_id, "receiptNo": receipt_no, "usedDeposit": used_deposit}, status=201)
 
     def fetch_sale(self, connection, sale_id):
         row = connection.execute(
             """
             SELECT id, receipt_no, completed_at, store_name, payment, subtotal, discount, tax, total,
                    customer_name, customer_address, order_note, due_text, chat_date,
-                   deleted_at, stock_restored_on_delete
+                   deleted_at, stock_restored_on_delete, paid_amount
             FROM sales
             WHERE id = ?
             """,
@@ -1025,8 +1161,21 @@ class CashierHandler(SimpleHTTPRequestHandler):
             """,
             (sale_id,),
         ).fetchall()
+        
+        payment_rows = connection.execute(
+            """
+            SELECT id, amount, payment_date, note, created_at
+            FROM sale_payments
+            WHERE sale_id = ?
+            ORDER BY id ASC
+            """,
+            (sale_id,),
+        ).fetchall()
+
         sale = dict(row)
         sale["items"] = [dict(item) for item in item_rows]
+        sale["payments"] = [dict(pay) for pay in payment_rows]
+        sale["usedDeposit"] = sum(pay["amount"] for pay in payment_rows if pay["note"] == "Otomatis Potong Deposit")
         return sale
 
     def handle_update_sale(self, path):
@@ -1128,6 +1277,7 @@ class CashierHandler(SimpleHTTPRequestHandler):
             upsert_customer(connection, customer_name, shipping, sale["completed_at"])
             updated_sale = self.fetch_sale(connection, sale_id)
 
+        trigger_auto_backup()
         self.send_json({"ok": True, "sale": updated_sale})
 
     def handle_delete_sale(self, path):
@@ -1148,13 +1298,51 @@ class CashierHandler(SimpleHTTPRequestHandler):
         stock_restored = 1 if payload.get("restoreStock") else 0
 
         with get_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             sale = connection.execute(
-                "SELECT receipt_no, deleted_at FROM sales WHERE id = ?",
+                "SELECT receipt_no, deleted_at, customer_name FROM sales WHERE id = ?",
                 (sale_id,),
             ).fetchone()
             if sale is None:
                 self.send_json({"error": "Transaksi tidak ditemukan."}, status=404)
                 return
+
+            if not sale["deleted_at"]:
+                # Balikin deposit pas transaksi dihapus
+                payments = connection.execute(
+                    "SELECT amount, note FROM sale_payments WHERE sale_id = ?",
+                    (sale_id,)
+                ).fetchall()
+
+                customer_name = sale["customer_name"]
+                deposit_adjustment = 0
+                for pay in payments:
+                    note = pay["note"] or ""
+                    amount = pay["amount"]
+                    if note == "Otomatis Potong Deposit":
+                        deposit_adjustment += amount
+                    elif "Kelebihan Rp" in note:
+                        match = re.search(r"Kelebihan Rp\s*([0-9.,]+)", note)
+                        if match:
+                            val_str = match.group(1).replace(".", "").replace(",", "")
+                            try:
+                                excess = int(val_str)
+                                deposit_adjustment -= excess
+                            except ValueError:
+                                pass
+
+                if customer_name and deposit_adjustment != 0:
+                    cust = find_customer_by_name_or_alias(connection, customer_name)
+                    if cust:
+                        new_balance = max(0, cust["deposit_balance"] + deposit_adjustment)
+                        connection.execute(
+                            """
+                            UPDATE customers
+                            SET deposit_balance = ?, updated_at = ?
+                            WHERE id = ?
+                            """,
+                            (new_balance, utc_now_text(), cust["id"])
+                        )
 
             connection.execute(
                 """
@@ -1167,6 +1355,7 @@ class CashierHandler(SimpleHTTPRequestHandler):
             )
             deleted_sale = self.fetch_sale(connection, sale_id)
 
+        trigger_auto_backup()
         self.send_json({"ok": True, "saleId": sale_id, "receiptNo": sale["receipt_no"], "sale": deleted_sale})
 
     def handle_restore_sale(self, path):
@@ -1178,13 +1367,51 @@ class CashierHandler(SimpleHTTPRequestHandler):
             return
 
         with get_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
             sale = connection.execute(
-                "SELECT receipt_no FROM sales WHERE id = ?",
+                "SELECT receipt_no, deleted_at, customer_name FROM sales WHERE id = ?",
                 (sale_id,),
             ).fetchone()
             if sale is None:
                 self.send_json({"error": "Transaksi tidak ditemukan."}, status=404)
                 return
+
+            if sale["deleted_at"]:
+                # Potong lagi deposit pas transaksi di-restore (un-delete)
+                payments = connection.execute(
+                    "SELECT amount, note FROM sale_payments WHERE sale_id = ?",
+                    (sale_id,)
+                ).fetchall()
+
+                customer_name = sale["customer_name"]
+                deposit_adjustment = 0
+                for pay in payments:
+                    note = pay["note"] or ""
+                    amount = pay["amount"]
+                    if note == "Otomatis Potong Deposit":
+                        deposit_adjustment -= amount
+                    elif "Kelebihan Rp" in note:
+                        match = re.search(r"Kelebihan Rp\s*([0-9.,]+)", note)
+                        if match:
+                            val_str = match.group(1).replace(".", "").replace(",", "")
+                            try:
+                                excess = int(val_str)
+                                deposit_adjustment += excess
+                            except ValueError:
+                                pass
+
+                if customer_name and deposit_adjustment != 0:
+                    cust = find_customer_by_name_or_alias(connection, customer_name)
+                    if cust:
+                        new_balance = max(0, cust["deposit_balance"] + deposit_adjustment)
+                        connection.execute(
+                            """
+                            UPDATE customers
+                            SET deposit_balance = ?, updated_at = ?
+                            WHERE id = ?
+                            """,
+                            (new_balance, utc_now_text(), cust["id"])
+                        )
 
             connection.execute(
                 "UPDATE sales SET deleted_at = '', stock_restored_on_delete = 0 WHERE id = ?",
@@ -1192,7 +1419,189 @@ class CashierHandler(SimpleHTTPRequestHandler):
             )
             restored_sale = self.fetch_sale(connection, sale_id)
 
+        trigger_auto_backup()
         self.send_json({"ok": True, "saleId": sale_id, "receiptNo": sale["receipt_no"], "sale": restored_sale})
+
+    def handle_add_sale_payment(self, path):
+        sale_id_value = path.removeprefix("/api/sales/").removesuffix("/payments").strip("/")
+        try:
+            sale_id = int(sale_id_value)
+        except ValueError:
+            self.send_json({"error": "ID transaksi tidak valid."}, status=400)
+            return
+
+        try:
+            payload = self.read_json()
+        except json.JSONDecodeError:
+            self.send_json({"error": "Data pembayaran tidak valid."}, status=400)
+            return
+
+        amount = rupiah_number(payload.get("amount"))
+        if amount <= 0:
+            self.send_json({"error": "Jumlah pembayaran harus lebih dari 0."}, status=400)
+            return
+
+        payment_date = str(payload.get("paymentDate") or payload.get("payment_date") or "").strip()
+        if not payment_date:
+            payment_date = utc_now_text()
+
+        with get_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            sale = connection.execute(
+                """
+                SELECT id, total, paid_amount, customer_name
+                FROM sales
+                WHERE id = ? AND COALESCE(deleted_at, '') = ''
+                """,
+                (sale_id,),
+            ).fetchone()
+
+            if sale is None:
+                self.send_json({"error": "Transaksi tidak ditemukan atau sudah dihapus."}, status=404)
+                return
+
+            total = sale["total"]
+            paid_amount = sale["paid_amount"]
+            remaining_debt = total - paid_amount
+
+            if remaining_debt <= 0:
+                self.send_json({"error": "Transaksi ini sudah lunas."}, status=400)
+                return
+
+            amount_to_apply = min(amount, remaining_debt)
+            deposit_to_add = amount - amount_to_apply
+
+            new_paid_amount = paid_amount + amount_to_apply
+
+            note = "Pembayaran Cicilan"
+            if deposit_to_add > 0:
+                note = f"Bayar Rp {amount:,} (Kelebihan Rp {deposit_to_add:,} masuk deposit)"
+
+            connection.execute(
+                """
+                INSERT INTO sale_payments (sale_id, amount, payment_date, note)
+                VALUES (?, ?, ?, ?)
+                """,
+                (sale_id, amount, payment_date, note)
+            )
+
+            connection.execute(
+                """
+                UPDATE sales
+                SET paid_amount = ?
+                WHERE id = ?
+                """,
+                (new_paid_amount, sale_id)
+            )
+
+            customer_name = sale["customer_name"]
+            if deposit_to_add > 0 and customer_name:
+                cust = find_customer_by_name_or_alias(connection, customer_name)
+                if cust:
+                    connection.execute(
+                        """
+                        UPDATE customers
+                        SET deposit_balance = deposit_balance + ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (deposit_to_add, utc_now_text(), cust["id"])
+                    )
+                else:
+                    cust_id = upsert_customer(connection, customer_name)
+                    if cust_id:
+                        connection.execute(
+                            """
+                            UPDATE customers
+                            SET deposit_balance = deposit_balance + ?, updated_at = ?
+                            WHERE id = ?
+                            """,
+                            (deposit_to_add, utc_now_text(), cust_id)
+                        )
+
+            updated_sale = self.fetch_sale(connection, sale_id)
+
+        trigger_auto_backup()
+        self.send_json({"ok": True, "sale": updated_sale})
+
+    def handle_revoke_sale_payments(self, path):
+        sale_id_value = path.removeprefix("/api/sales/").removesuffix("/revoke-lunas").strip("/")
+        try:
+            sale_id = int(sale_id_value)
+        except ValueError:
+            self.send_json({"error": "ID transaksi tidak valid."}, status=400)
+            return
+
+        with get_connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            sale = connection.execute(
+                """
+                SELECT id, receipt_no, customer_name, total, paid_amount
+                FROM sales
+                WHERE id = ? AND COALESCE(deleted_at, '') = ''
+                """,
+                (sale_id,),
+            ).fetchone()
+
+            if sale is None:
+                self.send_json({"error": "Transaksi tidak ditemukan atau sudah dihapus."}, status=404)
+                return
+
+            payments = connection.execute(
+                "SELECT amount, note FROM sale_payments WHERE sale_id = ?",
+                (sale_id,)
+            ).fetchall()
+
+            customer_name = sale["customer_name"]
+            deposit_adjustment = 0
+            for pay in payments:
+                note = pay["note"] or ""
+                amount = pay["amount"]
+                if note == "Otomatis Potong Deposit":
+                    deposit_adjustment += amount
+                elif "Kelebihan Rp" in note:
+                    match = re.search(r"Kelebihan Rp\s*([0-9.,]+)", note)
+                    if match:
+                        val_str = match.group(1).replace(".", "").replace(",", "")
+                        try:
+                            excess = int(val_str)
+                            deposit_adjustment -= excess
+                        except ValueError:
+                            pass
+
+            # Update customer deposit balance
+            if customer_name and deposit_adjustment != 0:
+                cust = find_customer_by_name_or_alias(connection, customer_name)
+                if cust:
+                    new_balance = max(0, cust["deposit_balance"] + deposit_adjustment)
+                    connection.execute(
+                        """
+                        UPDATE customers
+                        SET deposit_balance = ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (new_balance, utc_now_text(), cust["id"])
+                    )
+
+            # Delete all payments for this sale
+            connection.execute(
+                "DELETE FROM sale_payments WHERE sale_id = ?",
+                (sale_id,)
+            )
+
+            # Set paid_amount back to 0
+            connection.execute(
+                """
+                UPDATE sales
+                SET paid_amount = 0
+                WHERE id = ?
+                """,
+                (sale_id,)
+            )
+
+            updated_sale = self.fetch_sale(connection, sale_id)
+
+        trigger_auto_backup()
+        self.send_json({"ok": True, "sale": updated_sale})
 
 
 def main():
