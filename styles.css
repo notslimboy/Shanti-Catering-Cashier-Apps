@@ -563,13 +563,17 @@ label {
   min-width: 48px;
   min-height: 48px;
   padding: 0;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
 }
 
 .sidebar-menu-button span {
   display: block;
   width: 21px;
   height: 2px;
-  margin: 4px auto;
+  margin: 0;
   border-radius: 999px;
   background: currentColor;
 }
@@ -1795,30 +1799,33 @@ label {
 @container product-card (max-width: 720px) {
   .product-card {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .product-actions {
-    grid-template-columns: minmax(82px, 1fr) max-content 44px minmax(58px, 76px) 44px;
-    grid-auto-flow: row;
-    grid-auto-columns: auto;
-    align-items: stretch;
-    justify-content: stretch;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .product-action-price {
-    justify-self: start;
+    flex: 0 0 auto;
   }
 
   .stock-pill {
-    justify-self: start;
+    flex: 0 0 auto;
+    margin-inline-end: auto;
   }
 
   .product-price {
     font-size: 1.14rem;
   }
 
-  .add-button {
-    justify-self: end;
+  .product-actions button {
+    flex: 0 0 auto;
   }
 }
 
@@ -3687,7 +3694,7 @@ label {
 }
 
 .bulk-import-panel {
-  grid-template-rows: auto auto auto auto auto minmax(320px, 1fr) auto;
+  grid-template-rows: auto auto auto auto auto auto auto minmax(200px, 1fr) auto;
 }
 
 .bulk-import-heading {
@@ -4381,14 +4388,6 @@ label {
     justify-self: start;
   }
 
-  .bento-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .panel-products,
-  .panel-cart {
-    grid-column: 1 / -1;
-  }
 
   .panel-products > .panel-heading {
     align-items: stretch;
@@ -4529,11 +4528,18 @@ label {
     grid-template-columns: 54px minmax(0, 1fr) 42px;
   }
 
-  .sidebar-close-button,
-  .sidebar-menu-button {
+  .sidebar-close-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .sidebar-menu-button {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
   }
 }
 
@@ -4830,15 +4836,20 @@ label {
   }
 
   .product-actions {
-    grid-template-columns: minmax(82px, 1fr) max-content 44px repeat(2, minmax(58px, 76px));
-    grid-auto-flow: row;
-    grid-auto-columns: auto;
-    align-items: stretch;
-    justify-content: stretch;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .product-action-price {
-    justify-self: start;
+    flex: 0 0 auto;
+  }
+
+  .product-actions button {
+    flex: 0 0 auto;
   }
 
   .sale-card-actions {
@@ -5086,9 +5097,14 @@ label {
   }
 
   html,
-  body {
+  body,
+  html.modal-open,
+  body.modal-open {
     width: var(--receipt-print-width);
     min-width: var(--receipt-print-width);
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
     margin: 0;
     padding: 0;
     background: #fff;
@@ -5121,8 +5137,7 @@ label {
   }
 
   .print-area {
-    position: fixed;
-    inset: 0 auto auto 0;
+    position: static !important;
     z-index: 999999;
     display: block !important;
     width: var(--receipt-print-width);
@@ -5209,6 +5224,24 @@ label {
     page-break-inside: avoid;
   }
 
+  .print-area .batch-receipt {
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .print-area .receipt-paper + .receipt-paper {
+    break-before: auto !important;
+    page-break-before: auto !important;
+  }
+
+  .print-area .batch-receipt + .batch-receipt {
+    margin-top: 4mm !important;
+    border-top: 1px dashed #111 !important;
+    padding-top: 4mm !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
   .receipt-logo {
     width: 16mm;
     height: 16mm;
@@ -5258,6 +5291,7 @@ label {
   margin-top: 0;
   padding: 6px 12px;
   font-size: 0.78rem;
+  margin-inline-start: auto;
 }
 
 .status-dot {

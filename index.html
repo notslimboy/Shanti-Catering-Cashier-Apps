@@ -29,10 +29,12 @@
         color-scheme: dark;
       }
     </style>
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=166">
+    <link rel="stylesheet" href="styles.css?v=177">
     <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <script defer src="script.js?v=166"></script>
+    <script defer src="script.js?v=177"></script>
   </head>
   <body>
     <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
@@ -632,9 +634,16 @@
             <p id="bulkBatchReviewText">Belum ada draft yang bisa diproses.</p>
           </div>
           <div class="bulk-batch-actions">
+            <button class="ghost-button" id="previewPrintReadyDraftsButton" type="button">Preview Cetak</button>
             <button class="ghost-button" id="processReadyDraftsButton" type="button">Proses Semua Siap</button>
             <button class="secondary-button" id="processPrintReadyDraftsButton" type="button">Proses + Cetak Semua</button>
           </div>
+        </div>
+
+        <div class="modal-tabs bulk-filter-tabs" id="bulkFilterTabs" role="tablist" aria-label="Filter draft pesanan" style="margin: 16px 0;" hidden>
+          <button class="tab-button active" type="button" role="tab" aria-selected="true" data-bulk-filter="all">Semua (<span id="bulkFilterAllCount">0</span>)</button>
+          <button class="tab-button" type="button" role="tab" aria-selected="false" data-bulk-filter="review">Perlu Review (<span id="bulkFilterReviewCount">0</span>)</button>
+          <button class="tab-button" type="button" role="tab" aria-selected="false" data-bulk-filter="ready">Siap (<span id="bulkFilterReadyCount">0</span>)</button>
         </div>
 
         <div class="bulk-draft-list" id="bulkDraftList" aria-live="polite"></div>

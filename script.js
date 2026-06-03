@@ -28,6 +28,7 @@ Aturan:
 - Ulangi customer, chatDate, payment, dan ongkir untuk item dari customer yang sama.
 - customer adalah nama kontak WA yang sudah berisi alamat/patokan pelanggan.
 - Catatan seperti "sambal pisah", "tidak pakai udang", atau "caonya kotak-kotak" harus masuk ke kolom note pada item yang sesuai.
+- Jika ada produk yang sama tetapi memiliki catatan/varian/keterangan yang berbeda (contoh: "2x Siomay tanpa pare" dan "1x Siomay pake pare"), produk tersebut HARUS ditulis sebagai baris terpisah di CSV dengan catatan masing-masing. JANGAN PERNAH menggabungkan kuantitasnya atau menggabungkan catatan mereka menjadi satu baris (seperti "3x Siomay, catatan: tanpa pare; pake pare").
 - Abaikan obrolan yang bukan pesanan, gabungkan revisi terakhir dari customer yang sama, dan jangan menebak item kalau tidak disebut.
 
 Contoh:
@@ -135,6 +136,7 @@ const state = {
   editingSaleDetail: false,
   checkoutWarningSignature: "",
   importDrafts: [],
+  bulkDraftFilter: "all",
   lastReceipt: null,
   selectedFile: null,
 };
@@ -282,8 +284,13 @@ const els = {
   bulkBatchReviewText: document.querySelector("#bulkBatchReviewText"),
   processReadyDraftsButton: document.querySelector("#processReadyDraftsButton"),
   processPrintReadyDraftsButton: document.querySelector("#processPrintReadyDraftsButton"),
+  previewPrintReadyDraftsButton: document.querySelector("#previewPrintReadyDraftsButton"),
   copyAiPromptButton: document.querySelector("#copyAiPromptButton"),
   bulkDraftList: document.querySelector("#bulkDraftList"),
+  bulkFilterTabs: document.querySelector("#bulkFilterTabs"),
+  bulkFilterAllCount: document.querySelector("#bulkFilterAllCount"),
+  bulkFilterReviewCount: document.querySelector("#bulkFilterReviewCount"),
+  bulkFilterReadyCount: document.querySelector("#bulkFilterReadyCount"),
   bulkImportStatus: document.querySelector("#bulkImportStatus"),
   refreshSalesButton: document.querySelector("#refreshSalesButton"),
   previousSalesDateButton: document.querySelector("#previousSalesDateButton"),
@@ -2654,7 +2661,14 @@ function normalizeDraftOrder(source) {
   const address = String(readObjectValue(order, ["address", "customerAddress", "alamat", "lokasi"], "")).trim();
   const customerName = contactName || address || customer;
   const chatDate = String(readObjectValue(order, ["chatDate", "tanggalChat", "tanggal_chat", "tanggalMasuk", "tanggal_masuk", "waktuChat", "waktu_chat"], "")).trim();
-  const shipping = parseMoney(readObjectValue(order, ["shipping", "ongkir", "ongkosKirim", "ongkos_kirim"], 0));
+  
+  let shipping = parseMoney(readObjectValue(order, ["shipping", "ongkir", "ongkosKirim", "ongkos_kirim"], 0));
+  if (shipping === 0 && customerName) {
+    const profile = getCustomerProfile(customerName);
+    if (profile) {
+      shipping = Number(profile.shipping || 0);
+    }
+  }
 
   return {
     id: String(readObjectValue(order, ["id"], "")) || makeId("draft"),
@@ -2723,7 +2737,16 @@ function parseBulkSummaryCsv(text) {
     const chatDate = getBulkCsvCell(row, ["chatDate", "tanggalChat", "tanggalMasuk", "waktuChat"]) || (explicitCustomer ? "" : lastMeta?.chatDate || "");
     const payment = normalizePayment(getBulkCsvCell(row, ["payment", "pembayaran"]) || (explicitCustomer ? "Tunai" : lastMeta?.payment || "Tunai"));
     const shippingText = getBulkCsvCell(row, ["ongkir", "shipping", "ongkosKirim"]);
-    const shipping = shippingText ? parseMoney(shippingText) : explicitCustomer ? 0 : lastMeta?.shipping || 0;
+    
+    // Ambil default ongkir terakhir dari profile jika di CSV kosong atau 0
+    let shipping = shippingText ? parseMoney(shippingText) : explicitCustomer ? 0 : lastMeta?.shipping || 0;
+    if (shipping === 0 && customerName) {
+      const profile = getCustomerProfile(customerName);
+      if (profile) {
+        shipping = Number(profile.shipping || 0);
+      }
+    }
+
     const rawName = getBulkCsvCell(row, ["item", "menu", "barang", "nama", "name", "produk"]);
     const quantity = getBulkCsvCell(row, ["quantity", "qty", "jumlah", "jml"], "1");
     const note = getBulkCsvCell(row, ["note", "catatan", "keterangan"]);
@@ -2948,6 +2971,10 @@ function renderBulkDrafts() {
   }
   if (!els.bulkDraftList) return;
 
+  if (els.bulkFilterTabs) {
+    els.bulkFilterTabs.hidden = !state.importDrafts.length;
+  }
+
   if (!state.importDrafts.length) {
     els.bulkDraftList.innerHTML = `<div class="empty-state">Belum ada draft pesanan.</div>`;
     renderBulkBatchPanel([]);
@@ -2956,10 +2983,49 @@ function renderBulkDrafts() {
     return;
   }
 
+  // Hitung jumlah count untuk masing-masing filter tab
+  const totalAll = state.importDrafts.length;
+  const readyDrafts = getReadyImportDrafts(state.importDrafts);
+  const totalReady = readyDrafts.length;
+  const totalReview = totalAll - totalReady;
+
+  if (els.bulkFilterAllCount) els.bulkFilterAllCount.textContent = totalAll;
+  if (els.bulkFilterReadyCount) els.bulkFilterReadyCount.textContent = totalReady;
+  if (els.bulkFilterReviewCount) els.bulkFilterReviewCount.textContent = totalReview;
+
+  // Set active class pada filter buttons
+  if (els.bulkFilterTabs) {
+    const buttons = els.bulkFilterTabs.querySelectorAll("[data-bulk-filter]");
+    buttons.forEach((btn) => {
+      const isActive = btn.dataset.bulkFilter === state.bulkDraftFilter;
+      btn.classList.toggle("active", isActive);
+      btn.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+  }
+
   renderBulkBatchPanel(state.importDrafts);
   renderBulkImportReview(state.importDrafts);
 
-  els.bulkDraftList.innerHTML = state.importDrafts
+  // Saring draft berdasarkan filter aktif
+  const filteredDrafts = state.importDrafts.filter((draft) => {
+    if (state.bulkDraftFilter === "ready") {
+      return getDraftBlockingIssues(draft).length === 0;
+    }
+    if (state.bulkDraftFilter === "review") {
+      return getDraftBlockingIssues(draft).length > 0;
+    }
+    return true; // "all"
+  });
+
+  if (!filteredDrafts.length) {
+    let emptyMessage = "Belum ada draft pesanan.";
+    if (state.bulkDraftFilter === "review") emptyMessage = "Tidak ada draft yang perlu review.";
+    else if (state.bulkDraftFilter === "ready") emptyMessage = "Tidak ada draft yang siap.";
+    els.bulkDraftList.innerHTML = `<div class="empty-state">${emptyMessage}</div>`;
+    return;
+  }
+
+  els.bulkDraftList.innerHTML = filteredDrafts
     .map((draft, draftIndex) => {
       const issues = getDraftIssues(draft);
       const blocking = issues.some((issue) => issue.blocking);
@@ -3124,10 +3190,11 @@ function getDraftCartItems(draft) {
   draft.items.forEach((item) => {
     const product = getProduct(item.productId);
     if (!product) return;
-    const existing = cartByProduct.get(product.id) || { productId: product.id, quantity: 0, note: "" };
+    const noteText = String(item.note || "").trim();
+    const key = `${product.id}_${noteText}`;
+    const existing = cartByProduct.get(key) || { id: makeId("cart-item"), productId: product.id, quantity: 0, note: noteText };
     existing.quantity += Number(item.quantity || 0);
-    existing.note = [existing.note, item.note].filter(Boolean).join("; ");
-    cartByProduct.set(product.id, existing);
+    cartByProduct.set(key, existing);
   });
 
   return [...cartByProduct.values()];
@@ -3221,6 +3288,22 @@ async function loadDraftToCart(draftId) {
   render();
   els.bulkImportModal.close();
   setSyncStatus(`${getDraftDisplayName(draft)} sudah masuk ke keranjang.`);
+}
+
+async function previewPrintReadyDrafts() {
+  const readyDrafts = getReadyImportDrafts();
+  if (!readyDrafts.length) {
+    setBulkImportStatus("Belum ada draft siap untuk dipreview.", { variant: "error" });
+    return;
+  }
+  const salePayloads = readyDrafts.map((draft) => {
+    const salePayload = buildSalePayloadFromDraft(draft, new Date());
+    salePayload.receiptNo = "PREVIEW-DRAFT";
+    return salePayload;
+  });
+  const htmlList = salePayloads.map((salePayload) => receiptHtmlFromSale(salePayload));
+  const totalHeightMm = measureReceiptBatchPageHeight(htmlList);
+  await printReceiptHtmlInFrame(htmlList, totalHeightMm);
 }
 
 async function processReadyImportDrafts(options = {}) {
@@ -3362,15 +3445,19 @@ function sanitizeCart() {
       const product = getProduct(cartItem.productId);
       if (!product) return null;
       return {
-        ...cartItem,
+        id: cartItem.id || makeId("cart-item"),
+        productId: cartItem.productId,
         quantity: isStockUnlimited(product) ? cartItem.quantity : Math.min(cartItem.quantity, product.stock),
+        note: String(cartItem.note || "").trim(),
       };
     })
     .filter((cartItem) => cartItem && cartItem.quantity > 0);
 }
 
 function cartQuantity(productId) {
-  return state.cart.find((item) => item.productId === productId)?.quantity ?? 0;
+  return state.cart
+    .filter((item) => item.productId === productId)
+    .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 }
 
 function getProduct(productId) {
@@ -3456,6 +3543,7 @@ function getCheckoutValidationIssues() {
     issues.push({ type: "error", blocking: true, message: "Keranjang masih kosong." });
   }
 
+  const productQuantities = new Map();
   state.cart.forEach((cartItem) => {
     const product = getProduct(cartItem.productId);
     if (!product) {
@@ -3466,7 +3554,14 @@ function getCheckoutValidationIssues() {
     const quantity = Number(cartItem.quantity || 0);
     if (quantity <= 0) {
       issues.push({ type: "error", blocking: true, message: `${product.name} jumlahnya belum valid.` });
-    } else if (!isStockUnlimited(product) && quantity > Number(product.stock || 0)) {
+    } else {
+      productQuantities.set(cartItem.productId, (productQuantities.get(cartItem.productId) || 0) + quantity);
+    }
+  });
+
+  productQuantities.forEach((totalQty, productId) => {
+    const product = getProduct(productId);
+    if (product && !isStockUnlimited(product) && totalQty > Number(product.stock || 0)) {
       issues.push({ type: "error", blocking: true, message: `${product.name} melebihi stok tersedia.` });
     }
   });
@@ -4645,21 +4740,22 @@ function renderCart() {
       .map((cartItem) => {
         const product = getProduct(cartItem.productId);
         if (!product) return "";
-        const canIncrease = isStockUnlimited(product) || cartItem.quantity < Number(product.stock || 0);
+        const totalInCart = cartQuantity(cartItem.productId);
+        const canIncrease = isStockUnlimited(product) || totalInCart < Number(product.stock || 0);
         return `
           <article class="cart-row">
             <div>
               <p class="cart-title">${escapeHtml(product.name)}</p>
               <p class="cart-meta"><span>${cartItem.quantity} × ${currency.format(product.price)}</span><strong class="cart-line-total">${currency.format(cartItem.quantity * product.price)}</strong></p>
-              <textarea class="cart-note-input" data-note="${product.id}" rows="2" placeholder="Catatan item, contoh: pedas, tanpa sambal, bungkus">${escapeHtml(cartItem.note || "")}</textarea>
+              <textarea class="cart-note-input" data-note="${cartItem.id}" rows="2" placeholder="Catatan item, contoh: pedas, tanpa sambal, bungkus">${escapeHtml(cartItem.note || "")}</textarea>
             </div>
             <div class="cart-actions">
               <div class="qty-control" aria-label="Jumlah ${escapeHtml(product.name)}">
-                <button type="button" data-decrease="${product.id}" aria-label="Kurangi">−</button>
+                <button type="button" data-decrease="${cartItem.id}" aria-label="Kurangi">−</button>
                 <span>${cartItem.quantity}</span>
-                <button type="button" data-increase="${product.id}" aria-label="Tambah" ${canIncrease ? "" : "disabled"}>+</button>
+                <button type="button" data-increase="${cartItem.id}" aria-label="Tambah" ${canIncrease ? "" : "disabled"}>+</button>
               </div>
-              <button class="icon-button" type="button" data-remove="${product.id}" aria-label="Hapus barang">×</button>
+              <button class="icon-button" type="button" data-remove="${cartItem.id}" aria-label="Hapus barang">×</button>
             </div>
           </article>
         `;
@@ -4833,10 +4929,16 @@ function getReceiptPageWidthCss() {
 }
 
 function setReceiptPageHeight(pageHeightMm) {
-  const height = Math.min(Math.max(pageHeightMm, 42), 900);
   const width = getReceiptPageWidthCss();
-  const pageSize = `${width} ${height}mm`;
-  document.documentElement.style.setProperty("--receipt-page-height", `${height}mm`);
+  let pageSize;
+  if (pageHeightMm === "auto") {
+    pageSize = width;
+    document.documentElement.style.setProperty("--receipt-page-height", "auto");
+  } else {
+    const height = Math.min(Math.max(pageHeightMm, 42), 3000);
+    pageSize = `${width} ${height}mm`;
+    document.documentElement.style.setProperty("--receipt-page-height", `${height}mm`);
+  }
   document.documentElement.style.setProperty("--print-page-size", pageSize);
   document.documentElement.style.setProperty("--print-page-margin", "0mm");
   setDynamicPrintPageRule(pageSize, "0mm");
@@ -4857,16 +4959,18 @@ function applyReceiptSettingsStyles(salePayload = {}) {
 }
 
 function measureReceiptPageHeight(html) {
+  const cleanHtml = html.trim();
   const measure = document.createElement("div");
   measure.className = "receipt-print-measure";
-  measure.innerHTML = `<article class="receipt-paper">${html}</article>`;
+  measure.innerHTML = `<article class="receipt-paper">${cleanHtml}</article>`;
   document.body.appendChild(measure);
 
   const receipt = measure.querySelector(".receipt-paper");
   const heightPx = receipt ? receipt.getBoundingClientRect().height : measure.getBoundingClientRect().height;
   measure.remove();
 
-  const heightMm = Math.ceil((heightPx * 25.4) / 96) + 1;
+  let heightMm = Math.ceil((heightPx * 25.4) / 96);
+  heightMm = Math.max(heightMm - 3, 42);
   setReceiptPageHeight(heightMm);
 }
 
@@ -4879,9 +4983,13 @@ function measureReceiptBatchPageHeight(htmlList) {
   const heights = [...measure.querySelectorAll(".receipt-paper")].map((receipt) => receipt.getBoundingClientRect().height);
   measure.remove();
 
-  const maxHeightPx = Math.max(...heights, 0);
-  const heightMm = Math.ceil((maxHeightPx * 25.4) / 96) + 1;
+  const totalHeightPx = heights.reduce((sum, h) => sum + h, 0);
+  let heightMm = Math.ceil((totalHeightPx * 25.4) / 96) + 1;
+  if (htmlList.length > 1) {
+    heightMm += (htmlList.length - 1) * 8; // Jarak 8mm antar orderan
+  }
   setReceiptPageHeight(heightMm);
+  return heightMm;
 }
 
 function preparePrintReceipt(salePayload = getActiveReceiptPayload()) {
@@ -4896,7 +5004,7 @@ function preparePrintReceiptsBatch(salePayloads = []) {
   applyReceiptSettingsStyles(salePayloads[0]);
   const htmlList = salePayloads.map((salePayload) => receiptHtmlFromSale(salePayload));
   measureReceiptBatchPageHeight(htmlList);
-  els.printArea.innerHTML = htmlList.map((html) => `<article class="receipt-paper batch-receipt">${html}</article>`).join("");
+  els.printArea.innerHTML = htmlList.map((html) => `<article class="receipt-paper batch-receipt">${html}</article>`).join('<div class="page-break"></div>');
 }
 
 function preparePrintHtml(html) {
@@ -4920,6 +5028,110 @@ async function waitForPrintAreaReady() {
   await new Promise((resolve) => requestAnimationFrame(resolve));
   els.printArea?.getBoundingClientRect();
   await new Promise((resolve) => setTimeout(resolve, 80));
+}
+
+async function printReceiptHtmlInFrame(htmlList, pageHeightMm) {
+  document.querySelectorAll(".receipt-print-frame").forEach((frame) => frame.remove());
+
+  const frame = document.createElement("iframe");
+  frame.className = "receipt-print-frame";
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.position = "fixed";
+  frame.style.right = "0";
+  frame.style.bottom = "0";
+  frame.style.width = "1px";
+  frame.style.height = "1px";
+  frame.style.border = "0";
+  frame.style.opacity = "0";
+  frame.style.pointerEvents = "none";
+  document.body.appendChild(frame);
+
+  const frameDocument = frame.contentDocument;
+  if (!frameDocument) {
+    frame.remove();
+    window.print();
+    return;
+  }
+
+  const receiptWidth = state.settings.receiptWidth;
+  const printWidth = String(receiptWidth) === "58" ? 48 : 72;
+  const fontSizeKey = state.settings.receiptFontSize;
+  const fontSize = RECEIPT_FONT_SIZES[fontSizeKey] || RECEIPT_FONT_SIZES.medium;
+  
+  let pageSize;
+  if (pageHeightMm === "auto") {
+    pageSize = `${receiptWidth}mm`;
+  } else {
+    pageSize = `${receiptWidth}mm ${pageHeightMm}mm`;
+  }
+
+  const printHtml = htmlList.map((html) => `<article class="receipt-paper batch-receipt">${html}</article>`).join("");
+
+  frameDocument.open();
+  frameDocument.write(`<!doctype html>
+<html lang="id" style="--receipt-width: ${receiptWidth}mm; --receipt-print-width: ${printWidth}mm; --receipt-font-size: ${fontSize.body}px; --receipt-small-font-size: ${fontSize.small}px;">
+  <head>
+    <meta charset="utf-8">
+    <title>Struk Belanja</title>
+    <link rel="stylesheet" href="${escapeHtml(getPrintStylesheetHref())}">
+    <style>
+      @media print {
+        @page { size: ${pageSize}; margin: 0mm; }
+        html, body {
+          width: ${printWidth}mm;
+          min-width: ${printWidth}mm;
+          height: auto !important;
+          min-height: 0 !important;
+          overflow: visible !important;
+          margin: 0;
+          padding: 0;
+          background: #fff;
+        }
+        .print-area {
+          position: static !important;
+          display: block !important;
+          width: ${printWidth}mm;
+          margin: 0;
+          padding: 0;
+        }
+        .batch-receipt {
+          height: auto !important;
+          min-height: 0 !important;
+        }
+        .batch-receipt + .batch-receipt {
+          margin-top: 4mm !important;
+          border-top: 1px dashed #111 !important;
+          padding-top: 4mm !important;
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="print-area">${printHtml}</div>
+  </body>
+</html>`);
+  frameDocument.close();
+
+  await new Promise((resolve) => {
+    frame.addEventListener("load", resolve, { once: true });
+    setTimeout(resolve, 300);
+  });
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  await frame.contentDocument?.fonts?.ready?.catch(() => {});
+
+  const frameWindow = frame.contentWindow;
+  if (!frameWindow) {
+    frame.remove();
+    window.print();
+    return;
+  }
+
+  frameWindow.addEventListener("afterprint", () => setTimeout(() => frame.remove(), 60000), { once: true });
+  frameWindow.focus();
+  frameWindow.print();
 }
 
 function getPrintStylesheetHref() {
@@ -5004,16 +5216,28 @@ function openReceiptPreview(salePayload = getActiveReceiptPayload()) {
 }
 
 async function printSaleReceipt(salePayload = getActiveReceiptPayload()) {
-  preparePrintReceipt(salePayload);
-  await waitForPrintAreaReady();
-  window.print();
+  applyReceiptSettingsStyles(salePayload);
+  const html = receiptHtmlFromSale(salePayload).trim();
+  
+  const measure = document.createElement("div");
+  measure.className = "receipt-print-measure";
+  measure.innerHTML = `<article class="receipt-paper">${html}</article>`;
+  document.body.appendChild(measure);
+  const receipt = measure.querySelector(".receipt-paper");
+  const heightPx = receipt ? receipt.getBoundingClientRect().height : measure.getBoundingClientRect().height;
+  measure.remove();
+  
+  let heightMm = Math.ceil((heightPx * 25.4) / 96);
+  heightMm = Math.max(heightMm - 3, 42);
+
+  await printReceiptHtmlInFrame([html], heightMm);
 }
 
 async function printSaleReceiptsBatch(salePayloads = []) {
   if (!salePayloads.length) return;
-  preparePrintReceiptsBatch(salePayloads);
-  await waitForPrintAreaReady();
-  window.print();
+  const htmlList = salePayloads.map((salePayload) => receiptHtmlFromSale(salePayload));
+  const totalHeightMm = measureReceiptBatchPageHeight(htmlList);
+  await printReceiptHtmlInFrame(htmlList, totalHeightMm);
 }
 
 function getTestReceiptPayload() {
@@ -5061,8 +5285,8 @@ function formatReportItemList(items = []) {
   `;
 }
 
-const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 30;
-const REPORT_DETAIL_PAGE_UNIT_LIMIT = 46;
+const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 24;
+const REPORT_DETAIL_PAGE_UNIT_LIMIT = 32;
 const REPORT_DETAIL_ROW_MIN_UNITS = 2;
 
 function estimateReportDetailRowUnits(sale) {
@@ -5576,14 +5800,14 @@ function render() {
 function addToCart(productId) {
   const product = getProduct(productId);
   if (!product) return;
-  const existing = state.cart.find((item) => item.productId === productId);
+  const existing = state.cart.find((item) => item.productId === productId && !item.note);
   const available = getAvailableStock(product);
   const previousQuantity = existing?.quantity || 0;
 
   if (existing) {
     if (isStockUnlimited(product) || existing.quantity < Number(product.stock || 0)) existing.quantity += 1;
   } else if (isStockUnlimited(product) || available > 0) {
-    state.cart.push({ productId, quantity: 1 });
+    state.cart.push({ id: makeId("cart-item"), productId, quantity: 1, note: "" });
   }
 
   resetCheckoutWarnings();
@@ -5593,21 +5817,28 @@ function addToCart(productId) {
   }
 }
 
-function changeCartQuantity(productId, delta) {
-  const product = getProduct(productId);
-  const cartItem = state.cart.find((item) => item.productId === productId);
-  if (!product || !cartItem) return;
+function changeCartQuantity(cartItemId, delta) {
+  const cartItem = state.cart.find((item) => item.id === cartItemId);
+  if (!cartItem) return;
+  const product = getProduct(cartItem.productId);
+  if (!product) return;
 
   const nextQuantity = Math.max(0, cartItem.quantity + delta);
-  cartItem.quantity = isStockUnlimited(product) ? nextQuantity : Math.min(product.stock, nextQuantity);
+  const totalOtherQuantity = state.cart
+    .filter((item) => item.productId === cartItem.productId && item.id !== cartItemId)
+    .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const maxAllowed = isStockUnlimited(product) ? Infinity : Number(product.stock || 0) - totalOtherQuantity;
+
+  cartItem.quantity = Math.min(maxAllowed, nextQuantity);
   state.cart = state.cart.filter((item) => item.quantity > 0);
   resetCheckoutWarnings();
   render();
 }
 
-function removeFromCart(productId) {
-  const product = getProduct(productId);
-  state.cart = state.cart.filter((item) => item.productId !== productId);
+function removeFromCart(cartItemId) {
+  const cartItem = state.cart.find((item) => item.id === cartItemId);
+  const product = cartItem ? getProduct(cartItem.productId) : null;
+  state.cart = state.cart.filter((item) => item.id !== cartItemId);
   resetCheckoutWarnings();
   render();
   if (product) showToast(`${product.name} dihapus dari keranjang.`, { title: "Keranjang", duration: 1200 });
@@ -5758,10 +5989,16 @@ function mergeDuplicateProducts() {
     const merged = new Map();
     cart.forEach((cartItem) => {
       const productId = idMap.get(cartItem.productId) || cartItem.productId;
-      const current = merged.get(productId) || { ...cartItem, productId, quantity: 0, note: "" };
+      const noteText = String(cartItem.note || "").trim();
+      const key = `${productId}_${noteText}`;
+      const current = merged.get(key) || {
+        id: cartItem.id || makeId("cart-item"),
+        productId,
+        quantity: 0,
+        note: noteText
+      };
       current.quantity += Number(cartItem.quantity || 0);
-      current.note = [current.note, cartItem.note].filter(Boolean).join("; ");
-      merged.set(productId, current);
+      merged.set(key, current);
     });
     return [...merged.values()];
   };
@@ -5780,8 +6017,8 @@ function mergeDuplicateProducts() {
   saveProductsToDatabase({ toast: false });
 }
 
-function updateCartItemNote(productId, note) {
-  const cartItem = state.cart.find((item) => item.productId === productId);
+function updateCartItemNote(cartItemId, note) {
+  const cartItem = state.cart.find((item) => item.id === cartItemId);
   if (!cartItem) return;
   cartItem.note = note;
   saveState();
@@ -6295,6 +6532,7 @@ function bindEvents() {
   els.parseBulkSummaryButton.addEventListener("click", importBulkSummaryText);
   els.processReadyDraftsButton.addEventListener("click", () => processReadyImportDrafts({ print: false }));
   els.processPrintReadyDraftsButton.addEventListener("click", () => processReadyImportDrafts({ print: true }));
+  els.previewPrintReadyDraftsButton?.addEventListener("click", previewPrintReadyDrafts);
   els.copyAiPromptButton.addEventListener("click", copyAiPrompt);
   els.clearBulkDraftsButton.addEventListener("click", async () => {
     if (!state.importDrafts.length) return;
@@ -6316,6 +6554,16 @@ function bindEvents() {
       els.bulkImportModal.close();
     }
   });
+  if (els.bulkFilterTabs) {
+    const buttons = els.bulkFilterTabs.querySelectorAll("[data-bulk-filter]");
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        state.bulkDraftFilter = button.dataset.bulkFilter;
+        renderBulkDrafts();
+        saveState();
+      });
+    });
+  }
   els.bulkDraftList.addEventListener("input", (event) => {
     updateBulkDraftFromTarget(event.target, false);
   });
@@ -6870,8 +7118,28 @@ function bindEvents() {
 }
 
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-  navigator.serviceWorker.register("service-worker.js").catch(() => {
+  navigator.serviceWorker.register("service-worker.js").then((reg) => {
+    reg.addEventListener("updatefound", () => {
+      const newWorker = reg.installing;
+      if (newWorker) {
+        newWorker.addEventListener("statechange", () => {
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+            console.log("Pembaruan aplikasi terdeteksi, memuat ulang halaman...");
+            window.location.reload();
+          }
+        });
+      }
+    });
+  }).catch(() => {
     console.info("Service worker registration skipped.");
+  });
+
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
   });
 }
 

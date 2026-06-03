@@ -96,7 +96,7 @@ def start_server():
     mimetypes.add_type("application/manifest+json", ".webmanifest")
     port = choose_port()
     cashier_server.ThreadingHTTPServer.allow_reuse_address = True
-    httpd = cashier_server.ThreadingHTTPServer((HOST, port), cashier_server.CashierHandler)
+    httpd = cashier_server.ThreadingHTTPServer(("0.0.0.0", port), cashier_server.CashierHandler)
     thread = threading.Thread(target=httpd.serve_forever, name="kasir-http-server", daemon=True)
     thread.start()
     wait_until_ready(port)

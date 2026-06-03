@@ -1608,8 +1608,8 @@ def main():
     init_database()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 4174
     mimetypes.add_type("application/manifest+json", ".webmanifest")
-    server = ThreadingHTTPServer(("127.0.0.1", port), CashierHandler)
-    print(f"Kasir Shanti Catering running at http://127.0.0.1:{port}/")
+    server = ThreadingHTTPServer(("0.0.0.0", port), CashierHandler)
+    print(f"Kasir Shanti Catering running at http://0.0.0.0:{port}/")
     print(f"SQLite database: {DB_PATH}")
     server.serve_forever()
 
