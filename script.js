@@ -4132,10 +4132,45 @@ async function saveSaleToDatabase(payload) {
   if (state.settings.dbMode === "supabase") {
     const supabase = getSupabaseClient();
     
+    // Generate next receipt number if it is a draft
+    let receiptNo = payload.receiptNo;
+    if (!receiptNo || receiptNo.endsWith("-DRAFT")) {
+      const completedAtDate = payload.completedAt ? new Date(payload.completedAt) : new Date();
+      const dateKey = `${completedAtDate.getFullYear()}${String(completedAtDate.getMonth() + 1).padStart(2, "0")}${String(completedAtDate.getDate()).padStart(2, "0")}`;
+      const prefix = `SH-${dateKey}-`;
+      
+      try {
+        const { data: latestSales, error: fetchErr } = await supabase
+          .from("sales")
+          .select("receipt_no")
+          .like("receipt_no", `${prefix}%`)
+          .order("receipt_no", { ascending: false })
+          .limit(1);
+          
+        if (!fetchErr && Array.isArray(latestSales) && latestSales.length > 0) {
+          const latestReceiptNo = latestSales[0].receipt_no;
+          const suffixStr = latestReceiptNo.replace(prefix, "");
+          const suffixNum = parseInt(suffixStr, 10);
+          if (!isNaN(suffixNum)) {
+            receiptNo = `${prefix}${String(suffixNum + 1).padStart(4, "0")}`;
+          } else {
+            receiptNo = `${prefix}0001`;
+          }
+        } else {
+          receiptNo = `${prefix}0001`;
+        }
+      } catch (e) {
+        console.warn("Gagal generate nomor struk unik dari Supabase, fallback ke timestamp:", e);
+        receiptNo = `${prefix}${Date.now().toString().slice(-4)}`;
+      }
+    }
+    
+    payload.receiptNo = receiptNo;
+    
     const { data: saleData, error: saleError } = await supabase
       .from("sales")
       .insert({
-        receipt_no: payload.receiptNo,
+        receipt_no: receiptNo,
         completed_at: payload.completedAt,
         store_name: payload.storeName,
         payment: payload.payment,
@@ -4174,7 +4209,7 @@ async function saveSaleToDatabase(payload) {
       await dbUpsertCustomer(supabase, payload.customerName, payload.shipping || payload.discount || 0, payload.completedAt);
     }
     
-    return { success: true, id: saleData.id };
+    return { success: true, id: saleData.id, receiptNo: receiptNo };
   } else {
     return requestJson("/api/sales", {
       method: "POST",
