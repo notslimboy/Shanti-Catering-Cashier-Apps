@@ -82,8 +82,8 @@ const state = {
   },
   sale: getDefaultSaleState(),
   sync: {
-    sheetUrl: "",
-    sheetName: "",
+    sheetUrl: "https://docs.google.com/spreadsheets/d/183BZtWGEj0JRE7qjTk1jXBnVFbz_oMti7tR2dkisJsc/edit?gid=0#gid=0",
+    sheetName: "Menu",
     autoSync: true,
     lastSyncAt: "",
     lastSyncMessage: "",
@@ -445,6 +445,12 @@ function loadState() {
     }
     if (state.sale.payment === "Cash") state.sale.payment = "Tunai";
     state.sync = { ...state.sync, ...parsed.sync };
+    if (!state.sync.sheetUrl) {
+      state.sync.sheetUrl = "https://docs.google.com/spreadsheets/d/183BZtWGEj0JRE7qjTk1jXBnVFbz_oMti7tR2dkisJsc/edit?gid=0#gid=0";
+    }
+    if (!state.sync.sheetName) {
+      state.sync.sheetName = "Menu";
+    }
     state.columns = { ...state.columns, ...parsed.columns };
     if (state.columns.name === "name") state.columns.name = "nama";
     if (state.columns.price === "price") state.columns.price = "harga";
@@ -4506,7 +4512,7 @@ async function deleteCustomerInDatabase(customerId) {
 
 function normalizeProductFromDatabase(product) {
   return {
-    id: String(product.id || product.client_id || makeId("sql-product")),
+    id: String(product.client_id || product.id || makeId("sql-product")),
     sku: String(product.sku || "").trim(),
     name: String(product.name || "").trim(),
     price: parseMoney(product.price),
@@ -4574,6 +4580,19 @@ async function clearProductsInDatabase() {
     }
   } catch (error) {
     setSyncStatus(`${error.message} Barang lokal sudah dihapus, database produk belum bersih.`);
+  }
+}
+
+async function deleteProductsFromSupabase(clientIds) {
+  if (state.settings.dbMode !== "supabase") return;
+  try {
+    const supabase = getSupabaseClient();
+    const ids = Array.isArray(clientIds) ? clientIds : [clientIds];
+    if (!ids.length) return;
+    const { error } = await supabase.from("products").delete().in("client_id", ids);
+    if (error) throw error;
+  } catch (error) {
+    console.error("Gagal menghapus produk dari Supabase:", error);
   }
 }
 
@@ -6821,6 +6840,7 @@ function deleteProduct(productId) {
   if (state.editingProductId === productId) resetProductForm();
   setSyncStatus(`${product.name} sudah dihapus.`);
   render();
+  deleteProductsFromSupabase(productId);
   saveProductsToDatabase({ toast: false });
 }
 
@@ -6911,6 +6931,7 @@ function mergeDuplicateProducts() {
   sanitizeCart();
   setSyncStatus(`${duplicateIds.size} barang duplikat digabung. Nama lama disimpan sebagai alias.`);
   render();
+  deleteProductsFromSupabase(Array.from(duplicateIds));
   saveProductsToDatabase({ toast: false });
 }
 
