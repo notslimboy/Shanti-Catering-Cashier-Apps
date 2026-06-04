@@ -4144,6 +4144,7 @@ async function saveSaleToDatabase(payload) {
           .from("sales")
           .select("receipt_no")
           .like("receipt_no", `${prefix}%`)
+          .not("receipt_no", "ilike", "%draft%")
           .order("receipt_no", { ascending: false })
           .limit(1);
           
