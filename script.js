@@ -66,14 +66,14 @@ const state = {
   products: [],
   cart: [],
   settings: {
-    storeName: "Kasir Shanti Catering",
-    storeAddress: "Jl. Contoh No. 12, Jakarta",
-    footer: "Terima kasih sudah berbelanja",
+    storeName: "Shanti Catering",
+    storeAddress: "BHASKARA III / 38",
+    footer: "== TERIMA KASIH ==",
     receiptWidth: "58",
-    receiptFontSize: "medium",
+    receiptFontSize: "large",
     autoPrint: true,
     printFlow: "direct",
-    receiptMode: "compact",
+    receiptMode: "complete",
     thermalPrinterDefaulted: true,
     theme: "light",
     dbMode: "supabase",
@@ -422,12 +422,16 @@ function loadState() {
     state.products = Array.isArray(parsed.products) ? parsed.products : [];
     state.cart = Array.isArray(parsed.cart) ? parsed.cart : [];
     state.settings = { ...state.settings, ...savedSettings };
-    if (state.settings.storeName === "Kasir Bento") state.settings.storeName = "Kasir Shanti Catering";
+    if (state.settings.storeName === "Kasir Bento" || state.settings.storeName === "Kasir Shanti Catering") state.settings.storeName = "Shanti Catering";
+    if (state.settings.storeAddress === "Jl. Contoh No. 12, Jakarta") state.settings.storeAddress = "BHASKARA III / 38";
+    if (state.settings.footer === "Terima kasih sudah berbelanja") state.settings.footer = "== TERIMA KASIH ==";
     if (!hasThermalPrinterDefault && state.settings.receiptWidth === "80") state.settings.receiptWidth = "58";
     if (!["58", "80"].includes(String(state.settings.receiptWidth))) state.settings.receiptWidth = "58";
-    if (!["small", "medium", "large"].includes(state.settings.receiptFontSize)) state.settings.receiptFontSize = "medium";
+    if (state.settings.receiptFontSize === "medium") state.settings.receiptFontSize = "large";
+    if (!["small", "medium", "large"].includes(state.settings.receiptFontSize)) state.settings.receiptFontSize = "large";
     if (!["direct", "preview"].includes(state.settings.printFlow)) state.settings.printFlow = "direct";
-    if (!["compact", "complete"].includes(state.settings.receiptMode)) state.settings.receiptMode = "compact";
+    if (state.settings.receiptMode === "compact") state.settings.receiptMode = "complete";
+    if (!["compact", "complete"].includes(state.settings.receiptMode)) state.settings.receiptMode = "complete";
     if (!["light", "dark"].includes(state.settings.theme)) state.settings.theme = "light";
     if (!["local", "supabase"].includes(state.settings.dbMode) || state.settings.dbMode === "local") state.settings.dbMode = "supabase";
     if (typeof state.settings.supabaseUrl !== "string" || !state.settings.supabaseUrl) state.settings.supabaseUrl = "https://ddfalsclevkqhiyojngx.supabase.co";
@@ -814,19 +818,58 @@ function normalizeKey(value) {
     .replace(/[\s_-]+/g, "");
 }
 
+function cleanSingleAlias(item) {
+  let alias = item;
+  if (typeof alias === "string") {
+    alias = alias.trim();
+    while (typeof alias === "string" && ((alias.startsWith("[") && alias.endsWith("]")) || (alias.startsWith('"') && alias.endsWith('"')) || (alias.startsWith("'") && alias.endsWith("'")))) {
+      try {
+        const parsed = JSON.parse(alias);
+        alias = parsed;
+      } catch (e) {
+        const old = alias;
+        alias = alias.replace(/^["'\[]+|["'\]]+$/g, "").trim();
+        if (alias === old) break;
+      }
+    }
+  }
+  return alias;
+}
+
 function parseAliasList(value) {
-  const rawItems = Array.isArray(value) ? value : String(value ?? "").split(/[,\n;]+/);
+  let rawItems = value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        rawItems = JSON.parse(trimmed);
+      } catch (e) {
+        rawItems = trimmed.split(/[,\n;]+/);
+      }
+    } else {
+      rawItems = trimmed.split(/[,\n;]+/);
+    }
+  } else if (!Array.isArray(value)) {
+    rawItems = [];
+  }
+
   const aliases = [];
   const seen = new Set();
 
-  rawItems.forEach((item) => {
-    const alias = String(item ?? "").trim();
-    const key = normalizeKey(alias);
-    if (!alias || seen.has(key)) return;
+  const addAlias = (item) => {
+    const cleaned = cleanSingleAlias(item);
+    if (Array.isArray(cleaned)) {
+      cleaned.forEach(addAlias);
+      return;
+    }
+    const aliasStr = String(cleaned ?? "").trim();
+    const key = normalizeKey(aliasStr);
+    if (!aliasStr || seen.has(key) || aliasStr === "[]" || aliasStr === "{}" || aliasStr.match(/^[\[\]"' ]+$/)) return;
     seen.add(key);
-    aliases.push(alias);
-  });
+    aliases.push(aliasStr);
+  };
 
+  rawItems.forEach(addAlias);
   return aliases;
 }
 
@@ -4005,6 +4048,86 @@ async function dbFetchSales(options = {}) {
   }
 }
 
+async function dbUpsertCustomer(supabase, name, defaultShipping, lastOrderAt) {
+  const nameClean = String(name || "").trim();
+  if (!nameClean) return null;
+
+  const shipping = Number(defaultShipping || 0);
+  const orderAt = String(lastOrderAt || new Date().toISOString()).trim();
+
+  try {
+    // 1. Cari berdasarkan nama langsung
+    const { data: existingCust } = await supabase
+      .from("customers")
+      .select("id, last_order_at, default_shipping")
+      .eq("name", nameClean)
+      .maybeSingle();
+
+    if (existingCust) {
+      const isNewer = !existingCust.last_order_at || orderAt >= existingCust.last_order_at;
+      const { error: updErr } = await supabase
+        .from("customers")
+        .update({
+          default_shipping: isNewer ? shipping : existingCust.default_shipping,
+          last_order_at: isNewer ? orderAt : existingCust.last_order_at,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", existingCust.id);
+      if (updErr) throw updErr;
+      return existingCust.id;
+    }
+
+    // 2. Cari berdasarkan alias
+    const { data: aliasRec } = await supabase
+      .from("customer_aliases")
+      .select("customer_id")
+      .eq("alias_key", normalizeKey(nameClean))
+      .maybeSingle();
+
+    if (aliasRec) {
+      const { data: custFromAlias } = await supabase
+        .from("customers")
+        .select("id, last_order_at, default_shipping")
+        .eq("id", aliasRec.customer_id)
+        .maybeSingle();
+
+      if (custFromAlias) {
+        const isNewer = !custFromAlias.last_order_at || orderAt >= custFromAlias.last_order_at;
+        const { error: updErr } = await supabase
+          .from("customers")
+          .update({
+            default_shipping: isNewer ? shipping : custFromAlias.default_shipping,
+            last_order_at: isNewer ? orderAt : custFromAlias.last_order_at,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", custFromAlias.id);
+        if (updErr) throw updErr;
+        return custFromAlias.id;
+      }
+    }
+
+    // 3. Tambah customer baru jika tidak ditemukan
+    const { data: newCust, error: insErr } = await supabase
+      .from("customers")
+      .insert({
+        name: nameClean,
+        default_shipping: shipping,
+        last_order_at: orderAt,
+        deposit_balance: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (insErr) throw insErr;
+    return newCust ? newCust.id : null;
+  } catch (err) {
+    console.error("Gagal melakukan dbUpsertCustomer ke Supabase:", err);
+    return null;
+  }
+}
+
 async function saveSaleToDatabase(payload) {
   if (state.settings.dbMode === "supabase") {
     const supabase = getSupabaseClient();
@@ -4044,6 +4167,11 @@ async function saveSaleToDatabase(payload) {
       }));
       const { error: itemsError } = await supabase.from("sale_items").insert(dbItems);
       if (itemsError) throw itemsError;
+    }
+
+    // Upsert customer profile
+    if (payload.customerName) {
+      await dbUpsertCustomer(supabase, payload.customerName, payload.shipping || payload.discount || 0, payload.completedAt);
     }
     
     return { success: true, id: saleData.id };
@@ -4102,20 +4230,28 @@ async function updateSaleInDatabase(saleId, payload) {
   if (state.settings.dbMode === "supabase") {
     const supabase = getSupabaseClient();
     
+    const subtotal = payload.subtotal || (Array.isArray(payload.items) ? payload.items.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0) : 0);
+    const shipping = Number(payload.shipping || payload.discount || 0);
+    const tax = Number(payload.tax || 0);
+    const total = payload.total || (subtotal + shipping + tax);
+    const customerName = payload.customerName || payload.customer_name || "";
+    const chatDate = payload.chatDate || payload.chat_date || "";
+    const completedAt = payload.completedAt || payload.completed_at || new Date().toISOString();
+    
     const { error: saleError } = await supabase
       .from("sales")
       .update({
         payment: payload.payment,
-        subtotal: payload.subtotal || 0,
-        discount: payload.discount || 0,
-        tax: payload.tax || 0,
-        total: payload.total || 0,
-        customer_name: payload.customerName || "",
-        customer_address: payload.customerAddress || "",
-        order_note: payload.orderNote || "",
-        due_text: payload.dueText || "",
-        chat_date: payload.chatDate || "",
-        paid_amount: payload.paidAmount || 0
+        subtotal: subtotal,
+        discount: shipping,
+        tax: tax,
+        total: total,
+        customer_name: customerName,
+        customer_address: payload.customerAddress || payload.customer_address || "",
+        order_note: payload.orderNote || payload.order_note || "",
+        due_text: payload.dueText || payload.due_text || "",
+        chat_date: chatDate,
+        paid_amount: payload.paidAmount || payload.paid_amount || 0
       })
       .eq("id", saleId);
       
@@ -4129,13 +4265,70 @@ async function updateSaleInDatabase(saleId, payload) {
         sale_id: saleId,
         sku: item.sku || "",
         name: item.name,
-        price: item.price || 0,
-        quantity: item.quantity || 0,
-        line_total: item.lineTotal || 0,
+        price: Number(item.price || 0),
+        quantity: Number(item.quantity || 0),
+        line_total: Number(item.lineTotal || item.line_total || (Number(item.price || 0) * Number(item.quantity || 0))),
         note: item.note || ""
       }));
       const { error: itemsError } = await supabase.from("sale_items").insert(dbItems);
       if (itemsError) throw itemsError;
+    }
+
+    // Upsert customer profile
+    if (customerName) {
+      await dbUpsertCustomer(supabase, customerName, shipping, completedAt);
+    }
+    
+    // Retrieve and return updated sale to match local API contract
+    const { data: updatedSales } = await supabase
+      .from("sales")
+      .select("*, sale_items(*)")
+      .eq("id", saleId)
+      .maybeSingle();
+
+    if (updatedSales) {
+      const items = (updatedSales.sale_items || []).map(item => ({
+        id: item.id,
+        sku: item.sku || "",
+        name: item.name,
+        price: Number(item.price || 0),
+        quantity: Number(item.quantity || 0),
+        lineTotal: Number(item.line_total || 0),
+        line_total: Number(item.line_total || 0),
+        note: item.note || ""
+      }));
+      const mappedSale = {
+        id: updatedSales.id,
+        receipt_no: updatedSales.receipt_no,
+        receiptNo: updatedSales.receipt_no,
+        completed_at: updatedSales.completed_at,
+        completedAt: updatedSales.completed_at,
+        store_name: updatedSales.store_name,
+        storeName: updatedSales.store_name,
+        payment: updatedSales.payment,
+        subtotal: Number(updatedSales.subtotal || 0),
+        discount: Number(updatedSales.discount || 0),
+        tax: Number(updatedSales.tax || 0),
+        total: Number(updatedSales.total || 0),
+        customer_name: updatedSales.customer_name || "",
+        customerName: updatedSales.customer_name || "",
+        customer_address: updatedSales.customer_address || "",
+        customerAddress: updatedSales.customer_address || "",
+        order_note: updatedSales.order_note || "",
+        orderNote: updatedSales.order_note || "",
+        due_text: updatedSales.due_text || "",
+        dueText: updatedSales.due_text || "",
+        chat_date: updatedSales.chat_date || "",
+        chatDate: updatedSales.chat_date || "",
+        deleted_at: updatedSales.deleted_at || null,
+        deletedAt: updatedSales.deleted_at || null,
+        stock_restored_on_delete: Number(updatedSales.stock_restored_on_delete || 0),
+        stockRestoredOnDelete: Number(updatedSales.stock_restored_on_delete || 0),
+        paid_amount: Number(updatedSales.paid_amount || 0),
+        paidAmount: Number(updatedSales.paid_amount || 0),
+        items: items
+      };
+      return { success: true, sale: mappedSale };
     }
     
     return { success: true };
