@@ -3008,7 +3008,7 @@ label {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
-  padding: 30px;
+  padding: 30px 50px;
 }
 
 .modal-panel h2 {
@@ -3032,7 +3032,6 @@ label {
   gap: 16px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 16px;
-  padding-right: 48px;
 }
 
 .sale-detail-heading > div:first-child {
@@ -3080,7 +3079,6 @@ label {
   gap: 14px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 16px;
-  padding-right: 48px;
 }
 
 .customer-heading > div {
@@ -3090,6 +3088,28 @@ label {
 .customer-heading h2 {
   font-size: clamp(1.9rem, 4vw, 2.5rem);
   line-height: 1.02;
+}
+
+.customer-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.customer-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mint);
+  color: var(--teal-dark);
+  border-radius: 99px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 4px 12px;
+  min-height: 24px;
+  white-space: nowrap;
 }
 
 .customer-heading button {
@@ -3295,9 +3315,6 @@ label {
   gap: 16px;
 }
 
-.customer-add-heading {
-  padding-right: 48px;
-}
 
 .customer-add-actions {
   display: grid;
@@ -3632,7 +3649,7 @@ label {
 .modal-close-form {
   position: absolute;
   top: 14px;
-  right: 14px;
+  right: 12px;
 }
 
 .modal-close-button {
@@ -3697,14 +3714,9 @@ label {
   grid-template-rows: auto auto auto auto auto auto auto minmax(200px, 1fr) auto;
 }
 
-.bulk-import-heading {
-  padding-right: 64px;
-}
-
 .bulk-import-actions {
   align-items: center;
   justify-content: end;
-  max-width: calc(100% - 64px);
 }
 
 .bulk-batch-panel {
@@ -3867,7 +3879,6 @@ label {
     "actions";
   align-items: start;
   gap: 8px;
-  padding-right: 48px;
 }
 
 .sales-modal-heading > div:first-child {
@@ -3966,9 +3977,6 @@ label {
   width: 100%;
 }
 
-.inventory-modal .panel-heading {
-  padding-right: 48px;
-}
 
 .sales-date-label {
   grid-area: date;
@@ -4433,25 +4441,17 @@ label {
     max-height: min(42dvh, 420px);
   }
 
-  .sales-modal-heading {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "eyebrow"
-      "title"
-      "date"
-      "actions";
-    padding-right: 48px;
-  }
+
 
   .sales-modal-heading .dashboard-actions {
-    justify-content: stretch;
+    justify-content: flex-end;
     width: 100%;
   }
 
   .sales-modal-heading .dashboard-actions button,
   .sales-modal-heading .dashboard-actions .export-menu,
   .sales-modal-heading .dashboard-actions summary {
-    flex: 1 1 132px;
+    flex: 0 0 auto;
   }
 
   .sales-filter-panel {
@@ -4576,25 +4576,25 @@ label {
     max-height: min(42dvh, 380px);
   }
 
-  .sales-modal-heading {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "eyebrow"
-      "title"
-      "date"
-      "actions";
-    padding-right: 48px;
-  }
+
 
   .sales-modal-heading .dashboard-actions {
-    justify-content: stretch;
+    justify-content: flex-end;
     width: 100%;
   }
 
   .sales-modal-heading .dashboard-actions button,
   .sales-modal-heading .dashboard-actions .export-menu,
   .sales-modal-heading .dashboard-actions summary {
-    flex: 1 1 132px;
+    flex: 0 0 auto;
+  }
+
+  .modal-panel {
+    padding: 28px 46px 22px;
+  }
+
+  .modal-close-form {
+    right: 8px;
   }
 
   .sales-filter-panel {
@@ -4636,9 +4636,7 @@ label {
     grid-column: 1 / -1;
   }
 
-  .modal-panel {
-    padding: 28px 22px 22px;
-  }
+  /* Removed old asymmetrical panel padding block since it's merged above */
 }
 
 @media (orientation: portrait) and (max-width: 1100px) {
@@ -4662,15 +4660,7 @@ label {
     grid-template-columns: minmax(0, 1fr) max-content;
   }
 
-  .sales-modal-heading {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "eyebrow"
-      "title"
-      "date"
-      "actions";
-    padding-right: 48px;
-  }
+
 
   .sales-modal-heading .dashboard-actions {
     grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
@@ -4905,13 +4895,6 @@ label {
     justify-content: stretch;
   }
 
-  .sale-detail-heading {
-    padding-right: 42px;
-  }
-
-  .customer-heading {
-    padding-right: 42px;
-  }
 
   .customer-heading-actions {
     justify-content: stretch;
@@ -4944,9 +4927,6 @@ label {
     grid-template-columns: 1fr;
   }
 
-  .bulk-import-heading {
-    padding-right: 42px;
-  }
 
   .bulk-import-actions {
     max-width: 100%;
@@ -4966,32 +4946,28 @@ label {
   }
 
   .modal-panel {
-    padding: 24px 18px 18px;
+    padding: 24px 40px 18px;
+  }
+
+  .modal-close-form {
+    right: 4px;
   }
 
   .sales-modal .modal-panel {
     min-height: calc(100dvh - 28px);
   }
 
-  .sales-modal-heading {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "eyebrow"
-      "title"
-      "date"
-      "actions";
-    padding-right: 42px;
-  }
+
 
   .sales-modal-heading .dashboard-actions {
-    justify-content: stretch;
+    justify-content: flex-end;
     width: 100%;
   }
 
   .sales-modal-heading .dashboard-actions button,
   .sales-modal-heading .dashboard-actions .export-menu,
   .sales-modal-heading .dashboard-actions summary {
-    flex: 1 1 calc(50% - 8px);
+    flex: 0 0 auto;
   }
 
   .export-menu-panel {
@@ -5082,7 +5058,11 @@ label {
 
   .modal-panel {
     max-height: calc(100dvh - 16px);
-    padding: 18px 16px 16px;
+    padding: 18px 36px 16px;
+  }
+
+  .modal-close-form {
+    right: 4px;
   }
 
   .sales-modal .modal-panel {
@@ -5667,5 +5647,23 @@ label {
   font-size: 0.84rem;
   font-weight: 850;
 }
+
+/* Supabase settings tab custom columns and fields */
+.settings-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  margin-bottom: 20px;
+}
+
+.supabase-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
 
 

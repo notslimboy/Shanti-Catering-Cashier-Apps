@@ -76,6 +76,9 @@ const state = {
     receiptMode: "compact",
     thermalPrinterDefaulted: true,
     theme: "light",
+    dbMode: "local",
+    supabaseUrl: "",
+    supabaseKey: "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP",
   },
   sale: getDefaultSaleState(),
   sync: {
@@ -398,6 +401,14 @@ const els = {
   mergeDuplicateProductsButton: document.querySelector("#mergeDuplicateProductsButton"),
   receiptPaper: document.querySelector("#receiptPaper"),
   printArea: document.querySelector("#printArea"),
+  settingsTabButtons: document.querySelectorAll("[data-settings-tab]"),
+  settingsTabPanels: document.querySelectorAll("[data-settings-panel]"),
+  dbModeInput: document.querySelector("#dbModeInput"),
+  supabaseFields: document.querySelector("#supabaseFields"),
+  supabaseUrlInput: document.querySelector("#supabaseUrlInput"),
+  supabaseKeyInput: document.querySelector("#supabaseKeyInput"),
+  testSupabaseButton: document.querySelector("#testSupabaseButton"),
+  migrateToSupabaseButton: document.querySelector("#migrateToSupabaseButton"),
 };
 
 function loadState() {
@@ -418,6 +429,9 @@ function loadState() {
     if (!["direct", "preview"].includes(state.settings.printFlow)) state.settings.printFlow = "direct";
     if (!["compact", "complete"].includes(state.settings.receiptMode)) state.settings.receiptMode = "compact";
     if (!["light", "dark"].includes(state.settings.theme)) state.settings.theme = "light";
+    if (!["local", "supabase"].includes(state.settings.dbMode)) state.settings.dbMode = "local";
+    if (typeof state.settings.supabaseUrl !== "string") state.settings.supabaseUrl = "";
+    if (typeof state.settings.supabaseKey !== "string") state.settings.supabaseKey = "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP";
     state.settings.autoPrint = state.settings.autoPrint !== false;
     state.settings.thermalPrinterDefaulted = true;
     const savedSale = parsed.sale && typeof parsed.sale === "object" ? parsed.sale : {};
@@ -1748,6 +1762,12 @@ function renderCustomerDataList(statusMessage = "") {
 
   renderCustomerSimilarSection();
   const rows = getEditableCustomerRows();
+
+  const totalCount = state.customers.map(normalizeCustomerRecord).filter((customer) => customer.id && customer.name).length;
+  const countChip = document.getElementById("customerCountChip");
+  if (countChip) {
+    countChip.textContent = `${totalCount} Customer`;
+  }
   if (!state.customers.length) {
     els.customerDataList.innerHTML = `<div class="empty-state">Belum ada data customer.</div>`;
     setCustomerDataStatus(statusMessage || "Data customer masih kosong.");
@@ -2428,6 +2448,30 @@ function formatIntegerInput(value) {
   const digits = String(value ?? "").replace(/\D/g, "");
   if (!digits) return "";
   return integerFormatter.format(Number.parseInt(digits, 10));
+}
+
+function formatMoneyInput(input) {
+  const value = input.value;
+  const cursorPosition = input.selectionStart || 0;
+  const textBeforeCursor = value.substring(0, cursorPosition);
+  const digitsBeforeCursor = textBeforeCursor.replace(/\D/g, "").length;
+
+  const formatted = formatIntegerInput(value);
+  input.value = formatted;
+
+  let newCursorPos = 0;
+  let digitCount = 0;
+  for (let i = 0; i < formatted.length; i++) {
+    if (/\d/.test(formatted[i])) {
+      digitCount++;
+    }
+    newCursorPos = i + 1;
+    if (digitCount === digitsBeforeCursor) {
+      break;
+    }
+  }
+
+  input.setSelectionRange(newCursorPos, newCursorPos);
 }
 
 function parseStock(value) {
@@ -3656,58 +3700,548 @@ async function requestJson(url, options = {}) {
   return data;
 }
 
-async function saveSaleToDatabase(payload) {
-  return requestJson("/api/sales", {
-    method: "POST",
-    body: JSON.stringify(payload),
+let _supabaseInstance = null;
+let _lastUrl = null;
+let _lastKey = null;
+
+function getSupabaseClient() {
+  const url = state.settings.supabaseUrl;
+  const key = state.settings.supabaseKey;
+  
+  if (!url || !key) {
+    throw new Error("URL Supabase atau Anon Key belum diisi di Pengaturan!");
+  }
+  
+  if (_supabaseInstance && _lastUrl === url && _lastKey === key) {
+    return _supabaseInstance;
+  }
+  
+  if (!window.supabase) {
+    throw new Error("SDK Supabase belum ter-load secara penuh. Mohon periksa koneksi internet.");
+  }
+  
+  _lastUrl = url;
+  _lastKey = key;
+  _supabaseInstance = window.supabase.createClient(url, key);
+  return _supabaseInstance;
+}
+
+async function testSupabaseConnection() {
+  const originalText = els.testSupabaseButton.textContent;
+  els.testSupabaseButton.textContent = "Menghubungkan...";
+  els.testSupabaseButton.disabled = true;
+  
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from("sales").select("id").limit(1);
+    if (error) throw error;
+    showToast("Koneksi Supabase berhasil terhubung! Tabel 'sales' ditemukan.", { variant: "success" });
+  } catch (error) {
+    console.error("Supabase connection error:", error);
+    showToast(`Koneksi gagal: ${error.message || error.details || "Pastikan URL & Anon Key benar dan tabel sales sudah di-setup."}`, { variant: "error" });
+  } finally {
+    els.testSupabaseButton.textContent = originalText;
+    els.testSupabaseButton.disabled = false;
+  }
+}
+
+async function migrateDataToSupabase() {
+  const originalText = els.migrateToSupabaseButton.textContent;
+  
+  const confirmed = await openAppConfirm({
+    eyebrow: "Migrasi Database",
+    title: "Migrasikan Data ke Supabase?",
+    message: "Ini akan mengunggah seluruh data lokal (produk, customer, dan riwayat transaksi beserta itemnya) dari SQLite lokal ke Supabase Cloud.",
+    note: "Pastikan koneksi internet stabil dan tabel Supabase sudah di-setup dengan benar sesuai petunjuk.",
+    confirmText: "Ya, Mulai Migrasi",
   });
+  if (!confirmed) return;
+
+  els.migrateToSupabaseButton.textContent = "Bekerja...";
+  els.migrateToSupabaseButton.disabled = true;
+
+  try {
+    const supabase = getSupabaseClient();
+    showToast("Mengambil data lokal untuk migrasi...", { variant: "info" });
+
+    // A. Migrate Products
+    let localProducts = state.products;
+    if (localProducts.length > 0) {
+      showToast(`Mengunggah ${localProducts.length} produk...`, { variant: "info" });
+      const dbProducts = localProducts.map(p => ({
+        client_id: p.id,
+        sku: p.sku || "",
+        name: p.name,
+        price: p.price || 0,
+        stock: p.stock || 0,
+        stock_unlimited: p.stockUnlimited ? 1 : 0,
+        category: p.category || "",
+        aliases: JSON.stringify(p.aliases || []),
+        source: p.source || "manual",
+        updated_at: new Date().toISOString()
+      }));
+      const { error: prodError } = await supabase.from("products").upsert(dbProducts, { onConflict: "client_id" });
+      if (prodError) throw new Error("Gagal mengunggah produk: " + prodError.message);
+    }
+
+    // B. Migrate Customers
+    let customersData;
+    try {
+      customersData = await requestJson("/api/customers?limit=10000");
+    } catch (e) {
+      console.warn("Gagal membaca customer dari SQLite lokal, fallback ke customer di state", e);
+      customersData = { customers: state.customers };
+    }
+    const localCustomers = (customersData && Array.isArray(customersData.customers)) ? customersData.customers : state.customers;
+    if (localCustomers.length > 0) {
+      showToast(`Mengunggah ${localCustomers.length} data customer...`, { variant: "info" });
+      for (const cust of localCustomers) {
+        const dbCust = {
+          name: cust.name,
+          default_shipping: Number(cust.default_shipping || 0),
+          deposit_balance: Number(cust.deposit_balance || 0),
+          last_order_at: cust.last_order_at || "",
+          updated_at: new Date().toISOString()
+        };
+        const { data: existingCust } = await supabase.from("customers").select("id").eq("name", cust.name).maybeSingle();
+        let customerId;
+        if (existingCust) {
+          customerId = existingCust.id;
+          const { error: updErr } = await supabase.from("customers").update(dbCust).eq("id", customerId);
+          if (updErr) throw new Error(`Gagal update customer ${cust.name}: ` + updErr.message);
+        } else {
+          const { data: newCust, error: insErr } = await supabase.from("customers").insert(dbCust).select().single();
+          if (insErr) throw new Error(`Gagal tambah customer ${cust.name}: ` + insErr.message);
+          customerId = newCust.id;
+        }
+
+        if (Array.isArray(cust.aliases) && cust.aliases.length > 0) {
+          const { error: delAliasErr } = await supabase.from("customer_aliases").delete().eq("customer_id", customerId);
+          const dbAliases = cust.aliases.map(alias => ({
+            customer_id: customerId,
+            alias: alias,
+            alias_key: normalizeKey(alias)
+          }));
+          const { error: aliasError } = await supabase.from("customer_aliases").insert(dbAliases);
+        }
+      }
+    }
+
+    // C. Migrate Sales
+    let salesData;
+    try {
+      salesData = await requestJson("/api/sales?limit=10000&includeDeleted=1");
+    } catch (e) {
+      console.warn("Gagal membaca sales dari SQLite lokal, fallback ke sales di state", e);
+      salesData = { sales: state.sales };
+    }
+    const localSales = (salesData && Array.isArray(salesData.sales)) ? salesData.sales : state.sales;
+    if (localSales.length > 0) {
+      showToast(`Mengunggah ${localSales.length} transaksi...`, { variant: "info" });
+      const { data: supabaseSales } = await supabase.from("sales").select("receipt_no, id");
+      const supabaseReceipts = new Map((supabaseSales || []).map(s => [s.receipt_no, s.id]));
+
+      for (const sale of localSales) {
+        const salePayload = {
+          receipt_no: sale.receiptNo || sale.receipt_no,
+          completed_at: sale.completedAt || sale.completed_at,
+          store_name: sale.storeName || sale.store_name,
+          payment: sale.payment,
+          subtotal: Number(sale.subtotal || 0),
+          discount: Number(sale.discount || 0),
+          tax: Number(sale.tax || 0),
+          total: Number(sale.total || 0),
+          customer_name: sale.customerName || sale.customer_name || "",
+          customer_address: sale.customerAddress || sale.customer_address || "",
+          order_note: sale.orderNote || sale.order_note || "",
+          due_text: sale.dueText || sale.due_text || "",
+          chat_date: sale.chatDate || sale.chat_date || "",
+          paid_amount: Number(sale.paidAmount || sale.paid_amount || 0),
+          deleted_at: sale.deletedAt || sale.deleted_at || null,
+          stock_restored_on_delete: Number(sale.stockRestoredOnDelete || sale.stock_restored_on_delete || 0)
+        };
+
+        let saleId;
+        const existingId = supabaseReceipts.get(salePayload.receipt_no);
+        if (existingId) {
+          saleId = existingId;
+          const { error: updSaleErr } = await supabase.from("sales").update(salePayload).eq("id", saleId);
+          if (updSaleErr) throw new Error(`Gagal update transaksi ${salePayload.receipt_no}: ` + updSaleErr.message);
+        } else {
+          const { data: newSale, error: insSaleErr } = await supabase.from("sales").insert(salePayload).select().single();
+          if (insSaleErr) throw new Error(`Gagal tambah transaksi ${salePayload.receipt_no}: ` + insSaleErr.message);
+          saleId = newSale.id;
+        }
+
+        const items = Array.isArray(sale.items) ? sale.items : [];
+        if (items.length > 0) {
+          const { error: delItemsErr } = await supabase.from("sale_items").delete().eq("sale_id", saleId);
+          const dbItems = items.map(item => ({
+            sale_id: saleId,
+            sku: item.sku || "",
+            name: item.name,
+            price: Number(item.price || 0),
+            quantity: Number(item.quantity || 0),
+            line_total: Number(item.lineTotal || item.line_total || 0),
+            note: item.note || ""
+          }));
+          const { error: insItemsErr } = await supabase.from("sale_items").insert(dbItems);
+          if (insItemsErr) throw new Error(`Gagal menambah item untuk transaksi ${salePayload.receipt_no}: ` + insItemsErr.message);
+        }
+
+        const payments = Array.isArray(sale.payments) ? sale.payments : [];
+        if (payments.length > 0) {
+          const { error: delPayErr } = await supabase.from("sale_payments").delete().eq("sale_id", saleId);
+          const dbPayments = payments.map(pay => ({
+            sale_id: saleId,
+            amount: Number(pay.amount || 0),
+            payment_date: pay.payment_date || pay.paymentDate || pay.created_at || new Date().toISOString(),
+            note: pay.note || ""
+          }));
+          const { error: insPayErr } = await supabase.from("sale_payments").insert(dbPayments);
+        }
+      }
+    }
+
+    showToast("Migrasi data ke Supabase Cloud berhasil diselesaikan!", { variant: "success" });
+  } catch (error) {
+    console.error("Migration error:", error);
+    showToast(`Migrasi gagal: ${error.message}`, { variant: "error" });
+  } finally {
+    els.migrateToSupabaseButton.textContent = originalText;
+    els.migrateToSupabaseButton.disabled = false;
+  }
+}
+
+async function dbFetchSales(options = {}) {
+  const limit = options.limit || 1000;
+  const includeDeleted = options.includeDeleted !== false;
+  
+  if (state.settings.dbMode === "supabase") {
+    const supabase = getSupabaseClient();
+    let query = supabase
+      .from("sales")
+      .select(`
+        *,
+        sale_items (*)
+      `)
+      .order("completed_at", { ascending: false })
+      .limit(limit);
+      
+    if (!includeDeleted) {
+      query = query.is("deleted_at", null);
+    }
+    
+    const { data: salesData, error } = await query;
+    if (error) throw error;
+    
+    const sales = salesData.map(sale => {
+      const items = (sale.sale_items || []).map(item => ({
+        id: item.id,
+        sku: item.sku || "",
+        name: item.name,
+        price: Number(item.price || 0),
+        quantity: Number(item.quantity || 0),
+        lineTotal: Number(item.line_total || 0),
+        note: item.note || ""
+      }));
+      return {
+        id: sale.id,
+        receiptNo: sale.receipt_no,
+        completedAt: sale.completed_at,
+        storeName: sale.store_name,
+        payment: sale.payment,
+        subtotal: Number(sale.subtotal || 0),
+        discount: Number(sale.discount || 0),
+        tax: Number(sale.tax || 0),
+        total: Number(sale.total || 0),
+        customerName: sale.customer_name || "",
+        customerAddress: sale.customer_address || "",
+        orderNote: sale.order_note || "",
+        dueText: sale.due_text || "",
+        chatDate: sale.chat_date || "",
+        deletedAt: sale.deleted_at || null,
+        stockRestoredOnDelete: Number(sale.stock_restored_on_delete || 0),
+        paidAmount: Number(sale.paid_amount || 0),
+        items: items
+      };
+    });
+    
+    return { sales };
+  } else {
+    const url = `/api/sales?limit=${limit}${includeDeleted ? '&includeDeleted=1' : ''}`;
+    return requestJson(url);
+  }
+}
+
+async function saveSaleToDatabase(payload) {
+  if (state.settings.dbMode === "supabase") {
+    const supabase = getSupabaseClient();
+    
+    const { data: saleData, error: saleError } = await supabase
+      .from("sales")
+      .insert({
+        receipt_no: payload.receiptNo,
+        completed_at: payload.completedAt,
+        store_name: payload.storeName,
+        payment: payload.payment,
+        subtotal: payload.subtotal || 0,
+        discount: payload.discount || 0,
+        tax: payload.tax || 0,
+        total: payload.total || 0,
+        customer_name: payload.customerName || "",
+        customer_address: payload.customerAddress || "",
+        order_note: payload.orderNote || "",
+        due_text: payload.dueText || "",
+        chat_date: payload.chatDate || "",
+        paid_amount: payload.paidAmount || 0
+      })
+      .select()
+      .single();
+      
+    if (saleError) throw saleError;
+    
+    if (Array.isArray(payload.items) && payload.items.length > 0) {
+      const dbItems = payload.items.map(item => ({
+        sale_id: saleData.id,
+        sku: item.sku || "",
+        name: item.name,
+        price: item.price || 0,
+        quantity: item.quantity || 0,
+        line_total: item.lineTotal || 0,
+        note: item.note || ""
+      }));
+      const { error: itemsError } = await supabase.from("sale_items").insert(dbItems);
+      if (itemsError) throw itemsError;
+    }
+    
+    return { success: true, id: saleData.id };
+  } else {
+    return requestJson("/api/sales", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 async function deleteSaleFromDatabase(saleId, options = {}) {
-  return requestJson(`/api/sales/${encodeURIComponent(saleId)}`, {
-    method: "DELETE",
-    body: JSON.stringify({ restoreStock: Boolean(options.restoreStock) }),
-  });
+  if (state.settings.dbMode === "supabase") {
+    const supabase = getSupabaseClient();
+    
+    const { error } = await supabase
+      .from("sales")
+      .update({
+        deleted_at: new Date().toISOString(),
+        stock_restored_on_delete: options.restoreStock ? 1 : 0
+      })
+      .eq("id", saleId);
+      
+    if (error) throw error;
+    return { success: true };
+  } else {
+    return requestJson(`/api/sales/${encodeURIComponent(saleId)}`, {
+      method: "DELETE",
+      body: JSON.stringify({ restoreStock: Boolean(options.restoreStock) }),
+    });
+  }
 }
 
 async function restoreSaleInDatabase(saleId) {
-  return requestJson(`/api/sales/${encodeURIComponent(saleId)}/restore`, {
-    method: "POST",
-  });
+  if (state.settings.dbMode === "supabase") {
+    const supabase = getSupabaseClient();
+    
+    const { error } = await supabase
+      .from("sales")
+      .update({
+        deleted_at: null,
+        stock_restored_on_delete: 0
+      })
+      .eq("id", saleId);
+      
+    if (error) throw error;
+    return { success: true };
+  } else {
+    return requestJson(`/api/sales/${encodeURIComponent(saleId)}/restore`, {
+      method: "POST",
+    });
+  }
 }
 
 async function updateSaleInDatabase(saleId, payload) {
-  return requestJson(`/api/sales/${encodeURIComponent(saleId)}`, {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
+  if (state.settings.dbMode === "supabase") {
+    const supabase = getSupabaseClient();
+    
+    const { error: saleError } = await supabase
+      .from("sales")
+      .update({
+        payment: payload.payment,
+        subtotal: payload.subtotal || 0,
+        discount: payload.discount || 0,
+        tax: payload.tax || 0,
+        total: payload.total || 0,
+        customer_name: payload.customerName || "",
+        customer_address: payload.customerAddress || "",
+        order_note: payload.orderNote || "",
+        due_text: payload.dueText || "",
+        chat_date: payload.chatDate || "",
+        paid_amount: payload.paidAmount || 0
+      })
+      .eq("id", saleId);
+      
+    if (saleError) throw saleError;
+    
+    const { error: deleteError } = await supabase.from("sale_items").delete().eq("sale_id", saleId);
+    if (deleteError) throw deleteError;
+    
+    if (Array.isArray(payload.items) && payload.items.length > 0) {
+      const dbItems = payload.items.map(item => ({
+        sale_id: saleId,
+        sku: item.sku || "",
+        name: item.name,
+        price: item.price || 0,
+        quantity: item.quantity || 0,
+        line_total: item.lineTotal || 0,
+        note: item.note || ""
+      }));
+      const { error: itemsError } = await supabase.from("sale_items").insert(dbItems);
+      if (itemsError) throw itemsError;
+    }
+    
+    return { success: true };
+  } else {
+    return requestJson(`/api/sales/${encodeURIComponent(saleId)}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 async function updateCustomerInDatabase(customerId, payload) {
-  return requestJson(`/api/customers/${encodeURIComponent(customerId)}`, {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
+  if (state.settings.dbMode === "supabase") {
+    const supabase = getSupabaseClient();
+    
+    const { error: customerError } = await supabase
+      .from("customers")
+      .update({
+        name: payload.name,
+        default_shipping: payload.defaultShipping || 0,
+        deposit_balance: payload.depositBalance || 0,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", customerId);
+      
+    if (customerError) throw customerError;
+    
+    const { error: deleteError } = await supabase.from("customer_aliases").delete().eq("customer_id", customerId);
+    if (deleteError) throw deleteError;
+    
+    if (Array.isArray(payload.aliases) && payload.aliases.length > 0) {
+      const dbAliases = payload.aliases.map(alias => ({
+        customer_id: customerId,
+        alias: alias,
+        alias_key: normalizeKey(alias)
+      }));
+      const { error: aliasError } = await supabase.from("customer_aliases").insert(dbAliases);
+      if (aliasError) throw aliasError;
+    }
+    
+    return { success: true };
+  } else {
+    return requestJson(`/api/customers/${encodeURIComponent(customerId)}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 async function createCustomerInDatabase(payload) {
-  return requestJson("/api/customers", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  if (state.settings.dbMode === "supabase") {
+    const supabase = getSupabaseClient();
+    
+    const { data: customerData, error: customerError } = await supabase
+      .from("customers")
+      .insert({
+        name: payload.name,
+        default_shipping: payload.defaultShipping || 0,
+        deposit_balance: payload.depositBalance || 0,
+        last_order_at: ""
+      })
+      .select()
+      .single();
+      
+    if (customerError) throw customerError;
+    
+    if (Array.isArray(payload.aliases) && payload.aliases.length > 0) {
+      const dbAliases = payload.aliases.map(alias => ({
+        customer_id: customerData.id,
+        alias: alias,
+        alias_key: normalizeKey(alias)
+      }));
+      const { error: aliasError } = await supabase.from("customer_aliases").insert(dbAliases);
+      if (aliasError) throw aliasError;
+    }
+    
+    return { ...customerData, aliases: payload.aliases };
+  } else {
+    return requestJson("/api/customers", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 async function mergeCustomersInDatabase(payload) {
-  return requestJson("/api/customers/merge", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  if (state.settings.dbMode === "supabase") {
+    const supabase = getSupabaseClient();
+    
+    const { data: sourceCust, error: errS } = await supabase.from("customers").select("*").eq("id", payload.sourceId).single();
+    if (errS) throw errS;
+    const { data: targetCust, error: errT } = await supabase.from("customers").select("*").eq("id", payload.targetId).single();
+    if (errT) throw errT;
+    
+    const sourceAlias = sourceCust.name;
+    const { error: aliasError } = await supabase.from("customer_aliases").insert({
+      customer_id: targetCust.id,
+      alias: sourceAlias,
+      alias_key: normalizeKey(sourceAlias)
+    });
+    
+    const { error: moveAliasError } = await supabase.from("customer_aliases").update({
+      customer_id: targetCust.id
+    }).eq("customer_id", sourceCust.id);
+    
+    const { error: salesError } = await supabase.from("sales").update({
+      customer_name: targetCust.name
+    }).eq("customer_name", sourceCust.name);
+
+    const newDeposit = Number(targetCust.deposit_balance || 0) + Number(sourceCust.deposit_balance || 0);
+    const { error: updateTargetError } = await supabase.from("customers").update({
+      deposit_balance: newDeposit
+    }).eq("id", targetCust.id);
+
+    const { error: deleteSourceError } = await supabase.from("customers").delete().eq("id", sourceCust.id);
+    if (deleteSourceError) throw deleteSourceError;
+
+    return { success: true };
+  } else {
+    return requestJson("/api/customers/merge", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
 }
 
 async function deleteCustomerInDatabase(customerId) {
-  return requestJson(`/api/customers/${encodeURIComponent(customerId)}`, {
-    method: "DELETE",
-  });
+  if (state.settings.dbMode === "supabase") {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from("customers").delete().eq("id", customerId);
+    if (error) throw error;
+    return { success: true };
+  } else {
+    return requestJson(`/api/customers/${encodeURIComponent(customerId)}`, {
+      method: "DELETE",
+    });
+  }
 }
 
 function normalizeProductFromDatabase(product) {
@@ -3732,11 +4266,32 @@ async function saveProductsToDatabase(options = {}) {
 
   productSyncInFlight = true;
   try {
-    await requestJson("/api/products", {
-      method: "PUT",
-      body: JSON.stringify({ products: state.products }),
-    });
-    if (options.toast) setSyncStatus(`${state.products.length} barang tersimpan ke database SQL.`, { toast: true });
+    if (state.settings.dbMode === "supabase") {
+      const supabase = getSupabaseClient();
+      const dbProducts = state.products.map(p => ({
+        client_id: p.id,
+        sku: p.sku || "",
+        name: p.name,
+        price: p.price || 0,
+        stock: p.stock || 0,
+        stock_unlimited: p.stockUnlimited ? 1 : 0,
+        category: p.category || "",
+        aliases: JSON.stringify(p.aliases || []),
+        source: p.source || "manual",
+        updated_at: new Date().toISOString()
+      }));
+
+      const { error } = await supabase.from("products").upsert(dbProducts, { onConflict: "client_id" });
+      if (error) throw error;
+      
+      if (options.toast) setSyncStatus(`${state.products.length} barang tersimpan ke Supabase Cloud.`, { toast: true });
+    } else {
+      await requestJson("/api/products", {
+        method: "PUT",
+        body: JSON.stringify({ products: state.products }),
+      });
+      if (options.toast) setSyncStatus(`${state.products.length} barang tersimpan ke database SQL.`, { toast: true });
+    }
   } catch (error) {
     if (options.toast !== false) setSyncStatus(`${error.message} Barang tetap tersimpan di browser.`);
   } finally {
@@ -3750,7 +4305,13 @@ async function saveProductsToDatabase(options = {}) {
 
 async function clearProductsInDatabase() {
   try {
-    await requestJson("/api/products", { method: "DELETE" });
+    if (state.settings.dbMode === "supabase") {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase.from("products").delete().neq("id", 0);
+      if (error) throw error;
+    } else {
+      await requestJson("/api/products", { method: "DELETE" });
+    }
   } catch (error) {
     setSyncStatus(`${error.message} Barang lokal sudah dihapus, database produk belum bersih.`);
   }
@@ -3758,21 +4319,36 @@ async function clearProductsInDatabase() {
 
 async function loadProductsFromDatabase(options = {}) {
   try {
-    const data = await requestJson("/api/products");
-    const sqlProducts = Array.isArray(data.products) ? data.products.map(normalizeProductFromDatabase).filter((product) => product.name && product.price > 0) : [];
+    if (state.settings.dbMode === "supabase") {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.from("products").select("*");
+      if (error) throw error;
+      const sqlProducts = Array.isArray(data) ? data.map(normalizeProductFromDatabase).filter((product) => product.name && product.price > 0) : [];
+      if (sqlProducts.length) {
+        state.products = sqlProducts;
+        sanitizeCart();
+        render();
+        if (options.toast) setSyncStatus(`${sqlProducts.length} barang dibaca dari Supabase Cloud.`, { toast: true });
+        return sqlProducts;
+      }
+      return [];
+    } else {
+      const data = await requestJson("/api/products");
+      const sqlProducts = Array.isArray(data.products) ? data.products.map(normalizeProductFromDatabase).filter((product) => product.name && product.price > 0) : [];
 
-    if (sqlProducts.length) {
-      state.products = sqlProducts;
-      sanitizeCart();
-      render();
-      if (options.toast) setSyncStatus(`${sqlProducts.length} barang dibaca dari database SQL.`, { toast: true });
-      return sqlProducts;
-    }
+      if (sqlProducts.length) {
+        state.products = sqlProducts;
+        sanitizeCart();
+        render();
+        if (options.toast) setSyncStatus(`${sqlProducts.length} barang dibaca dari database SQL.`, { toast: true });
+        return sqlProducts;
+      }
 
-    if (state.products.length && options.seed !== false) {
-      await saveProductsToDatabase({ toast: false });
+      if (state.products.length && options.seed !== false) {
+        await saveProductsToDatabase({ toast: false });
+      }
+      return [];
     }
-    return [];
   } catch (error) {
     if (options.toast !== false) setSyncStatus(`${error.message} Aplikasi memakai cache barang di browser.`);
     return state.products;
@@ -3781,12 +4357,39 @@ async function loadProductsFromDatabase(options = {}) {
 
 async function loadCustomers(options = {}) {
   try {
-    const data = await requestJson("/api/customers?limit=500");
-    state.customers = Array.isArray(data.customers) ? data.customers : [];
-    renderCustomerSuggestions();
-    renderCustomerProfileHint();
-    renderCustomerDataList();
-    return state.customers;
+    if (state.settings.dbMode === "supabase") {
+      const supabase = getSupabaseClient();
+      const { data: customersData, error: customerError } = await supabase.from("customers").select("*");
+      if (customerError) throw customerError;
+      
+      const { data: aliasesData, error: aliasError } = await supabase.from("customer_aliases").select("*");
+      if (aliasError) throw aliasError;
+
+      const customers = customersData.map(c => {
+        const aliases = aliasesData.filter(a => a.customer_id === c.id).map(a => a.alias);
+        return {
+          id: c.id,
+          name: c.name,
+          default_shipping: Number(c.default_shipping || 0),
+          last_order_at: c.last_order_at || "",
+          deposit_balance: Number(c.deposit_balance || 0),
+          aliases: aliases
+        };
+      });
+
+      state.customers = customers;
+      renderCustomerSuggestions();
+      renderCustomerProfileHint();
+      renderCustomerDataList();
+      return state.customers;
+    } else {
+      const data = await requestJson("/api/customers?limit=500");
+      state.customers = Array.isArray(data.customers) ? data.customers : [];
+      renderCustomerSuggestions();
+      renderCustomerProfileHint();
+      renderCustomerDataList();
+      return state.customers;
+    }
   } catch (error) {
     state.customers = [];
     renderCustomerSuggestions();
@@ -3799,19 +4402,33 @@ async function loadCustomers(options = {}) {
 
 async function loadSalesDashboard() {
   try {
-    const data = await requestJson("/api/sales?limit=1000&includeDeleted=1");
+    const data = await dbFetchSales({ limit: 1000, includeDeleted: true });
     state.sales = Array.isArray(data.sales) ? data.sales : [];
-    state.salesSummary = {
-      totalSales: Number(data.summary?.totalSales || getActiveSales().length),
-      totalRevenue: Number(data.summary?.totalRevenue || 0),
-      deletedSales: Number(data.summary?.deletedSales || state.sales.filter(isSaleDeleted).length),
-    };
-    await loadCustomers({ toast: false });
-    renderSalesDashboard();
-    setDatabaseStatus("Dashboard sudah terhubung ke SQLite.", { toast: false });
+    
+    if (state.settings.dbMode === "supabase") {
+      const activeSales = state.sales.filter(s => !s.deletedAt);
+      const deletedSales = state.sales.filter(s => !!s.deletedAt);
+      state.salesSummary = {
+        totalSales: activeSales.length,
+        totalRevenue: activeSales.reduce((acc, s) => acc + (s.total || 0), 0),
+        deletedSales: deletedSales.length
+      };
+      await loadCustomers({ toast: false });
+      renderSalesDashboard();
+      setDatabaseStatus("Dashboard sudah terhubung ke Supabase Cloud.", { toast: false });
+    } else {
+      state.salesSummary = {
+        totalSales: Number(data.summary?.totalSales || getActiveSales().length),
+        totalRevenue: Number(data.summary?.totalRevenue || 0),
+        deletedSales: Number(data.summary?.deletedSales || state.sales.filter(isSaleDeleted).length),
+      };
+      await loadCustomers({ toast: false });
+      renderSalesDashboard();
+      setDatabaseStatus("Dashboard sudah terhubung ke SQLite.", { toast: false });
+    }
   } catch (error) {
     renderSalesDashboard();
-    setDatabaseStatus(`${error.message} Jalankan server SQL dengan python3 server.py.`);
+    setDatabaseStatus(`${error.message} Hubungkan database atau restart server SQL.`);
   }
 }
 
@@ -5748,6 +6365,12 @@ function renderSettings() {
   els.printFlowInput.value = state.settings.printFlow;
   els.receiptModeInput.value = state.settings.receiptMode;
   els.autoPrintInput.checked = state.settings.autoPrint;
+  els.dbModeInput.value = state.settings.dbMode || "local";
+  els.supabaseUrlInput.value = state.settings.supabaseUrl || "";
+  els.supabaseKeyInput.value = state.settings.supabaseKey || "";
+  if (els.supabaseFields) {
+    els.supabaseFields.style.display = state.settings.dbMode === "supabase" ? "block" : "none";
+  }
   if (els.dailyMenuDateInput) els.dailyMenuDateInput.value = getDailyMenuEditorDate();
   if (els.dailyMenuOnlyInput) els.dailyMenuOnlyInput.checked = Boolean(state.dailyMenu.onlyToday);
   els.customerNameInput.value = state.sale.customerName || "";
@@ -5776,6 +6399,20 @@ function setInventoryTab(tabName) {
 
   els.inventoryTabPanels.forEach((panel) => {
     const active = panel.dataset.inventoryPanel === tabName;
+    panel.classList.toggle("active", active);
+    panel.hidden = !active;
+  });
+}
+
+function setSettingsTab(tabName) {
+  els.settingsTabButtons.forEach((button) => {
+    const active = button.dataset.settingsTab === tabName;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+
+  els.settingsTabPanels.forEach((panel) => {
+    const active = panel.dataset.settingsPanel === tabName;
     panel.classList.toggle("active", active);
     panel.hidden = !active;
   });
@@ -5859,7 +6496,7 @@ function startEditProduct(productId) {
   state.editingProductId = productId;
   setInventoryTab("manual");
   els.itemNameInput.value = product.name || "";
-  els.itemPriceInput.value = product.price || 0;
+  els.itemPriceInput.value = formatIntegerInput(product.price || 0);
   els.itemCategoryInput.value = getProductCategory(product);
   els.itemSkuInput.value = product.sku || "";
   els.itemAliasInput.value = getProductAliases(product).join(", ");
@@ -6599,10 +7236,10 @@ function bindEvents() {
     }
   });
   els.addCustomerShippingInput.addEventListener("input", () => {
-    els.addCustomerShippingInput.value = formatIntegerInput(els.addCustomerShippingInput.value);
+    formatMoneyInput(els.addCustomerShippingInput);
   });
   els.addCustomerDepositInput.addEventListener("input", () => {
-    els.addCustomerDepositInput.value = formatIntegerInput(els.addCustomerDepositInput.value);
+    formatMoneyInput(els.addCustomerDepositInput);
   });
   els.addCustomerForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -6619,7 +7256,7 @@ function bindEvents() {
   });
   els.customerDataList.addEventListener("input", (event) => {
     if (event.target.matches('input[name="defaultShipping"]') || event.target.matches('input[name="depositBalance"]')) {
-      event.target.value = formatIntegerInput(event.target.value);
+      formatMoneyInput(event.target);
     }
   });
   els.customerDataList.addEventListener("click", (event) => {
@@ -6814,7 +7451,7 @@ function bindEvents() {
     const form = event.target.closest("#saleEditForm");
     if (!form) return;
     if (event.target.matches("[data-sale-edit-money]")) {
-      event.target.value = formatIntegerInput(event.target.value);
+      formatMoneyInput(event.target);
     }
     updateSaleEditTotalPreview(form);
   });
@@ -6889,6 +7526,9 @@ function bindEvents() {
     saveProductForm();
   });
 
+  els.itemPriceInput.addEventListener("input", () => {
+    formatMoneyInput(els.itemPriceInput);
+  });
   els.itemUnlimitedInput.addEventListener("change", syncManualStockInputState);
   els.cancelEditProductButton.addEventListener("click", resetProductForm);
   els.mergeDuplicateProductsButton.addEventListener("click", mergeDuplicateProducts);
@@ -6995,6 +7635,7 @@ function bindEvents() {
     });
   });
   els.openReceiptSettingsButton.addEventListener("click", () => {
+    setSettingsTab("receipt");
     openModal(els.receiptSettingsModal, els.storeNameInput);
   });
   els.openPrinterSetupButton.addEventListener("click", () => {
@@ -7048,7 +7689,7 @@ function bindEvents() {
   els.shippingInput.addEventListener("input", () => {
     resetCheckoutWarnings();
     state.sale.shipping = parseIntegerInput(els.shippingInput.value);
-    els.shippingInput.value = formatIntegerInput(els.shippingInput.value);
+    formatMoneyInput(els.shippingInput);
     render();
   });
 
@@ -7084,7 +7725,13 @@ function bindEvents() {
     if (event.key === "Escape") closeDailyMenuCalendar();
   });
 
-  [els.storeNameInput, els.storeAddressInput, els.footerInput, els.receiptWidthInput, els.receiptFontSizeInput, els.printFlowInput, els.receiptModeInput, els.autoPrintInput].forEach((input) => {
+  els.settingsTabButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setSettingsTab(button.dataset.settingsTab);
+    });
+  });
+
+  [els.storeNameInput, els.storeAddressInput, els.footerInput, els.receiptWidthInput, els.receiptFontSizeInput, els.printFlowInput, els.receiptModeInput, els.autoPrintInput, els.dbModeInput, els.supabaseUrlInput, els.supabaseKeyInput].forEach((input) => {
     input.addEventListener("input", () => {
       state.settings.storeName = els.storeNameInput.value;
       state.settings.storeAddress = els.storeAddressInput.value;
@@ -7094,9 +7741,24 @@ function bindEvents() {
       state.settings.printFlow = els.printFlowInput.value;
       state.settings.receiptMode = els.receiptModeInput.value;
       state.settings.autoPrint = els.autoPrintInput.checked;
+      state.settings.dbMode = els.dbModeInput.value;
+      state.settings.supabaseUrl = els.supabaseUrlInput.value;
+      state.settings.supabaseKey = els.supabaseKeyInput.value;
+      
+      if (els.supabaseFields) {
+        els.supabaseFields.style.display = state.settings.dbMode === "supabase" ? "block" : "none";
+      }
       render();
     });
   });
+
+  if (els.testSupabaseButton) {
+    els.testSupabaseButton.addEventListener("click", testSupabaseConnection);
+  }
+
+  if (els.migrateToSupabaseButton) {
+    els.migrateToSupabaseButton.addEventListener("click", migrateDataToSupabase);
+  }
 
   window.addEventListener("online", () => {
     refreshTodayDateIfChanged();
@@ -7174,7 +7836,7 @@ async function loadPiutangData(options = {}) {
   setPiutangStatus("Memuat data piutang...");
 
   try {
-    const salesData = await requestJson("/api/sales?limit=1000");
+    const salesData = await dbFetchSales({ limit: 1000, includeDeleted: false });
     if (salesData && Array.isArray(salesData.sales)) {
       state.sales = salesData.sales;
     }
@@ -7372,6 +8034,149 @@ function renderPiutangList() {
   });
 }
 
+async function dbSubmitPiutangPayment(saleId, amount) {
+  if (state.settings.dbMode === "supabase") {
+    const supabase = getSupabaseClient();
+    
+    const { data: sale, error: getSaleError } = await supabase
+      .from("sales")
+      .select("*")
+      .eq("id", saleId)
+      .single();
+      
+    if (getSaleError) throw getSaleError;
+    
+    const remainingDebt = Number(sale.total || 0) - Number(sale.paid_amount || 0);
+    if (remainingDebt <= 0) {
+      throw new Error("Transaksi ini sudah lunas.");
+    }
+    
+    const amountToApply = Math.min(amount, remainingDebt);
+    const depositToAdd = amount - amountToApply;
+    const newPaidAmount = Number(sale.paid_amount || 0) + amountToApply;
+    
+    let note = "Pembayaran Cicilan";
+    if (depositToAdd > 0) {
+      note = `Bayar Rp ${amount.toLocaleString('id-ID')} (Kelebihan Rp ${depositToAdd.toLocaleString('id-ID')} masuk deposit)`;
+    }
+    
+    const { error: paymentError } = await supabase
+      .from("sale_payments")
+      .insert({
+        sale_id: saleId,
+        amount: amount,
+        payment_date: new Date().toISOString(),
+        note: note
+      });
+    if (paymentError) throw paymentError;
+    
+    const { error: updateSaleError } = await supabase
+      .from("sales")
+      .update({ paid_amount: newPaidAmount })
+      .eq("id", saleId);
+    if (updateSaleError) throw updateSaleError;
+    
+    if (depositToAdd > 0 && sale.customer_name) {
+      const { data: customer, error: getCustError } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("name", sale.customer_name)
+        .single();
+        
+      if (!getCustError && customer) {
+        const newBalance = Number(customer.deposit_balance || 0) + depositToAdd;
+        await supabase
+          .from("customers")
+          .update({ deposit_balance: newBalance, updated_at: new Date().toISOString() })
+          .eq("id", customer.id);
+      } else {
+        await supabase
+          .from("customers")
+          .insert({
+            name: sale.customer_name,
+            deposit_balance: depositToAdd,
+            last_order_at: ""
+          });
+      }
+    }
+    
+    return { ok: true };
+  } else {
+    return requestJson(`/api/sales/${encodeURIComponent(saleId)}/payments`, {
+      method: "POST",
+      body: JSON.stringify({
+        amount: amount,
+        paymentDate: new Date().toISOString()
+      })
+    });
+  }
+}
+
+async function dbRevokePiutangPayment(saleId) {
+  if (state.settings.dbMode === "supabase") {
+    const supabase = getSupabaseClient();
+    
+    const { data: sale, error: getSaleError } = await supabase
+      .from("sales")
+      .select("*")
+      .eq("id", saleId)
+      .single();
+    if (getSaleError) throw getSaleError;
+    
+    const { data: payments, error: getPaymentsError } = await supabase
+      .from("sale_payments")
+      .select("*")
+      .eq("sale_id", saleId);
+    if (getPaymentsError) throw getPaymentsError;
+    
+    let depositAdjustment = 0;
+    for (const pay of (payments || [])) {
+      const note = pay.note || "";
+      const amt = Number(pay.amount || 0);
+      if (note === "Otomatis Potong Deposit") {
+        depositAdjustment += amt;
+      } else if (note.includes("Kelebihan Rp")) {
+        const cleanNote = note.replace(/\./g, "").replace(/,/g, "");
+        const match = cleanNote.match(/Kelebihan Rp\s*(\d+)/);
+        if (match) {
+          const excess = parseInt(match[1], 10);
+          if (!isNaN(excess)) {
+            depositAdjustment -= excess;
+          }
+        }
+      }
+    }
+    
+    if (sale.customer_name && depositAdjustment !== 0) {
+      const { data: customer, error: getCustError } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("name", sale.customer_name)
+        .single();
+        
+      if (!getCustError && customer) {
+        const newBalance = Math.max(0, Number(customer.deposit_balance || 0) + depositAdjustment);
+        await supabase
+          .from("customers")
+          .update({ deposit_balance: newBalance, updated_at: new Date().toISOString() })
+          .eq("id", customer.id);
+      }
+    }
+    
+    const { error: delError } = await supabase.from("sale_payments").delete().eq("sale_id", saleId);
+    if (delError) throw delError;
+    
+    const { error: updError } = await supabase.from("sales").update({ paid_amount: 0 }).eq("id", saleId);
+    if (updError) throw updError;
+    
+    return { ok: true };
+  } else {
+    return requestJson(`/api/sales/${encodeURIComponent(saleId)}/revoke-lunas`, {
+      method: "POST"
+    });
+  }
+}
+
 async function submitPiutangPayment(form) {
   const saleId = form.dataset.saleId;
   const input = form.querySelector(".piutang-payment-input");
@@ -7387,13 +8192,7 @@ async function submitPiutangPayment(form) {
   setPiutangStatus("Menyimpan pembayaran...");
 
   try {
-    const response = await requestJson(`/api/sales/${encodeURIComponent(saleId)}/payments`, {
-      method: "POST",
-      body: JSON.stringify({
-        amount: amount,
-        paymentDate: new Date().toISOString()
-      })
-    });
+    const response = await dbSubmitPiutangPayment(saleId, amount);
 
     if (response.ok) {
       showToast("Pembayaran cicilan berhasil disimpan.");
@@ -7424,9 +8223,7 @@ async function revokePiutangPayment(saleId) {
   setPiutangStatus("Membatalkan status lunas...");
 
   try {
-    const response = await requestJson(`/api/sales/${encodeURIComponent(saleId)}/revoke-lunas`, {
-      method: "POST"
-    });
+    const response = await dbRevokePiutangPayment(saleId);
 
     if (response.ok) {
       showToast("Status pembayaran dikembalikan ke Belum Lunas.");
@@ -7440,5 +8237,222 @@ async function revokePiutangPayment(saleId) {
     setPiutangStatus(`Error: ${error.message}`);
   } finally {
     setPiutangStatus("");
+  }
+}
+
+async function migrateDataToSupabase() {
+  const originalText = els.migrateToSupabaseButton.textContent;
+  
+  const confirmed = await openAppConfirm({
+    eyebrow: "Migrasi Database",
+    title: "Migrasi Data ke Supabase Cloud?",
+    message: "Apakah kamu yakin ingin memigrasikan semua data lokal (Barang, Pelanggan, dan Transaksi Penjualan beserta Pembayaran) ke Supabase Cloud?",
+    note: "Data di Supabase Cloud saat ini akan ditimpa atau digabungkan. Pastikan koneksi internet stabil selama proses berlangsung.",
+    confirmText: "Ya, Mulai Migrasi",
+    variant: "warning",
+  });
+  
+  if (!confirmed) return;
+  
+  els.migrateToSupabaseButton.disabled = true;
+  els.migrateToSupabaseButton.textContent = "Menghubungkan Supabase...";
+  
+  try {
+    const supabase = getSupabaseClient();
+    
+    // 1. Ambil data lokal
+    els.migrateToSupabaseButton.textContent = "Membaca data lokal...";
+    
+    let localProducts = [];
+    try {
+      const prodRes = await requestJson("/api/products");
+      localProducts = Array.isArray(prodRes.products) ? prodRes.products : state.products;
+    } catch (e) {
+      localProducts = state.products;
+    }
+    
+    let localCustomers = [];
+    try {
+      const custRes = await requestJson("/api/customers?limit=10000");
+      localCustomers = Array.isArray(custRes.customers) ? custRes.customers : [];
+    } catch (e) {
+      console.warn("Gagal membaca customer lokal:", e);
+    }
+    
+    let localSales = [];
+    try {
+      const salesRes = await requestJson("/api/sales?limit=10000&includeDeleted=1");
+      localSales = Array.isArray(salesRes.sales) ? salesRes.sales : [];
+    } catch (e) {
+      console.warn("Gagal membaca sales lokal:", e);
+    }
+    
+    // 2. Migrasikan Products
+    els.migrateToSupabaseButton.textContent = `Mengirim ${localProducts.length} barang...`;
+    if (localProducts.length > 0) {
+      const dbProducts = localProducts.map(p => ({
+        client_id: p.id || p.client_id,
+        sku: p.sku || "",
+        name: p.name,
+        price: p.price || 0,
+        stock: p.stock || 0,
+        stock_unlimited: p.stockUnlimited ? 1 : 0,
+        category: p.category || "",
+        aliases: JSON.stringify(p.aliases || []),
+        source: p.source || "manual",
+        updated_at: new Date().toISOString()
+      }));
+      const { error } = await supabase.from("products").upsert(dbProducts, { onConflict: "client_id" });
+      if (error) throw new Error(`Gagal migrasi produk: ${error.message}`);
+    }
+    
+    // 3. Migrasikan Customers & Aliases
+    els.migrateToSupabaseButton.textContent = `Mengirim ${localCustomers.length} pelanggan...`;
+    if (localCustomers.length > 0) {
+      const dbCustomers = localCustomers.map(c => ({
+        id: c.id,
+        name: c.name,
+        default_shipping: c.default_shipping || 0,
+        last_order_at: c.last_order_at || "",
+        deposit_balance: c.deposit_balance || 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+      
+      const { error: custError } = await supabase.from("customers").upsert(dbCustomers);
+      if (custError) throw new Error(`Gagal migrasi customer: ${custError.message}`);
+      
+      const dbAliases = [];
+      localCustomers.forEach(c => {
+        if (Array.isArray(c.aliases)) {
+          c.aliases.forEach(alias => {
+            dbAliases.push({
+              customer_id: c.id,
+              alias: alias,
+              alias_key: normalizeKey(alias)
+            });
+          });
+        }
+      });
+      
+      if (dbAliases.length > 0) {
+        await supabase.from("customer_aliases").delete().neq("id", 0);
+        const { error: aliasError } = await supabase.from("customer_aliases").insert(dbAliases);
+        if (aliasError) throw new Error(`Gagal migrasi customer alias: ${aliasError.message}`);
+      }
+    }
+    
+    // 4. Migrasikan Sales & Items & Payments
+    els.migrateToSupabaseButton.textContent = `Mengirim ${localSales.length} transaksi...`;
+    
+    if (localSales.length > 0) {
+      const idMap = new Map();
+      const allDbItems = [];
+      const allDbPayments = [];
+      
+      for (let i = 0; i < localSales.length; i++) {
+        const sale = localSales[i];
+        els.migrateToSupabaseButton.textContent = `Memproses transaksi (${i + 1}/${localSales.length})...`;
+        
+        const saleRecord = {
+          receipt_no: sale.receiptNo || sale.receipt_no,
+          completed_at: sale.completedAt || sale.completed_at,
+          store_name: sale.storeName || sale.store_name,
+          payment: sale.payment,
+          subtotal: sale.subtotal || 0,
+          discount: sale.discount || 0,
+          tax: sale.tax || 0,
+          total: sale.total || 0,
+          customer_name: sale.customerName || sale.customer_name || "",
+          customer_address: sale.customerAddress || sale.customer_address || "",
+          order_note: sale.orderNote || sale.order_note || "",
+          due_text: sale.dueText || sale.due_text || "",
+          chat_date: sale.chatDate || sale.chat_date || "",
+          deleted_at: sale.deletedAt || sale.deleted_at || null,
+          stock_restored_on_delete: sale.stockRestoredOnDelete || sale.stock_restored_on_delete || 0,
+          paid_amount: sale.paidAmount || sale.paid_amount || 0,
+          created_at: sale.completedAt || sale.completed_at || new Date().toISOString()
+        };
+        
+        const { data: insertedSale, error: saleError } = await supabase
+          .from("sales")
+          .insert(saleRecord)
+          .select("id")
+          .single();
+          
+        if (saleError) {
+          console.error(`Gagal mengirim transaksi ${saleRecord.receipt_no}:`, saleError);
+          if (saleError.code === "23505") { // Duplicate key
+            const { data: existing } = await supabase
+              .from("sales")
+              .select("id")
+              .eq("receipt_no", saleRecord.receipt_no)
+              .single();
+            if (existing) {
+              idMap.set(sale.id, existing.id);
+            }
+          } else {
+            throw new Error(`Gagal mengirim transaksi: ${saleError.message}`);
+          }
+        } else if (insertedSale) {
+          idMap.set(sale.id, insertedSale.id);
+        }
+        
+        const newSaleId = idMap.get(sale.id);
+        if (newSaleId) {
+          const items = sale.items || [];
+          items.forEach(item => {
+            allDbItems.push({
+              sale_id: newSaleId,
+              sku: item.sku || "",
+              name: item.name,
+              price: item.price || 0,
+              quantity: item.quantity || 0,
+              line_total: item.lineTotal || item.line_total || 0,
+              note: item.note || ""
+            });
+          });
+          
+          const payments = sale.payments || [];
+          payments.forEach(pay => {
+            allDbPayments.push({
+              sale_id: newSaleId,
+              amount: pay.amount || 0,
+              payment_date: pay.paymentDate || pay.payment_date || new Date().toISOString(),
+              note: pay.note || "",
+              created_at: pay.createdAt || pay.created_at || new Date().toISOString()
+            });
+          });
+        }
+      }
+      
+      if (allDbItems.length > 0) {
+        els.migrateToSupabaseButton.textContent = `Mengirim ${allDbItems.length} detail barang transaksi...`;
+        const chunkSize = 200;
+        for (let i = 0; i < allDbItems.length; i += chunkSize) {
+          const chunk = allDbItems.slice(i, i + chunkSize);
+          const { error: itemsError } = await supabase.from("sale_items").insert(chunk);
+          if (itemsError) throw new Error(`Gagal migrasi detail barang: ${itemsError.message}`);
+        }
+      }
+      
+      if (allDbPayments.length > 0) {
+        els.migrateToSupabaseButton.textContent = `Mengirim ${allDbPayments.length} riwayat pembayaran...`;
+        const chunkSize = 200;
+        for (let i = 0; i < allDbPayments.length; i += chunkSize) {
+          const chunk = allDbPayments.slice(i, i + chunkSize);
+          const { error: paymentsError } = await supabase.from("sale_payments").insert(chunk);
+          if (paymentsError) throw new Error(`Gagal migrasi pembayaran: ${paymentsError.message}`);
+        }
+      }
+    }
+    
+    showToast("Migrasi data ke Supabase Cloud sukses total! Selamat database cloud kamu sudah terisi.", { variant: "success" });
+  } catch (error) {
+    console.error("Migration error:", error);
+    showToast(`Migrasi gagal di tengah jalan: ${error.message}`, { variant: "error" });
+  } finally {
+    els.migrateToSupabaseButton.textContent = originalText;
+    els.migrateToSupabaseButton.disabled = false;
   }
 }

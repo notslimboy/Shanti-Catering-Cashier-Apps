@@ -447,6 +447,13 @@ Important implementation detail:
 
 ## 12. Checkout Workflow
 
+Cart Item Identity and Segregation:
+- Items in the cart are identified by a unique `cartItem.id` (generated via `makeId("cart-item")`), rather than `productId`.
+- If the same product is added with different notes (e.g. `2x Siomay (tanpa pare)` and `1x Siomay (pake pare)`), they remain as separate lines in the cart list, backend database (`sale_items` rows), printed receipts, and A4 reports.
+- If a product is added with an empty note, it is merged with any existing empty-note item of the same product in the cart.
+- Actions (+, -, edit note, delete) target the individual cart item ID.
+- Stock limits check the aggregate quantity of all matching product rows in the cart against the product's inventory stock.
+
 Normal checkout flow:
 
 1. Cashier finds products in the product list.
@@ -552,7 +559,8 @@ Printer setup modal:
 
 Print behavior:
 
-- Browser printing is used through `window.print()`.
+- Receipt printing is executed by rendering the receipt HTML inside a hidden `iframe` (`.receipt-print-frame`) and calling `print()` on that iframe window to ensure styles (like `@page`) do not leak into the parent document.
+- Browser printing is used through the iframe `print()` function.
 - No native printer API is used.
 - This means the OS/browser print dialog still controls the selected printer.
 - Auto print means the app opens the print dialog after sale completion. It cannot silently print without user/browser/OS permission.
@@ -565,6 +573,7 @@ Thermal printer notes:
 - Common POS58/POS80 thermal printers from Indonesian marketplaces should work if drivers and paper sizes are correct.
 - 58mm print CSS uses a narrower print width to avoid right-side clipping.
 - Receipt page height is dynamically measured before printing.
+- If multiple receipts are printed in a batch, they are separated by a dotted border (`border-top: 1px dashed #111`) and a small gap, using `page-break-inside: avoid` to print consecutively on a single roll of thermal paper.
 - Long item names and multiple items should remain readable.
 - A4 report printing uses a separate `report-print-mode` and iframe flow, so report `@page` settings should not leak into receipt printing.
 
@@ -726,6 +735,8 @@ AI prompt language:
 
 - The built-in prompt is Indonesian because the user and source chats are Indonesian.
 - It instructs AI to output CSV only, no markdown.
+- It enforces strict case-sensitive and exact-text menu matching against today's menu ("Daftar Menu Hari Ini").
+- It explicitly instructs the AI not to group items of the same product if they have different notes. They must be outputted as separate rows in the generated CSV.
 
 ## 18. Theme and Responsive Behavior
 
@@ -766,7 +777,7 @@ The service worker caches the static app shell:
 
 It does not cache `/api/*`.
 
-Current frontend cache version at this handoff: `v145`.
+Current frontend cache version at this handoff: `v177`.
 
 When changing frontend assets:
 

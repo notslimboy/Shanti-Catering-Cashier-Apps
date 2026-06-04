@@ -88,7 +88,7 @@ kasir-bento.sqlite3
 
 1. The cashier searches for items from the product list.
 2. Items are added to the cart.
-3. Quantity and item notes can be changed.
+3. Quantity and item notes can be changed. Items with different notes are tracked as separate lines under unique cart item IDs.
 4. The cashier fills in the customer, shipping fee, tax, and payment method.
 5. The app shows checkout validation.
 6. The cashier clicks `Selesaikan Transaksi`.
@@ -99,7 +99,7 @@ kasir-bento.sqlite3
 
 Validation notes:
 
-- Blocking errors stop checkout, such as an empty cart or insufficient stock.
+- Blocking errors stop checkout, such as an empty cart or insufficient stock (calculated as the sum of all matching products in the cart).
 - Warnings do not stop checkout immediately, but the cashier should review them first. Examples: empty customer or Rp0 shipping fee.
 - On mobile/tablet, totals and checkout buttons are sticky so the cashier does not need to scroll far.
 
@@ -180,7 +180,7 @@ Supported input:
 
 - Upload CSV/TSV.
 - Paste CSV generated from an AI summary.
-- Use `Salin Prompt AI` to ask AI to clean up WhatsApp chats into CSV.
+- Use `Salin Prompt AI` to ask AI to clean up WhatsApp chats into CSV. The prompt instructs the AI to match menus exactly (spelling, spaces, casing) to Today's Menu and separate items of the same product with different notes into individual rows.
 
 Column format:
 
@@ -197,7 +197,8 @@ Receipts are designed for thermal receipt printers:
 
 - Default app width: 58mm.
 - The 58mm print area is slightly narrower for safer output on small thermal printers.
-- Printed page height is calculated dynamically from receipt content.
+- Printed page height is calculated dynamically from receipt content and printed via a hidden iframe to isolate styles.
+- Multiple receipts printed in a batch are printed consecutively on the same roll, separated by a dotted line.
 - 80mm remains available in `Edit Struk`.
 - Receipt text is bold for readability.
 - Customer name/address is printed directly without a `Customer` label.
