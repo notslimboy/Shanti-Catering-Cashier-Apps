@@ -76,8 +76,8 @@ const state = {
     receiptMode: "compact",
     thermalPrinterDefaulted: true,
     theme: "light",
-    dbMode: "local",
-    supabaseUrl: "",
+    dbMode: "supabase",
+    supabaseUrl: "https://ddfalsclevkqhiyojngx.supabase.co",
     supabaseKey: "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP",
   },
   sale: getDefaultSaleState(),
@@ -429,9 +429,9 @@ function loadState() {
     if (!["direct", "preview"].includes(state.settings.printFlow)) state.settings.printFlow = "direct";
     if (!["compact", "complete"].includes(state.settings.receiptMode)) state.settings.receiptMode = "compact";
     if (!["light", "dark"].includes(state.settings.theme)) state.settings.theme = "light";
-    if (!["local", "supabase"].includes(state.settings.dbMode)) state.settings.dbMode = "local";
-    if (typeof state.settings.supabaseUrl !== "string") state.settings.supabaseUrl = "";
-    if (typeof state.settings.supabaseKey !== "string") state.settings.supabaseKey = "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP";
+    if (!["local", "supabase"].includes(state.settings.dbMode) || state.settings.dbMode === "local") state.settings.dbMode = "supabase";
+    if (typeof state.settings.supabaseUrl !== "string" || !state.settings.supabaseUrl) state.settings.supabaseUrl = "https://ddfalsclevkqhiyojngx.supabase.co";
+    if (typeof state.settings.supabaseKey !== "string" || !state.settings.supabaseKey) state.settings.supabaseKey = "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP";
     state.settings.autoPrint = state.settings.autoPrint !== false;
     state.settings.thermalPrinterDefaulted = true;
     const savedSale = parsed.sale && typeof parsed.sale === "object" ? parsed.sale : {};
@@ -2413,6 +2413,25 @@ async function checkBackendConnection() {
 
   setStatus("connecting", "Menghubungkan...");
 
+  if (state.settings.dbMode === "supabase") {
+    if (!navigator.onLine) {
+      setStatus("offline", "Offline");
+      return;
+    }
+    try {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase.from("sales").select("id").limit(1);
+      if (error) {
+        setStatus("offline", "Cloud Error");
+      } else {
+        setStatus("online", "Online");
+      }
+    } catch (err) {
+      setStatus("offline", "Offline");
+    }
+    return;
+  }
+
   try {
     const res = await window.fetch("/api/health", { cache: "no-store" });
     if (res.ok) {
@@ -3943,25 +3962,37 @@ async function dbFetchSales(options = {}) {
         price: Number(item.price || 0),
         quantity: Number(item.quantity || 0),
         lineTotal: Number(item.line_total || 0),
+        line_total: Number(item.line_total || 0),
         note: item.note || ""
       }));
       return {
         id: sale.id,
+        receipt_no: sale.receipt_no,
         receiptNo: sale.receipt_no,
+        completed_at: sale.completed_at,
         completedAt: sale.completed_at,
+        store_name: sale.store_name,
         storeName: sale.store_name,
         payment: sale.payment,
         subtotal: Number(sale.subtotal || 0),
         discount: Number(sale.discount || 0),
         tax: Number(sale.tax || 0),
         total: Number(sale.total || 0),
+        customer_name: sale.customer_name || "",
         customerName: sale.customer_name || "",
+        customer_address: sale.customer_address || "",
         customerAddress: sale.customer_address || "",
+        order_note: sale.order_note || "",
         orderNote: sale.order_note || "",
+        due_text: sale.due_text || "",
         dueText: sale.due_text || "",
+        chat_date: sale.chat_date || "",
         chatDate: sale.chat_date || "",
+        deleted_at: sale.deleted_at || null,
         deletedAt: sale.deleted_at || null,
+        stock_restored_on_delete: Number(sale.stock_restored_on_delete || 0),
         stockRestoredOnDelete: Number(sale.stock_restored_on_delete || 0),
+        paid_amount: Number(sale.paid_amount || 0),
         paidAmount: Number(sale.paid_amount || 0),
         items: items
       };
