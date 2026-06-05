@@ -1,6 +1,8 @@
 const STORAGE_KEY = "kasir-bento-state-v1";
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const SALES_PAGE_SIZE = 10;
+const SUPABASE_URL = "https://ddfalsclevkqhiyojngx.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP";
 
 const currency = new Intl.NumberFormat("id-ID", {
   style: "currency",
@@ -77,8 +79,6 @@ const state = {
     thermalPrinterDefaulted: true,
     theme: "light",
     dbMode: "supabase",
-    supabaseUrl: "https://ddfalsclevkqhiyojngx.supabase.co",
-    supabaseKey: "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP",
   },
   sale: getDefaultSaleState(),
   sync: {
@@ -401,14 +401,6 @@ const els = {
   mergeDuplicateProductsButton: document.querySelector("#mergeDuplicateProductsButton"),
   receiptPaper: document.querySelector("#receiptPaper"),
   printArea: document.querySelector("#printArea"),
-  settingsTabButtons: document.querySelectorAll("[data-settings-tab]"),
-  settingsTabPanels: document.querySelectorAll("[data-settings-panel]"),
-  dbModeInput: document.querySelector("#dbModeInput"),
-  supabaseFields: document.querySelector("#supabaseFields"),
-  supabaseUrlInput: document.querySelector("#supabaseUrlInput"),
-  supabaseKeyInput: document.querySelector("#supabaseKeyInput"),
-  testSupabaseButton: document.querySelector("#testSupabaseButton"),
-  migrateToSupabaseButton: document.querySelector("#migrateToSupabaseButton"),
 };
 
 function loadState() {
@@ -433,9 +425,7 @@ function loadState() {
     if (state.settings.receiptMode === "compact") state.settings.receiptMode = "complete";
     if (!["compact", "complete"].includes(state.settings.receiptMode)) state.settings.receiptMode = "complete";
     if (!["light", "dark"].includes(state.settings.theme)) state.settings.theme = "light";
-    if (!["local", "supabase"].includes(state.settings.dbMode) || state.settings.dbMode === "local") state.settings.dbMode = "supabase";
-    if (typeof state.settings.supabaseUrl !== "string" || !state.settings.supabaseUrl) state.settings.supabaseUrl = "https://ddfalsclevkqhiyojngx.supabase.co";
-    if (typeof state.settings.supabaseKey !== "string" || !state.settings.supabaseKey) state.settings.supabaseKey = "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP";
+    state.settings.dbMode = "supabase";
     state.settings.autoPrint = state.settings.autoPrint !== false;
     state.settings.thermalPrinterDefaulted = true;
     const savedSale = parsed.sale && typeof parsed.sale === "object" ? parsed.sale : {};
@@ -3769,18 +3759,12 @@ async function requestJson(url, options = {}) {
 }
 
 let _supabaseInstance = null;
-let _lastUrl = null;
-let _lastKey = null;
 
 function getSupabaseClient() {
-  const url = state.settings.supabaseUrl;
-  const key = state.settings.supabaseKey;
+  const url = SUPABASE_URL;
+  const key = SUPABASE_KEY;
   
-  if (!url || !key) {
-    throw new Error("URL Supabase atau Anon Key belum diisi di Pengaturan!");
-  }
-  
-  if (_supabaseInstance && _lastUrl === url && _lastKey === key) {
+  if (_supabaseInstance) {
     return _supabaseInstance;
   }
   
@@ -3788,198 +3772,10 @@ function getSupabaseClient() {
     throw new Error("SDK Supabase belum ter-load secara penuh. Mohon periksa koneksi internet.");
   }
   
-  _lastUrl = url;
-  _lastKey = key;
   _supabaseInstance = window.supabase.createClient(url, key);
   return _supabaseInstance;
 }
 
-async function testSupabaseConnection() {
-  const originalText = els.testSupabaseButton.textContent;
-  els.testSupabaseButton.textContent = "Menghubungkan...";
-  els.testSupabaseButton.disabled = true;
-  
-  try {
-    const supabase = getSupabaseClient();
-    const { error } = await supabase.from("sales").select("id").limit(1);
-    if (error) throw error;
-    showToast("Koneksi Supabase berhasil terhubung! Tabel 'sales' ditemukan.", { variant: "success" });
-  } catch (error) {
-    console.error("Supabase connection error:", error);
-    showToast(`Koneksi gagal: ${error.message || error.details || "Pastikan URL & Anon Key benar dan tabel sales sudah di-setup."}`, { variant: "error" });
-  } finally {
-    els.testSupabaseButton.textContent = originalText;
-    els.testSupabaseButton.disabled = false;
-  }
-}
-
-async function migrateDataToSupabase() {
-  const originalText = els.migrateToSupabaseButton.textContent;
-  
-  const confirmed = await openAppConfirm({
-    eyebrow: "Migrasi Database",
-    title: "Migrasikan Data ke Supabase?",
-    message: "Ini akan mengunggah seluruh data lokal (produk, customer, dan riwayat transaksi beserta itemnya) dari SQLite lokal ke Supabase Cloud.",
-    note: "Pastikan koneksi internet stabil dan tabel Supabase sudah di-setup dengan benar sesuai petunjuk.",
-    confirmText: "Ya, Mulai Migrasi",
-  });
-  if (!confirmed) return;
-
-  els.migrateToSupabaseButton.textContent = "Bekerja...";
-  els.migrateToSupabaseButton.disabled = true;
-
-  try {
-    const supabase = getSupabaseClient();
-    showToast("Mengambil data lokal untuk migrasi...", { variant: "info" });
-
-    // A. Migrate Products
-    let localProducts = state.products;
-    if (localProducts.length > 0) {
-      showToast(`Mengunggah ${localProducts.length} produk...`, { variant: "info" });
-      const dbProducts = localProducts.map(p => ({
-        client_id: p.id,
-        sku: p.sku || "",
-        name: p.name,
-        price: p.price || 0,
-        stock: p.stock || 0,
-        stock_unlimited: p.stockUnlimited ? 1 : 0,
-        category: p.category || "",
-        aliases: JSON.stringify(p.aliases || []),
-        source: p.source || "manual",
-        updated_at: new Date().toISOString()
-      }));
-      const { error: prodError } = await supabase.from("products").upsert(dbProducts, { onConflict: "client_id" });
-      if (prodError) throw new Error("Gagal mengunggah produk: " + prodError.message);
-    }
-
-    // B. Migrate Customers
-    let customersData;
-    try {
-      customersData = await requestJson("/api/customers?limit=10000");
-    } catch (e) {
-      console.warn("Gagal membaca customer dari SQLite lokal, fallback ke customer di state", e);
-      customersData = { customers: state.customers };
-    }
-    const localCustomers = (customersData && Array.isArray(customersData.customers)) ? customersData.customers : state.customers;
-    if (localCustomers.length > 0) {
-      showToast(`Mengunggah ${localCustomers.length} data customer...`, { variant: "info" });
-      for (const cust of localCustomers) {
-        const dbCust = {
-          name: cust.name,
-          default_shipping: Number(cust.default_shipping || 0),
-          deposit_balance: Number(cust.deposit_balance || 0),
-          last_order_at: cust.last_order_at || "",
-          updated_at: new Date().toISOString()
-        };
-        const { data: existingCust } = await supabase.from("customers").select("id").eq("name", cust.name).maybeSingle();
-        let customerId;
-        if (existingCust) {
-          customerId = existingCust.id;
-          const { error: updErr } = await supabase.from("customers").update(dbCust).eq("id", customerId);
-          if (updErr) throw new Error(`Gagal update customer ${cust.name}: ` + updErr.message);
-        } else {
-          const { data: newCust, error: insErr } = await supabase.from("customers").insert(dbCust).select().single();
-          if (insErr) throw new Error(`Gagal tambah customer ${cust.name}: ` + insErr.message);
-          customerId = newCust.id;
-        }
-
-        if (Array.isArray(cust.aliases) && cust.aliases.length > 0) {
-          const { error: delAliasErr } = await supabase.from("customer_aliases").delete().eq("customer_id", customerId);
-          const dbAliases = cust.aliases.map(alias => ({
-            customer_id: customerId,
-            alias: alias,
-            alias_key: normalizeKey(alias)
-          }));
-          const { error: aliasError } = await supabase.from("customer_aliases").insert(dbAliases);
-        }
-      }
-    }
-
-    // C. Migrate Sales
-    let salesData;
-    try {
-      salesData = await requestJson("/api/sales?limit=10000&includeDeleted=1");
-    } catch (e) {
-      console.warn("Gagal membaca sales dari SQLite lokal, fallback ke sales di state", e);
-      salesData = { sales: state.sales };
-    }
-    const localSales = (salesData && Array.isArray(salesData.sales)) ? salesData.sales : state.sales;
-    if (localSales.length > 0) {
-      showToast(`Mengunggah ${localSales.length} transaksi...`, { variant: "info" });
-      const { data: supabaseSales } = await supabase.from("sales").select("receipt_no, id");
-      const supabaseReceipts = new Map((supabaseSales || []).map(s => [s.receipt_no, s.id]));
-
-      for (const sale of localSales) {
-        const salePayload = {
-          receipt_no: sale.receiptNo || sale.receipt_no,
-          completed_at: sale.completedAt || sale.completed_at,
-          store_name: sale.storeName || sale.store_name,
-          payment: sale.payment,
-          subtotal: Number(sale.subtotal || 0),
-          discount: Number(sale.discount || 0),
-          tax: Number(sale.tax || 0),
-          total: Number(sale.total || 0),
-          customer_name: sale.customerName || sale.customer_name || "",
-          customer_address: sale.customerAddress || sale.customer_address || "",
-          order_note: sale.orderNote || sale.order_note || "",
-          due_text: sale.dueText || sale.due_text || "",
-          chat_date: sale.chatDate || sale.chat_date || "",
-          paid_amount: Number(sale.paidAmount || sale.paid_amount || 0),
-          deleted_at: sale.deletedAt || sale.deleted_at || null,
-          stock_restored_on_delete: Number(sale.stockRestoredOnDelete || sale.stock_restored_on_delete || 0)
-        };
-
-        let saleId;
-        const existingId = supabaseReceipts.get(salePayload.receipt_no);
-        if (existingId) {
-          saleId = existingId;
-          const { error: updSaleErr } = await supabase.from("sales").update(salePayload).eq("id", saleId);
-          if (updSaleErr) throw new Error(`Gagal update transaksi ${salePayload.receipt_no}: ` + updSaleErr.message);
-        } else {
-          const { data: newSale, error: insSaleErr } = await supabase.from("sales").insert(salePayload).select().single();
-          if (insSaleErr) throw new Error(`Gagal tambah transaksi ${salePayload.receipt_no}: ` + insSaleErr.message);
-          saleId = newSale.id;
-        }
-
-        const items = Array.isArray(sale.items) ? sale.items : [];
-        if (items.length > 0) {
-          const { error: delItemsErr } = await supabase.from("sale_items").delete().eq("sale_id", saleId);
-          const dbItems = items.map(item => ({
-            sale_id: saleId,
-            sku: item.sku || "",
-            name: item.name,
-            price: Number(item.price || 0),
-            quantity: Number(item.quantity || 0),
-            line_total: Number(item.lineTotal || item.line_total || 0),
-            note: item.note || ""
-          }));
-          const { error: insItemsErr } = await supabase.from("sale_items").insert(dbItems);
-          if (insItemsErr) throw new Error(`Gagal menambah item untuk transaksi ${salePayload.receipt_no}: ` + insItemsErr.message);
-        }
-
-        const payments = Array.isArray(sale.payments) ? sale.payments : [];
-        if (payments.length > 0) {
-          const { error: delPayErr } = await supabase.from("sale_payments").delete().eq("sale_id", saleId);
-          const dbPayments = payments.map(pay => ({
-            sale_id: saleId,
-            amount: Number(pay.amount || 0),
-            payment_date: pay.payment_date || pay.paymentDate || pay.created_at || new Date().toISOString(),
-            note: pay.note || ""
-          }));
-          const { error: insPayErr } = await supabase.from("sale_payments").insert(dbPayments);
-        }
-      }
-    }
-
-    showToast("Migrasi data ke Supabase Cloud berhasil diselesaikan!", { variant: "success" });
-  } catch (error) {
-    console.error("Migration error:", error);
-    showToast(`Migrasi gagal: ${error.message}`, { variant: "error" });
-  } finally {
-    els.migrateToSupabaseButton.textContent = originalText;
-    els.migrateToSupabaseButton.disabled = false;
-  }
-}
 
 async function dbFetchSales(options = {}) {
   const limit = options.limit || 1000;
@@ -6696,12 +6492,6 @@ function renderSettings() {
   els.printFlowInput.value = state.settings.printFlow;
   els.receiptModeInput.value = state.settings.receiptMode;
   els.autoPrintInput.checked = state.settings.autoPrint;
-  els.dbModeInput.value = state.settings.dbMode || "local";
-  els.supabaseUrlInput.value = state.settings.supabaseUrl || "";
-  els.supabaseKeyInput.value = state.settings.supabaseKey || "";
-  if (els.supabaseFields) {
-    els.supabaseFields.style.display = state.settings.dbMode === "supabase" ? "block" : "none";
-  }
   if (els.dailyMenuDateInput) els.dailyMenuDateInput.value = getDailyMenuEditorDate();
   if (els.dailyMenuOnlyInput) els.dailyMenuOnlyInput.checked = Boolean(state.dailyMenu.onlyToday);
   els.customerNameInput.value = state.sale.customerName || "";
@@ -6735,19 +6525,7 @@ function setInventoryTab(tabName) {
   });
 }
 
-function setSettingsTab(tabName) {
-  els.settingsTabButtons.forEach((button) => {
-    const active = button.dataset.settingsTab === tabName;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", String(active));
-  });
 
-  els.settingsTabPanels.forEach((panel) => {
-    const active = panel.dataset.settingsPanel === tabName;
-    panel.classList.toggle("active", active);
-    panel.hidden = !active;
-  });
-}
 
 function render() {
   updatePaymentSelectUI();
@@ -7968,7 +7746,6 @@ function bindEvents() {
     });
   });
   els.openReceiptSettingsButton.addEventListener("click", () => {
-    setSettingsTab("receipt");
     openModal(els.receiptSettingsModal, els.storeNameInput);
   });
   els.openPrinterSetupButton.addEventListener("click", () => {
@@ -8058,13 +7835,7 @@ function bindEvents() {
     if (event.key === "Escape") closeDailyMenuCalendar();
   });
 
-  els.settingsTabButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      setSettingsTab(button.dataset.settingsTab);
-    });
-  });
-
-  [els.storeNameInput, els.storeAddressInput, els.footerInput, els.receiptWidthInput, els.receiptFontSizeInput, els.printFlowInput, els.receiptModeInput, els.autoPrintInput, els.dbModeInput, els.supabaseUrlInput, els.supabaseKeyInput].forEach((input) => {
+  [els.storeNameInput, els.storeAddressInput, els.footerInput, els.receiptWidthInput, els.receiptFontSizeInput, els.printFlowInput, els.receiptModeInput, els.autoPrintInput].forEach((input) => {
     input.addEventListener("input", () => {
       state.settings.storeName = els.storeNameInput.value;
       state.settings.storeAddress = els.storeAddressInput.value;
@@ -8074,24 +7845,9 @@ function bindEvents() {
       state.settings.printFlow = els.printFlowInput.value;
       state.settings.receiptMode = els.receiptModeInput.value;
       state.settings.autoPrint = els.autoPrintInput.checked;
-      state.settings.dbMode = els.dbModeInput.value;
-      state.settings.supabaseUrl = els.supabaseUrlInput.value;
-      state.settings.supabaseKey = els.supabaseKeyInput.value;
-      
-      if (els.supabaseFields) {
-        els.supabaseFields.style.display = state.settings.dbMode === "supabase" ? "block" : "none";
-      }
       render();
     });
   });
-
-  if (els.testSupabaseButton) {
-    els.testSupabaseButton.addEventListener("click", testSupabaseConnection);
-  }
-
-  if (els.migrateToSupabaseButton) {
-    els.migrateToSupabaseButton.addEventListener("click", migrateDataToSupabase);
-  }
 
   window.addEventListener("online", () => {
     refreshTodayDateIfChanged();
@@ -8574,8 +8330,6 @@ async function revokePiutangPayment(saleId) {
 }
 
 async function migrateDataToSupabase() {
-  const originalText = els.migrateToSupabaseButton.textContent;
-  
   const confirmed = await openAppConfirm({
     eyebrow: "Migrasi Database",
     title: "Migrasi Data ke Supabase Cloud?",
@@ -8587,14 +8341,14 @@ async function migrateDataToSupabase() {
   
   if (!confirmed) return;
   
-  els.migrateToSupabaseButton.disabled = true;
-  els.migrateToSupabaseButton.textContent = "Menghubungkan Supabase...";
+  console.log("Memulai migrasi database ke Supabase Cloud...");
+  showToast("Menghubungkan Supabase...", { duration: 2000 });
   
   try {
     const supabase = getSupabaseClient();
     
     // 1. Ambil data lokal
-    els.migrateToSupabaseButton.textContent = "Membaca data lokal...";
+    console.log("Membaca data lokal...");
     
     let localProducts = [];
     try {
@@ -8621,7 +8375,7 @@ async function migrateDataToSupabase() {
     }
     
     // 2. Migrasikan Products
-    els.migrateToSupabaseButton.textContent = `Mengirim ${localProducts.length} barang...`;
+    console.log(`Mengirim ${localProducts.length} barang...`);
     if (localProducts.length > 0) {
       const dbProducts = localProducts.map(p => ({
         client_id: p.id || p.client_id,
@@ -8640,7 +8394,7 @@ async function migrateDataToSupabase() {
     }
     
     // 3. Migrasikan Customers & Aliases
-    els.migrateToSupabaseButton.textContent = `Mengirim ${localCustomers.length} pelanggan...`;
+    console.log(`Mengirim ${localCustomers.length} pelanggan...`);
     if (localCustomers.length > 0) {
       const dbCustomers = localCustomers.map(c => ({
         id: c.id,
@@ -8676,7 +8430,7 @@ async function migrateDataToSupabase() {
     }
     
     // 4. Migrasikan Sales & Items & Payments
-    els.migrateToSupabaseButton.textContent = `Mengirim ${localSales.length} transaksi...`;
+    console.log(`Mengirim ${localSales.length} transaksi...`);
     
     if (localSales.length > 0) {
       const idMap = new Map();
@@ -8685,7 +8439,7 @@ async function migrateDataToSupabase() {
       
       for (let i = 0; i < localSales.length; i++) {
         const sale = localSales[i];
-        els.migrateToSupabaseButton.textContent = `Memproses transaksi (${i + 1}/${localSales.length})...`;
+        console.log(`Memproses transaksi (${i + 1}/${localSales.length})...`);
         
         const saleRecord = {
           receipt_no: sale.receiptNo || sale.receipt_no,
@@ -8760,7 +8514,7 @@ async function migrateDataToSupabase() {
       }
       
       if (allDbItems.length > 0) {
-        els.migrateToSupabaseButton.textContent = `Mengirim ${allDbItems.length} detail barang transaksi...`;
+        console.log(`Mengirim ${allDbItems.length} detail barang transaksi...`);
         const chunkSize = 200;
         for (let i = 0; i < allDbItems.length; i += chunkSize) {
           const chunk = allDbItems.slice(i, i + chunkSize);
@@ -8770,7 +8524,7 @@ async function migrateDataToSupabase() {
       }
       
       if (allDbPayments.length > 0) {
-        els.migrateToSupabaseButton.textContent = `Mengirim ${allDbPayments.length} riwayat pembayaran...`;
+        console.log(`Mengirim ${allDbPayments.length} riwayat pembayaran...`);
         const chunkSize = 200;
         for (let i = 0; i < allDbPayments.length; i += chunkSize) {
           const chunk = allDbPayments.slice(i, i + chunkSize);
@@ -8784,8 +8538,7 @@ async function migrateDataToSupabase() {
   } catch (error) {
     console.error("Migration error:", error);
     showToast(`Migrasi gagal di tengah jalan: ${error.message}`, { variant: "error" });
-  } finally {
-    els.migrateToSupabaseButton.textContent = originalText;
-    els.migrateToSupabaseButton.disabled = false;
   }
 }
+
+window.migrateDataToSupabase = migrateDataToSupabase;

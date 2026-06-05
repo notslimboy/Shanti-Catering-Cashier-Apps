@@ -916,93 +916,57 @@
       <section class="modal-panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">Pengaturan Sistem</p>
-            <h2 id="settingsTitle">Toko & Database</h2>
+            <p class="eyebrow">Toko</p>
+            <h2 id="settingsTitle">Pengaturan Struk</h2>
           </div>
         </div>
-
-        <div class="modal-tabs settings-tabs" role="tablist" aria-label="Pilihan pengaturan">
-          <button class="tab-button active" id="receiptSettingsTabButton" type="button" role="tab" aria-selected="true" aria-controls="receiptSettingsTabPanel" data-settings-tab="receipt">Struk & Printer</button>
-          <button class="tab-button" id="databaseSettingsTabButton" type="button" role="tab" aria-selected="false" aria-controls="databaseSettingsTabPanel" data-settings-tab="database">Database Cloud</button>
-        </div>
-
-        <section class="tab-panel active" id="receiptSettingsTabPanel" role="tabpanel" aria-labelledby="receiptSettingsTabButton" data-settings-panel="receipt">
-          <form id="settingsForm" class="settings-form">
-            <label>
-              Nama toko
-              <input id="storeNameInput" type="text" value="Kasir Shanti Catering">
-            </label>
-            <label>
-              Alamat
-              <textarea id="storeAddressInput" rows="3">Jl. Contoh No. 12, Jakarta</textarea>
-            </label>
-            <label>
-              Catatan bawah struk
-              <input id="footerInput" type="text" value="Terima kasih sudah berbelanja">
-            </label>
-            <label>
-              Lebar struk
-              <select id="receiptWidthInput">
-                <option value="58" selected>58 mm</option>
-                <option value="80">80 mm</option>
-              </select>
-            </label>
-            <label>
-              Ukuran tulisan struk
-              <select id="receiptFontSizeInput">
-                <option value="small">Kecil</option>
-                <option value="medium" selected>Sedang</option>
-                <option value="large">Besar</option>
-              </select>
-            </label>
-            <label>
-              Saat transaksi selesai
-              <select id="printFlowInput">
-                <option value="direct" selected>Cetak langsung</option>
-                <option value="preview">Preview dulu</option>
-              </select>
-            </label>
-            <label>
-              Format struk
-              <select id="receiptModeInput">
-                <option value="compact" selected>Ringkas hemat kertas</option>
-                <option value="complete">Lengkap</option>
-              </select>
-            </label>
-            <label class="check-row">
-              <input id="autoPrintInput" type="checkbox" checked>
-              <span>Cetak otomatis setelah transaksi selesai</span>
-            </label>
-          </form>
-        </section>
-
-        <section class="tab-panel" id="databaseSettingsTabPanel" role="tabpanel" aria-labelledby="databaseSettingsTabButton" data-settings-panel="database" hidden>
-          <div class="settings-form">
-            <label>
-              Mode Database
-              <select id="dbModeInput">
-                <option value="local" selected>Lokal (SQLite)</option>
-                <option value="supabase">Cloud (Supabase)</option>
-              </select>
-            </label>
-            <div id="supabaseFields" class="supabase-fields" style="display: none;">
-              <label>
-                Supabase Project URL
-                <input id="supabaseUrlInput" type="url" placeholder="https://xxxx.supabase.co">
-              </label>
-              <label>
-                Supabase Anon Key
-                <input id="supabaseKeyInput" type="text" placeholder="sb_publishable_...">
-              </label>
-            </div>
-            
-            <div class="db-actions inline-actions" style="margin-top: 16px;">
-              <button class="secondary-button" id="testSupabaseButton" type="button">Test Koneksi</button>
-              <button class="ghost-button" id="migrateToSupabaseButton" type="button">Migrasikan Data ke Supabase</button>
-            </div>
-          </div>
-        </section>
-
+        <form id="settingsForm" class="settings-form">
+          <label>
+            Nama toko
+            <input id="storeNameInput" type="text" value="Kasir Shanti Catering">
+          </label>
+          <label>
+            Alamat
+            <textarea id="storeAddressInput" rows="3">Jl. Contoh No. 12, Jakarta</textarea>
+          </label>
+          <label>
+            Catatan bawah struk
+            <input id="footerInput" type="text" value="Terima kasih sudah berbelanja">
+          </label>
+          <label>
+            Lebar struk
+            <select id="receiptWidthInput">
+              <option value="58" selected>58 mm</option>
+              <option value="80">80 mm</option>
+            </select>
+          </label>
+          <label>
+            Ukuran tulisan struk
+            <select id="receiptFontSizeInput">
+              <option value="small">Kecil</option>
+              <option value="medium" selected>Sedang</option>
+              <option value="large">Besar</option>
+            </select>
+          </label>
+          <label>
+            Saat transaksi selesai
+            <select id="printFlowInput">
+              <option value="direct" selected>Cetak langsung</option>
+              <option value="preview">Preview dulu</option>
+            </select>
+          </label>
+          <label>
+            Format struk
+            <select id="receiptModeInput">
+              <option value="compact" selected>Ringkas hemat kertas</option>
+              <option value="complete">Lengkap</option>
+            </select>
+          </label>
+          <label class="check-row">
+            <input id="autoPrintInput" type="checkbox" checked>
+            <span>Cetak otomatis setelah transaksi selesai</span>
+          </label>
+        </form>
         <form method="dialog" class="modal-actions">
           <button class="ghost-button" id="openPrinterSetupFromSettingsButton" type="button">Setup Printer</button>
           <button class="ghost-button" id="testPrintButton" type="button">Test Print</button>

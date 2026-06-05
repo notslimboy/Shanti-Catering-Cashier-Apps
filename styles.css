@@ -5648,23 +5648,3 @@ label {
   font-size: 0.84rem;
   font-weight: 850;
 }
-
-/* Supabase settings tab custom columns and fields */
-.settings-tabs {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  margin-bottom: 20px;
-}
-
-.supabase-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 16px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
-
-
