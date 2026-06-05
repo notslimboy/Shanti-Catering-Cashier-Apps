@@ -4459,35 +4459,87 @@ async function createCustomerInDatabase(payload) {
 async function mergeCustomersInDatabase(payload) {
   if (state.settings.dbMode === "supabase") {
     const supabase = getSupabaseClient();
+    const targetId = payload.targetId;
+    const duplicateIds = payload.duplicateIds || [];
     
-    const { data: sourceCust, error: errS } = await supabase.from("customers").select("*").eq("id", payload.sourceId).single();
-    if (errS) throw errS;
-    const { data: targetCust, error: errT } = await supabase.from("customers").select("*").eq("id", payload.targetId).single();
-    if (errT) throw errT;
+    if (!targetId || !duplicateIds.length) {
+      throw new Error("Data merge tidak lengkap.");
+    }
     
-    const sourceAlias = sourceCust.name;
-    const { error: aliasError } = await supabase.from("customer_aliases").insert({
-      customer_id: targetCust.id,
-      alias: sourceAlias,
-      alias_key: normalizeKey(sourceAlias)
-    });
+    const { data: targetCust, error: errT } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("id", targetId)
+      .single();
+    if (errT) throw new Error(`Target customer tidak ditemukan: ${errT.message}`);
     
-    const { error: moveAliasError } = await supabase.from("customer_aliases").update({
-      customer_id: targetCust.id
-    }).eq("customer_id", sourceCust.id);
+    let totalDepositToAdd = 0;
     
-    const { error: salesError } = await supabase.from("sales").update({
-      customer_name: targetCust.name
-    }).eq("customer_name", sourceCust.name);
-
-    const newDeposit = Number(targetCust.deposit_balance || 0) + Number(sourceCust.deposit_balance || 0);
-    const { error: updateTargetError } = await supabase.from("customers").update({
-      deposit_balance: newDeposit
-    }).eq("id", targetCust.id);
-
-    const { error: deleteSourceError } = await supabase.from("customers").delete().eq("id", sourceCust.id);
-    if (deleteSourceError) throw deleteSourceError;
-
+    for (const sourceId of duplicateIds) {
+      const { data: sourceCust, error: errS } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("id", sourceId)
+        .single();
+        
+      if (errS || !sourceCust) {
+        console.warn(`Source customer dengan ID ${sourceId} tidak ditemukan, lewati.`);
+        continue;
+      }
+      
+      const sourceName = sourceCust.name;
+      const { error: aliasInsertError } = await supabase
+        .from("customer_aliases")
+        .insert({
+          customer_id: targetId,
+          alias: sourceName,
+          alias_key: normalizeKey(sourceName)
+        });
+      if (aliasInsertError && aliasInsertError.code !== "23505") {
+        console.error("Gagal insert alias nama source:", aliasInsertError);
+      }
+      
+      const { error: moveAliasError } = await supabase
+        .from("customer_aliases")
+        .update({ customer_id: targetId })
+        .eq("customer_id", sourceId);
+      if (moveAliasError) {
+        console.error("Gagal memindahkan alias source:", moveAliasError);
+      }
+      
+      const { error: salesError } = await supabase
+        .from("sales")
+        .update({ customer_name: targetCust.name })
+        .eq("customer_name", sourceName);
+      if (salesError) {
+        console.error("Gagal mengupdate nama customer di sales:", salesError);
+      }
+      
+      totalDepositToAdd += Number(sourceCust.deposit_balance || 0);
+      
+      const { error: deleteSourceError } = await supabase
+        .from("customers")
+        .delete()
+        .eq("id", sourceId);
+      if (deleteSourceError) {
+        console.error("Gagal menghapus source customer:", deleteSourceError);
+      }
+    }
+    
+    if (totalDepositToAdd > 0) {
+      const newDeposit = Number(targetCust.deposit_balance || 0) + totalDepositToAdd;
+      const { error: updateTargetError } = await supabase
+        .from("customers")
+        .update({
+          deposit_balance: newDeposit,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", targetId);
+      if (updateTargetError) {
+        console.error("Gagal mengupdate saldo deposit target:", updateTargetError);
+      }
+    }
+    
     return { success: true };
   } else {
     return requestJson("/api/customers/merge", {
