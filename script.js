@@ -5516,7 +5516,6 @@ function renderCart() {
             <div>
               <p class="cart-title">${escapeHtml(product.name)}</p>
               <p class="cart-meta"><span>${cartItem.quantity} × ${currency.format(product.price)}</span><strong class="cart-line-total">${currency.format(cartItem.quantity * product.price)}</strong></p>
-              <textarea class="cart-note-input" data-note="${cartItem.id}" rows="2" placeholder="Catatan item, contoh: pedas, tanpa sambal, bungkus">${escapeHtml(cartItem.note || "")}</textarea>
             </div>
             <div class="cart-actions">
               <div class="qty-control" aria-label="Jumlah ${escapeHtml(product.name)}">
@@ -5526,6 +5525,7 @@ function renderCart() {
               </div>
               <button class="icon-button" type="button" data-remove="${cartItem.id}" aria-label="Hapus barang">×</button>
             </div>
+            <textarea class="cart-note-input" data-note="${cartItem.id}" rows="2" placeholder="Catatan item, contoh: pedas, tanpa sambal, bungkus">${escapeHtml(cartItem.note || "")}</textarea>
           </article>
         `;
       })
