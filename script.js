@@ -4182,7 +4182,7 @@ async function updateCustomerInDatabase(customerId, payload) {
   if (state.settings.dbMode === "supabase") {
     const supabase = getSupabaseClient();
     
-    const { error: customerError } = await supabase
+    const { data: customerData, error: customerError } = await supabase
       .from("customers")
       .update({
         name: payload.name,
@@ -4190,24 +4190,41 @@ async function updateCustomerInDatabase(customerId, payload) {
         deposit_balance: payload.depositBalance || 0,
         updated_at: new Date().toISOString()
       })
-      .eq("id", customerId);
+      .eq("id", customerId)
+      .select()
+      .single();
       
     if (customerError) throw customerError;
     
-    const { error: deleteError } = await supabase.from("customer_aliases").delete().eq("customer_id", customerId);
-    if (deleteError) throw deleteError;
-    
-    if (Array.isArray(payload.aliases) && payload.aliases.length > 0) {
-      const dbAliases = payload.aliases.map(alias => ({
-        customer_id: customerId,
-        alias: alias,
-        alias_key: normalizeKey(alias)
-      }));
-      const { error: aliasError } = await supabase.from("customer_aliases").insert(dbAliases);
-      if (aliasError) throw aliasError;
+    let finalAliases = [];
+    if (payload.aliases !== undefined) {
+      const rawAliases = Array.isArray(payload.aliases)
+        ? payload.aliases
+        : typeof payload.aliases === "string"
+          ? payload.aliases.split(",").map(a => a.trim()).filter(Boolean)
+          : [];
+          
+      const { error: deleteError } = await supabase.from("customer_aliases").delete().eq("customer_id", customerId);
+      if (deleteError) throw deleteError;
+      
+      if (rawAliases.length > 0) {
+        finalAliases = rawAliases;
+        const dbAliases = rawAliases.map(alias => ({
+          customer_id: customerId,
+          alias: alias,
+          alias_key: normalizeKey(alias)
+        }));
+        const { error: aliasError } = await supabase.from("customer_aliases").insert(dbAliases);
+        if (aliasError) throw aliasError;
+      }
+    } else {
+      const { data: aliasData } = await supabase.from("customer_aliases").select("alias").eq("customer_id", customerId);
+      if (aliasData) {
+        finalAliases = aliasData.map(a => a.alias);
+      }
     }
     
-    return { success: true };
+    return { ok: true, customer: { ...customerData, aliases: finalAliases } };
   } else {
     return requestJson(`/api/customers/${encodeURIComponent(customerId)}`, {
       method: "PUT",
@@ -4233,8 +4250,16 @@ async function createCustomerInDatabase(payload) {
       
     if (customerError) throw customerError;
     
-    if (Array.isArray(payload.aliases) && payload.aliases.length > 0) {
-      const dbAliases = payload.aliases.map(alias => ({
+    let finalAliases = [];
+    const rawAliases = Array.isArray(payload.aliases)
+      ? payload.aliases
+      : typeof payload.aliases === "string"
+        ? payload.aliases.split(",").map(a => a.trim()).filter(Boolean)
+        : [];
+        
+    if (rawAliases.length > 0) {
+      finalAliases = rawAliases;
+      const dbAliases = rawAliases.map(alias => ({
         customer_id: customerData.id,
         alias: alias,
         alias_key: normalizeKey(alias)
@@ -4243,7 +4268,7 @@ async function createCustomerInDatabase(payload) {
       if (aliasError) throw aliasError;
     }
     
-    return { ...customerData, aliases: payload.aliases };
+    return { ok: true, customer: { ...customerData, aliases: finalAliases } };
   } else {
     return requestJson("/api/customers", {
       method: "POST",
