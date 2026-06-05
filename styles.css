@@ -4978,14 +4978,18 @@ label {
 
 
   .sales-modal-heading .dashboard-actions {
-    justify-content: flex-end;
-    width: 100%;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    width: calc(100% - 16px) !important;
+    margin-right: 16px !important;
+    gap: 8px !important;
   }
 
   .sales-modal-heading .dashboard-actions button,
   .sales-modal-heading .dashboard-actions .export-menu,
   .sales-modal-heading .dashboard-actions summary {
-    flex: 0 0 auto;
+    width: 100% !important;
+    flex: none !important;
   }
 
   .export-menu-panel {
@@ -4999,11 +5003,39 @@ label {
   }
 
   .sales-date-controls {
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    display: grid !important;
+    grid-template-columns: 44px 1fr 44px !important;
+    grid-template-areas:
+      "dari dari dari"
+      "sampai sampai sampai"
+      "prev today next" !important;
+    gap: 10px;
   }
 
   .sales-date-controls .date-picker-field {
-    grid-column: 1 / -1;
+    grid-column: auto !important;
+  }
+
+  .sales-date-controls .date-picker-field:nth-of-type(1) {
+    grid-area: dari !important;
+  }
+
+  .sales-date-controls .date-picker-field:nth-of-type(2) {
+    grid-area: sampai !important;
+  }
+
+  #previousSalesDateButton {
+    grid-area: prev !important;
+  }
+
+  #nextSalesDateButton {
+    grid-area: next !important;
+  }
+
+  #todaySalesDateButton {
+    grid-area: today !important;
+    grid-column: auto !important;
+    width: 100% !important;
   }
 
   .sales-calendar-popover {
@@ -5011,8 +5043,12 @@ label {
     width: 100%;
   }
 
-  #todaySalesDateButton {
-    grid-column: 1 / -1;
+  .sales-range-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .sales-status-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 
   .confirm-delete-actions {
