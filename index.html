@@ -644,13 +644,27 @@
           </div>
         </div>
 
+        <label class="bulk-search-label" id="bulkSearchLabel" style="margin-bottom: 12px;" hidden>
+          <input type="text" id="bulkSearchInput" placeholder="Cari nama customer atau alamat...">
+        </label>
+
         <div class="modal-tabs bulk-filter-tabs" id="bulkFilterTabs" role="tablist" aria-label="Filter draft pesanan" style="margin: 16px 0;" hidden>
           <button class="tab-button active" type="button" role="tab" aria-selected="true" data-bulk-filter="all">Semua (<span id="bulkFilterAllCount">0</span>)</button>
           <button class="tab-button" type="button" role="tab" aria-selected="false" data-bulk-filter="review">Perlu Review (<span id="bulkFilterReviewCount">0</span>)</button>
           <button class="tab-button" type="button" role="tab" aria-selected="false" data-bulk-filter="ready">Siap (<span id="bulkFilterReadyCount">0</span>)</button>
         </div>
 
-        <div class="bulk-draft-list" id="bulkDraftList" aria-live="polite"></div>
+        <div class="bulk-draft-list-wrapper" style="position: relative; width: 100%;">
+          <div class="bulk-draft-list" id="bulkDraftList" aria-live="polite"></div>
+          <div class="bulk-loading-overlay" id="bulkLoadingOverlay" hidden>
+            <div class="bulk-loading-spinner"></div>
+            <div class="bulk-loading-progress-container">
+              <div class="bulk-loading-progress-bar" id="bulkLoadingProgressBar"></div>
+            </div>
+            <p class="bulk-loading-text" id="bulkLoadingText">Memproses 0 dari 0 draft...</p>
+            <p class="bulk-loading-subtext">Mohon tunggu sebentar, sedang menyinkronkan data.</p>
+          </div>
+        </div>
         <p class="status modal-status" id="bulkImportStatus" role="status">Belum ada draft pesanan.</p>
       </section>
     </dialog>

@@ -5916,3 +5916,15 @@ BrokenPipeError: [Errno 32] Broken pipe
 127.0.0.1 - - [04/Jun/2026 12:46:23] "GET /api/health HTTP/1.1" 200 -
 127.0.0.1 - - [04/Jun/2026 12:46:38] "GET /api/health HTTP/1.1" 200 -
 127.0.0.1 - - [04/Jun/2026 12:46:53] "GET /api/health HTTP/1.1" 200 -
+127.0.0.1 - - [04/Jun/2026 14:50:49] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [04/Jun/2026 14:50:49] "GET /styles.css?v=180 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Jun/2026 14:50:49] "GET /script.js?v=180 HTTP/1.1" 200 -
+127.0.0.1 - - [04/Jun/2026 14:50:50] "GET /icon-192.png HTTP/1.1" 304 -
+127.0.0.1 - - [04/Jun/2026 14:50:52] "GET /service-worker.js HTTP/1.1" 200 -
+127.0.0.1 - - [04/Jun/2026 14:50:52] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [04/Jun/2026 14:50:52] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [04/Jun/2026 14:50:52] "GET /drivers/XP%20PRINTER%20DRIVER.rar HTTP/1.1" 200 -
+127.0.0.1 - - [04/Jun/2026 14:50:52] "GET /sample-items.csv HTTP/1.1" 304 -
+127.0.0.1 - - [04/Jun/2026 14:50:52] "GET /sample-bulk-orders.csv HTTP/1.1" 304 -
+127.0.0.1 - - [04/Jun/2026 14:50:52] "GET /icon-512.png HTTP/1.1" 304 -
+127.0.0.1 - - [04/Jun/2026 14:50:52] "GET /index.html HTTP/1.1" 200 -

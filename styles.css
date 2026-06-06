@@ -5701,3 +5701,125 @@ label {
   font-size: 0.84rem;
   font-weight: 850;
 }
+
+/* Bulk Draft Import Modal Search and Loading UX */
+.bulk-search-label {
+  position: relative;
+  width: 100%;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.bulk-search-label::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--muted);
+  border-radius: 999px;
+  transform: translateY(-50%);
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.bulk-search-label::after {
+  content: "";
+  position: absolute;
+  left: 28px;
+  top: 50%;
+  width: 8px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--muted);
+  transform: translateY(5px) rotate(45deg);
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.bulk-search-label input {
+  width: 100%;
+  min-height: 40px;
+  padding-left: 44px;
+  box-sizing: border-box;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  outline: none;
+  font-size: 0.95rem;
+}
+
+.bulk-search-label input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 2px rgba(20, 110, 95, 0.15);
+}
+
+.bulk-draft-list-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.bulk-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(10, 25, 20, 0.76);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: var(--radius-md);
+  padding: 24px;
+  text-align: center;
+}
+
+.bulk-loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-left-color: var(--teal);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+.bulk-loading-progress-container {
+  width: 100%;
+  max-width: 320px;
+  background: rgba(255, 255, 255, 0.1);
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.bulk-loading-progress-bar {
+  width: 0%;
+  height: 100%;
+  background: var(--teal);
+  transition: width 0.2s ease;
+}
+
+.bulk-loading-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 8px 0 0 0;
+}
+
+.bulk-loading-subtext {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 4px 0 0 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

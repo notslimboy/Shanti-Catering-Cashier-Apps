@@ -140,6 +140,7 @@ const state = {
   checkoutWarningSignature: "",
   importDrafts: [],
   bulkDraftFilter: "all",
+  bulkDraftSearch: "",
   lastReceipt: null,
   selectedFile: null,
 };
@@ -295,6 +296,11 @@ const els = {
   bulkFilterReviewCount: document.querySelector("#bulkFilterReviewCount"),
   bulkFilterReadyCount: document.querySelector("#bulkFilterReadyCount"),
   bulkImportStatus: document.querySelector("#bulkImportStatus"),
+  bulkSearchLabel: document.querySelector("#bulkSearchLabel"),
+  bulkSearchInput: document.querySelector("#bulkSearchInput"),
+  bulkLoadingOverlay: document.querySelector("#bulkLoadingOverlay"),
+  bulkLoadingProgressBar: document.querySelector("#bulkLoadingProgressBar"),
+  bulkLoadingText: document.querySelector("#bulkLoadingText"),
   refreshSalesButton: document.querySelector("#refreshSalesButton"),
   previousSalesDateButton: document.querySelector("#previousSalesDateButton"),
   nextSalesDateButton: document.querySelector("#nextSalesDateButton"),
@@ -3076,6 +3082,9 @@ function renderBulkDrafts() {
   if (els.bulkFilterTabs) {
     els.bulkFilterTabs.hidden = !state.importDrafts.length;
   }
+  if (els.bulkSearchLabel) {
+    els.bulkSearchLabel.hidden = !state.importDrafts.length;
+  }
 
   if (!state.importDrafts.length) {
     els.bulkDraftList.innerHTML = `<div class="empty-state">Belum ada draft pesanan.</div>`;
@@ -3108,8 +3117,10 @@ function renderBulkDrafts() {
   renderBulkBatchPanel(state.importDrafts);
   renderBulkImportReview(state.importDrafts);
 
-  // Saring draft berdasarkan filter aktif
-  const filteredDrafts = state.importDrafts.filter((draft) => {
+  // Saring draft berdasarkan filter aktif dan kata kunci pencarian
+  const searchQuery = String(state.bulkDraftSearch || "").trim().toLowerCase();
+
+  let filteredDrafts = state.importDrafts.filter((draft) => {
     if (state.bulkDraftFilter === "ready") {
       return getDraftBlockingIssues(draft).length === 0;
     }
@@ -3119,10 +3130,23 @@ function renderBulkDrafts() {
     return true; // "all"
   });
 
+  if (searchQuery) {
+    filteredDrafts = filteredDrafts.filter((draft) => {
+      const nameMatch = String(draft.customerName || "").toLowerCase().includes(searchQuery);
+      const addressMatch = String(draft.customerAddress || "").toLowerCase().includes(searchQuery);
+      return nameMatch || addressMatch;
+    });
+  }
+
   if (!filteredDrafts.length) {
     let emptyMessage = "Belum ada draft pesanan.";
-    if (state.bulkDraftFilter === "review") emptyMessage = "Tidak ada draft yang perlu review.";
-    else if (state.bulkDraftFilter === "ready") emptyMessage = "Tidak ada draft yang siap.";
+    if (searchQuery) {
+      emptyMessage = "Tidak ada draft yang cocok dengan pencarian.";
+    } else if (state.bulkDraftFilter === "review") {
+      emptyMessage = "Tidak ada draft yang perlu review.";
+    } else if (state.bulkDraftFilter === "ready") {
+      emptyMessage = "Tidak ada draft yang siap.";
+    }
     els.bulkDraftList.innerHTML = `<div class="empty-state">${emptyMessage}</div>`;
     return;
   }
@@ -3438,6 +3462,14 @@ async function processReadyImportDrafts(options = {}) {
   const skipped = [];
   let doneCopy = "";
 
+  if (els.bulkLoadingOverlay) {
+    els.bulkLoadingOverlay.hidden = false;
+    if (els.bulkLoadingProgressBar) els.bulkLoadingProgressBar.style.width = "0%";
+    if (els.bulkLoadingText) els.bulkLoadingText.textContent = `Memproses 0 dari ${readyDraftIds.length} draft...`;
+  }
+
+  let currentIndex = 0;
+
   try {
     for (const draftId of readyDraftIds) {
       const draft = findImportDraft(draftId);
@@ -3446,6 +3478,10 @@ async function processReadyImportDrafts(options = {}) {
       const blockingIssues = getDraftBlockingIssues(draft);
       if (blockingIssues.length) {
         skipped.push(`${getDraftDisplayName(draft)}: ${blockingIssues.map((issue) => issue.message).join(", ")}`);
+        currentIndex++;
+        const progressPercent = Math.round((currentIndex / readyDraftIds.length) * 100);
+        if (els.bulkLoadingProgressBar) els.bulkLoadingProgressBar.style.width = `${progressPercent}%`;
+        if (els.bulkLoadingText) els.bulkLoadingText.textContent = `Memproses ${currentIndex} dari ${readyDraftIds.length} draft...`;
         continue;
       }
 
@@ -3460,6 +3496,11 @@ async function processReadyImportDrafts(options = {}) {
       } catch (error) {
         skipped.push(`${getDraftDisplayName(draft)}: ${error.message}`);
       }
+
+      currentIndex++;
+      const progressPercent = Math.round((currentIndex / readyDraftIds.length) * 100);
+      if (els.bulkLoadingProgressBar) els.bulkLoadingProgressBar.style.width = `${progressPercent}%`;
+      if (els.bulkLoadingText) els.bulkLoadingText.textContent = `Memproses ${currentIndex} dari ${readyDraftIds.length} draft...`;
     }
 
     saveState();
@@ -3479,6 +3520,9 @@ async function processReadyImportDrafts(options = {}) {
   } catch (error) {
     doneCopy = `${error.message || "Batch import gagal."} Cek draft yang belum diproses.`;
   } finally {
+    if (els.bulkLoadingOverlay) {
+      els.bulkLoadingOverlay.hidden = true;
+    }
     bulkBatchInFlight = false;
     renderBulkDrafts();
     setBulkImportStatus(doneCopy, { variant: processed.length ? "success" : "error" });
@@ -3497,6 +3541,10 @@ async function copyAiPrompt() {
 }
 
 function openBulkImport() {
+  state.bulkDraftSearch = "";
+  if (els.bulkSearchInput) {
+    els.bulkSearchInput.value = "";
+  }
   renderBulkDrafts();
   openModal(els.bulkImportModal, els.bulkSummaryInput);
 }
@@ -7303,6 +7351,10 @@ function bindEvents() {
     readBulkImportFile(file);
   });
   els.parseBulkSummaryButton.addEventListener("click", importBulkSummaryText);
+  els.bulkSearchInput?.addEventListener("input", (event) => {
+    state.bulkDraftSearch = event.target.value;
+    renderBulkDrafts();
+  });
   els.processReadyDraftsButton.addEventListener("click", () => processReadyImportDrafts({ print: false }));
   els.processPrintReadyDraftsButton.addEventListener("click", () => processReadyImportDrafts({ print: true }));
   els.previewPrintReadyDraftsButton?.addEventListener("click", previewPrintReadyDrafts);
