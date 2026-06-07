@@ -5928,3 +5928,16 @@ BrokenPipeError: [Errno 32] Broken pipe
 127.0.0.1 - - [04/Jun/2026 14:50:52] "GET /sample-bulk-orders.csv HTTP/1.1" 304 -
 127.0.0.1 - - [04/Jun/2026 14:50:52] "GET /icon-512.png HTTP/1.1" 304 -
 127.0.0.1 - - [04/Jun/2026 14:50:52] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 08:25:30] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 08:25:31] "GET /logocatering.webp HTTP/1.1" 304 -
+127.0.0.1 - - [07/Jun/2026 08:25:31] "GET /styles.css?v=181 HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 08:25:31] "GET /manifest.webmanifest HTTP/1.1" 304 -
+127.0.0.1 - - [07/Jun/2026 08:25:31] "GET /script.js?v=181 HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 08:25:31] "GET /icon-192.png HTTP/1.1" 304 -
+127.0.0.1 - - [07/Jun/2026 08:25:33] "GET /service-worker.js HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 08:25:33] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 08:25:33] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 08:25:33] "GET /drivers/XP%20PRINTER%20DRIVER.rar HTTP/1.1" 200 -
+127.0.0.1 - - [07/Jun/2026 08:25:33] "GET /sample-items.csv HTTP/1.1" 304 -
+127.0.0.1 - - [07/Jun/2026 08:25:33] "GET /sample-bulk-orders.csv HTTP/1.1" 304 -
+127.0.0.1 - - [07/Jun/2026 08:25:33] "GET /icon-512.png HTTP/1.1" 200 -

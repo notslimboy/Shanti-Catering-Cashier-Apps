@@ -63,9 +63,15 @@ customer,chatDate,payment,ongkir,item,quantity,note
    - **CRITICAL 2**: If the note contains commas `,`, replace them with semicolons `;` so it doesn't break the CSV column layout (e.g., "tanpa susu dan adpokat, gojek jam 9" becomes `tanpa susu dan adpokat; gojek jam 9`).
    - **CRITICAL 3**: If there are items of the same product but with different notes (e.g., "2x Siomay (tanpa pare)" and "1x Siomay (pake pare)"), they MUST be written as separate rows in the CSV. **DO NOT** group their quantities or combine their notes into a single row.
 
-9. **Message Filtering**:
-   - Ignore chats that are not food orders.
-   - If a customer revises their order in a subsequent message sent around the same time, merge them and output only the **final valid revision**.
+9. **Message Filtering & Order Consolidation**:
+   - Ignore chats that are not food orders. Skip lines that are purely questions (e.g. containing "ready?", "adakah?", "apakah?") without an explicit order quantity or ordering intent.
+   - **NO Customer/Address Merging for Different Senders**: Do **NOT** merge orders from different WhatsApp contact names (senders), even if their addresses or locations are similar (e.g. "Bpd B 22 Baru" and "Bu BpD bambang" are separate customers). Only consolidate messages if they come from the **exact same sender**.
+   - **Resend Chat Filtering**: If a customer resends the exact same order (same items and quantities) at a different time without explicit addition keywords (like "tambah", "nambah", "tambah lagi"), treat it as a **resend/rechat** and **keep only 1 order with the original quantity (do not double quantities)**. Use the **latest/newest message timestamp** as the `chatDate` for the order.
+   - **Order Consolidation (Revisions & Additions)**: If a customer sends a valid revision or order addition (indicated by words like "tambah", "nambah" or containing new items) at a different hour, you **must merge them into a single consolidated order**. Sum the quantities of identical items with identical notes, and add new items as separate rows. Use the timestamp of the **latest message** as the `chatDate` for the consolidated order.
+   - **Note Extraction**:
+     - Extract customization notes written inline (e.g. "Lorjuk tanpa cabe" -> item: `Oseng Lorjuk`, note: `tanpa cabe`).
+     - Extract delivery/pickup instructions (e.g. "di antar", "diambil sendiri", "gojek jam 9") and append them to the `note` column for all items belonging to that customer.
+     - **Note/Quantity Splitting**: If a customer orders a quantity of an item but a customization note applies only to a subset (e.g. "Mendol 2 (yg satu gk sah digoreng)"), split them into separate rows in the CSV: 1x with the customization note (e.g., `gk sah digoreng`), and the remaining quantity without the note.
 
 ---
 
