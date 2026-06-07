@@ -3729,7 +3729,7 @@ label {
 }
 
 .bulk-import-panel {
-  grid-template-rows: auto auto auto auto auto auto auto minmax(200px, 1fr) auto;
+  grid-template-rows: auto auto auto auto auto auto auto auto minmax(200px, 1fr) auto;
 }
 
 .bulk-import-actions {
@@ -5787,10 +5787,9 @@ label {
   border: 1px solid var(--line);
   border-radius: 30px;
   padding: 4px;
-  margin: 20px auto !important;
+  margin: 16px 0 !important;
   box-sizing: border-box;
   width: 100%;
-  max-width: 480px;
 }
 
 .bulk-filter-tabs .tab-button {
