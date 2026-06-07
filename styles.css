@@ -5787,9 +5787,10 @@ label {
   border: 1px solid var(--line);
   border-radius: 30px;
   padding: 4px;
-  margin: 20px 0 !important;
+  margin: 20px auto !important;
   box-sizing: border-box;
   width: 100%;
+  max-width: 480px;
 }
 
 .bulk-filter-tabs .tab-button {
@@ -5815,21 +5816,17 @@ label {
 }
 
 .bulk-filter-tabs .tab-button.active {
-  background: var(--teal);
-  color: #ffffff;
-  box-shadow: 0 4px 12px var(--teal-ring);
+  background: var(--surface-strong);
+  color: var(--teal);
+  box-shadow: var(--shadow);
 }
 
-:root[data-theme="dark"] .bulk-filter-tabs .tab-button.active {
-  color: var(--totals-bg);
-}
-
-.bulk-filter-tabs .tab-button span {
+.bulk-filter-tabs .tab-button .tab-count-badge {
   background: var(--line);
   color: var(--muted);
   padding: 2px 8px;
   border-radius: 12px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 800;
   transition: all 0.2s ease;
   display: inline-flex;
@@ -5837,18 +5834,13 @@ label {
   justify-content: center;
 }
 
-.bulk-filter-tabs .tab-button:hover span {
+.bulk-filter-tabs .tab-button:hover .tab-count-badge {
   color: var(--ink);
 }
 
-.bulk-filter-tabs .tab-button.active span {
-  background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
-}
-
-:root[data-theme="dark"] .bulk-filter-tabs .tab-button.active span {
-  background: rgba(0, 0, 0, 0.1);
-  color: var(--totals-bg);
+.bulk-filter-tabs .tab-button.active .tab-count-badge {
+  background: var(--mint);
+  color: var(--teal);
 }
 
 .bulk-draft-list-wrapper {
