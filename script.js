@@ -6174,6 +6174,8 @@ function salesReportA4Html() {
     return chunk.sales
       .map((sale, offset) => {
         const index = chunk.startIndex + offset;
+        const isEven = (index + 1) % 2 === 0;
+        const rowClass = isEven ? ' class="row-even"' : "";
         const completedAt = new Date(sale.completed_at);
         const jamStr = completedAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
         const customerName = getCustomerNameFromSale(sale) || "Customer belum diisi";
@@ -6185,7 +6187,7 @@ function salesReportA4Html() {
 
         if (items.length === 0) {
           return `
-            <tr>
+            <tr${rowClass}>
               <td>${index + 1}</td>
               <td>${escapeHtml(jamStr)}</td>
               <td>${escapeHtml(customerName)}</td>
@@ -6211,7 +6213,7 @@ function salesReportA4Html() {
 
             if (itemIdx === 0) {
               return `
-                <tr>
+                <tr${rowClass}>
                   <td rowspan="${rowspan}">${index + 1}</td>
                   <td rowspan="${rowspan}">${escapeHtml(jamStr)}</td>
                   <td rowspan="${rowspan}">${escapeHtml(customerName)}</td>
@@ -6226,7 +6228,7 @@ function salesReportA4Html() {
               `;
             } else {
               return `
-                <tr>
+                <tr${rowClass}>
                   <td>${menuStr}</td>
                   <td class="number">${quantity}</td>
                   <td class="number">${currency.format(price)}</td>

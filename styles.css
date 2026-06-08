@@ -2872,6 +2872,14 @@ label {
   line-height: 1.25;
 }
 
+.print-report-transactions tr.row-even td {
+  background-color: rgba(0, 0, 0, 0.025) !important;
+}
+
+:root[data-theme="dark"] .print-report-transactions tr.row-even td {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
 .print-report-transactions td .item-note {
   color: #6b7280;
   font-size: 7.5pt;

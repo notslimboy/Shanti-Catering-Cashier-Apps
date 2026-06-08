@@ -231,6 +231,16 @@ async function run() {
             finalName = override.name;
             finalShipping = override.default_shipping || 0;
           }
+        } else if (
+          origName.includes("Tohir 23") ||
+          origName.includes("Sutorejo Tengah 2/6") ||
+          origName.includes("Suto Utara Baru 17 A") ||
+          origName.includes("U I76") ||
+          origName.includes("Taman Suto Timur 48 Baru")
+        ) {
+          match = null;
+          finalName = origName;
+          finalShipping = "0";
         }
 
         console.log(`[OK] "${origName}" -> dipetakan ke "${finalName}" | Ongkir: ${finalShipping}`);
