@@ -2873,13 +2873,13 @@ label {
 }
 
 .print-report-transactions tr.row-even td {
-  background-color: rgba(0, 0, 0, 0.025) !important;
+  background-color: rgba(0, 0, 0, 0.08) !important;
   -webkit-print-color-adjust: exact !important;
   print-color-adjust: exact !important;
 }
 
 :root[data-theme="dark"] .print-report-transactions tr.row-even td {
-  background-color: rgba(255, 255, 255, 0.03) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
   -webkit-print-color-adjust: exact !important;
   print-color-adjust: exact !important;
 }
