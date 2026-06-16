@@ -6783,20 +6783,18 @@ function renderInventoryProductsList() {
                 const suffix = v.name.replace(parent.name, "").trim() || "Varian";
                 const isVirtual = String(v.id).startsWith("virtual-");
                 return `
-                  <div class="menu-item-variant-row-card">
+                  <div class="menu-item-variant-row">
                     <span class="menu-item-variant-name">
                       ${escapeHtml(suffix)}
-                      ${isVirtual ? '<span class="menu-item-variant-name-label" style="font-size: 10px; background: var(--warning-bg); color: var(--muted); padding: 1px 4px; border-radius: 3px; margin-left: 4px;">Harga Default</span>' : ""}
+                      ${isVirtual ? '<span class="menu-item-variant-name-label">Harga Default</span>' : ""}
                     </span>
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                      <span style="font-size: 0.78rem; color: var(--muted); font-weight: 600;">Stok: <strong>${v.stockUnlimited ? "∞" : v.stock}</strong></span>
-                      <strong style="font-size: 0.88rem; color: var(--ink);">${currency.format(v.price)}</strong>
-                      <div class="menu-item-buttons">
-                        <button class="ghost-button product-small-button" type="button" style="padding: 2px 6px; font-size: 0.72rem;" data-edit-inventory-product="${escapeHtml(v.id)}">Edit</button>
-                        <button class="ghost-button danger product-small-button" type="button" style="padding: 2px 6px; font-size: 0.72rem;" data-delete-inventory-product="${escapeHtml(v.id)}" ${isVirtual ? "disabled style='opacity: 0.5; pointer-events: none;'" : ""}>
-                          <svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor;"><use href="#icon-trash"></use></svg>
-                        </button>
-                      </div>
+                    <span class="menu-item-variant-stock">Stok: <strong class="menu-item-stock-qty">${v.stockUnlimited ? "∞" : v.stock}</strong></span>
+                    <strong class="menu-item-variant-price">${currency.format(v.price)}</strong>
+                    <div class="menu-item-buttons">
+                      <button class="ghost-button product-small-button" type="button" data-edit-inventory-product="${escapeHtml(v.id)}" title="Edit Varian">Edit</button>
+                      <button class="ghost-button danger product-small-button product-delete-button" type="button" data-delete-inventory-product="${escapeHtml(v.id)}" ${isVirtual ? "disabled style='opacity: 0.3; pointer-events: none;'" : ""} title="Hapus Varian">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
+                      </button>
                     </div>
                   </div>
                 `;
@@ -6825,9 +6823,9 @@ function renderInventoryProductsList() {
                 <span class="menu-item-stock">Stok: <span class="menu-item-stock-qty">${parent.stockUnlimited ? "∞" : parent.stock}</span></span>
               </div>
               <div class="menu-item-buttons">
-                <button class="ghost-button product-small-button" type="button" data-edit-inventory-product="${escapeHtml(parent.id)}">Edit</button>
-                <button class="ghost-button danger product-small-button" type="button" data-delete-inventory-product="${escapeHtml(parent.id)}">
-                  <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;"><use href="#icon-trash"></use></svg>
+                <button class="ghost-button product-small-button" type="button" data-edit-inventory-product="${escapeHtml(parent.id)}" title="Edit Menu">Edit</button>
+                <button class="ghost-button danger product-small-button product-delete-button" type="button" data-delete-inventory-product="${escapeHtml(parent.id)}" title="Hapus Menu">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
                 </button>
               </div>
             </div>
