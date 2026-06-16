@@ -264,6 +264,11 @@ const els = {
   inventoryModal: document.querySelector("#inventoryModal"),
   inventoryTabButtons: document.querySelectorAll("[data-inventory-tab]"),
   inventoryTabPanels: document.querySelectorAll("[data-inventory-panel]"),
+  menuListTabButton: document.querySelector("#menuListTabButton"),
+  menuListTabPanel: document.querySelector("#menuListTabPanel"),
+  inventorySearchInput: document.querySelector("#inventorySearchInput"),
+  inventoryProductsList: document.querySelector("#inventoryProductsList"),
+  addNewMenuButton: document.querySelector("#addNewMenuButton"),
   openReceiptSettingsButton: document.querySelector("#openReceiptSettingsButton"),
   receiptSettingsModal: document.querySelector("#receiptSettingsModal"),
   openReceiptPreviewButton: document.querySelector("#openReceiptPreviewButton"),
@@ -1222,7 +1227,21 @@ function setDailyMenuProductIds(dateKey, productIds) {
 
 function getDailyMenuProducts(dateKey = getTodayMenuDate()) {
   const ids = getDailyMenuProductIds(dateKey);
-  return state.products.filter((product) => ids.has(String(product.id)));
+  const daily = state.products.filter((product) => ids.has(String(product.id)));
+  
+  const parentIds = new Set(daily.map(p => p.id));
+  const variants = state.products.filter(p => {
+    const parent = getParentProduct(p);
+    return parent && parent.id !== p.id && parentIds.has(parent.id);
+  });
+  
+  const all = [...daily];
+  variants.forEach(v => {
+    if (!all.some(p => p.id === v.id)) {
+      all.push(v);
+    }
+  });
+  return all;
 }
 
 function isDailyMenuFilterActive() {
@@ -1231,8 +1250,7 @@ function isDailyMenuFilterActive() {
 
 function getProductFilterPool() {
   if (!isDailyMenuFilterActive()) return state.products;
-  const ids = getDailyMenuProductIds();
-  return state.products.filter((product) => ids.has(String(product.id)));
+  return getDailyMenuProducts(getTodayMenuDate());
 }
 
 function getCategories() {
@@ -1404,6 +1422,10 @@ function findDailyMenuProduct(entry) {
 
   const fuzzy = findUniqueProductMatch(state.products, entry.name, entry.sku, entry.price);
   if (fuzzy) return { status: "matched", product: fuzzy, entry };
+
+  // Cari/buat produk virtual setengah porsi secara global
+  const virtual = findOrCreateHalfProduct(entry.name);
+  if (virtual) return { status: "matched", product: virtual, entry };
 
   return { status: "missing", entry, matches: exactNameMatches };
 }
@@ -2720,9 +2742,86 @@ function getPreferredProductsForMatching() {
   return dailyProducts.length ? dailyProducts : state.products;
 }
 
-function findDraftProductMatch(rawName, sku = "", price = 0) {
-  return findUniqueProductMatch(getPreferredProductsForMatching(), rawName, sku, price) || findUniqueProductMatch(state.products, rawName, sku, price);
+function calculateHalfPortionPrice(fullPrice) {
+  const half = fullPrice * 0.5;
+  const roundedTo5000 = Math.ceil(half / 5000) * 5000;
+  if (roundedTo5000 > fullPrice * 0.75) {
+    return Math.ceil(half / 1000) * 1000;
+  }
+  return roundedTo5000;
 }
+
+function findOrCreateHalfProduct(rawName) {
+  const rawClean = rawName.trim();
+  const halfMatch = rawClean.match(/^(.+?)\s*(?:1\/2|setengah|separuh)$/i);
+  if (!halfMatch) return null;
+
+  const parentName = halfMatch[1].trim();
+  const parentProduct = findUniqueProductMatch(state.products, parentName, "", 0);
+  if (!parentProduct) return null;
+
+  const virtualId = `virtual-${parentProduct.id}-half`;
+  const existingVirtual = state.products.find((p) => p.id === virtualId);
+  if (existingVirtual) return existingVirtual;
+
+  const virtualPrice = calculateHalfPortionPrice(Number(parentProduct.price || 0));
+  const virtualProduct = {
+    id: virtualId,
+    client_id: `item-virtual-${parentProduct.client_id || parentProduct.id}-half`,
+    sku: parentProduct.sku ? `${parentProduct.sku}-1/2` : "",
+    name: `${parentProduct.name} 1/2`,
+    price: virtualPrice,
+    stock: 0,
+    stockUnlimited: true,
+    category: parentProduct.category || "Lauk",
+    aliases: JSON.stringify([`${parentProduct.name} setengah`, `${parentProduct.name} separuh`]),
+    source: "virtual",
+    updated_at: new Date().toISOString(),
+  };
+
+  state.products.push(virtualProduct);
+  return virtualProduct;
+}
+
+function getParentProduct(product) {
+  if (!product) return null;
+  const cleanName = product.name.trim();
+  const match = cleanName.match(/^(.+?)\s*(?:1\/2|setengah|separuh|jumbo)$/i);
+  if (match) {
+    const parentName = match[1].trim();
+    const parent = state.products.find((p) => p.name.trim().toLowerCase() === parentName.toLowerCase());
+    if (parent) return parent;
+  }
+  return product;
+}
+
+function getAvailableVariants(parentProduct) {
+  if (!parentProduct) return [];
+  const parentNameLower = parentProduct.name.trim().toLowerCase();
+  
+  const variants = state.products.filter((p) => {
+    const nameLower = p.name.trim().toLowerCase();
+    return nameLower === parentNameLower || nameLower.startsWith(parentNameLower + " ");
+  });
+  
+  const hasHalf = variants.some((p) => p.name.toLowerCase().endsWith(" 1/2"));
+  if (!hasHalf) {
+    const virtualHalf = findOrCreateHalfProduct(parentProduct.name + " 1/2");
+    if (virtualHalf && !variants.some((v) => v.id === virtualHalf.id)) {
+      variants.push(virtualHalf);
+    }
+  }
+  
+  return variants;
+}
+
+function findDraftProductMatch(rawName, sku = "", price = 0) {
+  const exactMatch = findUniqueProductMatch(getPreferredProductsForMatching(), rawName, sku, price) || findUniqueProductMatch(state.products, rawName, sku, price);
+  if (exactMatch) return exactMatch;
+
+  return findOrCreateHalfProduct(rawName);
+}
+
 
 function normalizeDraftItem(source) {
   const item = typeof source === "string" ? { name: source } : source || {};
@@ -5559,11 +5658,32 @@ function renderCart() {
         if (!product) return "";
         const totalInCart = cartQuantity(cartItem.productId);
         const canIncrease = isStockUnlimited(product) || totalInCart < Number(product.stock || 0);
+        const parentProduct = getParentProduct(product);
+        const variants = getAvailableVariants(parentProduct);
+        
+        let variantSelectHtml = "";
+        if (variants.length > 1) {
+          variantSelectHtml = `
+            <div class="cart-variant-select" style="margin-top: 4px;">
+              <select class="cart-variant-dropdown" data-change-variant="${cartItem.id}" style="font-size: 11px; padding: 2px 4px; border-radius: 4px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); cursor: pointer; max-width: 100%;">
+                ${variants.map(v => {
+                  const suffix = v.name.substring(parentProduct.name.length).trim() || "Utuh";
+                  const selected = v.id === product.id ? "selected" : "";
+                  return `<option value="${escapeHtml(v.id)}" ${selected}>${escapeHtml(suffix)} (${currency.format(v.price)})</option>`;
+                }).join("")}
+              </select>
+            </div>
+          `;
+        }
         return `
           <article class="cart-row">
             <div>
               <p class="cart-title">${escapeHtml(product.name)}</p>
-              <p class="cart-meta"><span>${cartItem.quantity} × ${currency.format(product.price)}</span><strong class="cart-line-total">${currency.format(cartItem.quantity * product.price)}</strong></p>
+              <p class="cart-meta">
+                <span>${cartItem.quantity} × ${currency.format(product.price)}</span>
+                <strong class="cart-line-total">${currency.format(cartItem.quantity * product.price)}</strong>
+              </p>
+              ${variantSelectHtml}
             </div>
             <div class="cart-actions">
               <div class="qty-control" aria-label="Jumlah ${escapeHtml(product.name)}">
@@ -6602,6 +6722,123 @@ function setInventoryTab(tabName) {
 
 
 
+function renderInventoryProductsList() {
+  if (!els.inventoryProductsList) return;
+
+  const query = (els.inventorySearchInput.value || "").trim().toLowerCase();
+  
+  // 1. Identify all parent products
+  const parentProducts = [];
+  const processedParentIds = new Set();
+  
+  state.products.forEach((product) => {
+    const parent = getParentProduct(product);
+    if (parent && !processedParentIds.has(parent.id)) {
+      processedParentIds.add(parent.id);
+      parentProducts.push(parent);
+    }
+  });
+
+  // 2. Filter parent products based on search query
+  const filteredParents = parentProducts.filter((parent) => {
+    if (!query) return true;
+    
+    // Check if parent name, category or SKU matches query
+    const nameMatch = (parent.name || "").toLowerCase().includes(query);
+    const categoryMatch = (parent.category || "").toLowerCase().includes(query);
+    const skuMatch = (parent.sku || "").toLowerCase().includes(query);
+    if (nameMatch || categoryMatch || skuMatch) return true;
+    
+    // Check if any of its variants matches the query
+    const variants = getAvailableVariants(parent);
+    const variantMatch = variants.some((v) => {
+      const vName = (v.name || "").toLowerCase();
+      const vSku = (v.sku || "").toLowerCase();
+      return vName.includes(query) || vSku.includes(query);
+    });
+    return variantMatch;
+  });
+
+  // 3. Sort parent products alphabetically by name
+  filteredParents.sort((a, b) => (a.name || "").localeCompare(b.name || "", "id-ID"));
+
+  if (filteredParents.length === 0) {
+    els.inventoryProductsList.innerHTML = `<div class="empty-state" style="padding: 24px; text-align: center; color: var(--muted);">Menu tidak ditemukan.</div>`;
+    return;
+  }
+
+  // 4. Render
+  els.inventoryProductsList.innerHTML = filteredParents
+    .map((parent) => {
+      const variants = getAvailableVariants(parent);
+      const childVariants = variants.filter((v) => String(v.id) !== String(parent.id));
+      
+      let variantsHtml = "";
+      if (childVariants.length > 0) {
+        variantsHtml = `
+          <div class="menu-item-variants-container">
+            <p class="menu-item-variant-header-text">Varian Porsi</p>
+            ${childVariants
+              .map((v) => {
+                const suffix = v.name.replace(parent.name, "").trim() || "Varian";
+                const isVirtual = String(v.id).startsWith("virtual-");
+                return `
+                  <div class="menu-item-variant-row-card">
+                    <span class="menu-item-variant-name">
+                      ${escapeHtml(suffix)}
+                      ${isVirtual ? '<span class="menu-item-variant-name-label" style="font-size: 10px; background: var(--warning-bg); color: var(--muted); padding: 1px 4px; border-radius: 3px; margin-left: 4px;">Harga Default</span>' : ""}
+                    </span>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                      <span style="font-size: 0.78rem; color: var(--muted); font-weight: 600;">Stok: <strong>${v.stockUnlimited ? "∞" : v.stock}</strong></span>
+                      <strong style="font-size: 0.88rem; color: var(--ink);">${currency.format(v.price)}</strong>
+                      <div class="menu-item-buttons">
+                        <button class="ghost-button product-small-button" type="button" style="padding: 2px 6px; font-size: 0.72rem;" data-edit-inventory-product="${escapeHtml(v.id)}">Edit</button>
+                        <button class="ghost-button danger product-small-button" type="button" style="padding: 2px 6px; font-size: 0.72rem;" data-delete-inventory-product="${escapeHtml(v.id)}" ${isVirtual ? "disabled style='opacity: 0.5; pointer-events: none;'" : ""}>
+                          <svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor;"><use href="#icon-trash"></use></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              })
+              .join("")}
+          </div>
+        `;
+      }
+
+      const parentSku = parent.sku ? `<span class="menu-item-sku-pill">${escapeHtml(parent.sku)}</span>` : "";
+      
+      return `
+        <article class="menu-item-group-card">
+          <div class="menu-item-parent-row">
+            <div class="menu-item-info">
+              <h3 class="menu-item-name">${escapeHtml(parent.name)}</h3>
+              <div class="menu-item-meta">
+                <span class="menu-item-category-pill">${escapeHtml(parent.category || "Lauk")}</span>
+                ${parentSku}
+              </div>
+            </div>
+            
+            <div class="menu-item-actions-wrapper">
+              <div class="menu-item-price-stock">
+                <span class="menu-item-price">${currency.format(parent.price)}</span>
+                <span class="menu-item-stock">Stok: <span class="menu-item-stock-qty">${parent.stockUnlimited ? "∞" : parent.stock}</span></span>
+              </div>
+              <div class="menu-item-buttons">
+                <button class="ghost-button product-small-button" type="button" data-edit-inventory-product="${escapeHtml(parent.id)}">Edit</button>
+                <button class="ghost-button danger product-small-button" type="button" data-delete-inventory-product="${escapeHtml(parent.id)}">
+                  <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;"><use href="#icon-trash"></use></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          ${variantsHtml}
+        </article>
+      `;
+    })
+    .join("");
+}
+
 function render() {
   updatePaymentSelectUI();
   renderCustomerSuggestions();
@@ -6615,6 +6852,7 @@ function render() {
   renderBulkDrafts();
   renderDailyMenuReview();
   if (els.heldCartsModal?.open) renderHeldCarts();
+  renderInventoryProductsList();
   saveState();
 }
 
@@ -6724,6 +6962,7 @@ function saveProductForm() {
   }
 
   resetProductForm();
+  setInventoryTab("list");
   render();
   saveProductsToDatabase({ toast: false });
 }
@@ -6846,6 +7085,38 @@ function updateCartItemNote(cartItemId, note) {
   cartItem.note = note;
   saveState();
   renderReceipt();
+}
+
+function changeCartItemVariant(cartItemId, targetProductId) {
+  const cartItem = state.cart.find((item) => item.id === cartItemId);
+  if (!cartItem) return;
+
+  const targetProduct = getProduct(targetProductId);
+  if (!targetProduct) return;
+
+  cartItem.productId = targetProductId;
+
+  // Update catatan secara otomatis berdasarkan varian
+  let note = String(cartItem.note || "").trim();
+  
+  // Bersihkan catatan varian lama jika ada
+  note = note.replace(/\bseparuh porsi\b/gi, "")
+              .replace(/\bporsi jumbo\b/gi, "")
+              .replace(/^[;\s,]+|[;\s,]+$/g, "")
+              .replace(/;\s*;/g, ";")
+              .trim();
+
+  // Tambahkan catatan varian baru jika sesuai
+  if (targetProduct.name.endsWith(" 1/2")) {
+    note = note ? `separuh porsi; ${note}` : "separuh porsi";
+  } else if (targetProduct.name.endsWith(" Jumbo")) {
+    note = note ? `porsi jumbo; ${note}` : "porsi jumbo";
+  }
+
+  cartItem.note = note;
+
+  saveState();
+  render();
 }
 
 function getCartItemCount(cart = state.cart) {
@@ -7720,7 +7991,10 @@ function bindEvents() {
     formatMoneyInput(els.itemPriceInput);
   });
   els.itemUnlimitedInput.addEventListener("change", syncManualStockInputState);
-  els.cancelEditProductButton.addEventListener("click", resetProductForm);
+  els.cancelEditProductButton.addEventListener("click", () => {
+    resetProductForm();
+    setInventoryTab("list");
+  });
   els.mergeDuplicateProductsButton.addEventListener("click", mergeDuplicateProducts);
 
   els.categoryFilter.addEventListener("click", (event) => {
@@ -7752,6 +8026,13 @@ function bindEvents() {
   els.cartList.addEventListener("input", (event) => {
     const noteInput = event.target.closest("[data-note]");
     if (noteInput) updateCartItemNote(noteInput.dataset.note, noteInput.value);
+  });
+
+  els.cartList.addEventListener("change", (event) => {
+    const changeVariant = event.target.closest("[data-change-variant]");
+    if (changeVariant) {
+      changeCartItemVariant(changeVariant.dataset.changeVariant, changeVariant.value);
+    }
   });
 
   els.searchInput.addEventListener("input", renderProducts);
@@ -7809,7 +8090,10 @@ function bindEvents() {
   });
   els.openInventoryModalButton.addEventListener("click", () => {
     const activePanel = document.querySelector(".tab-panel.active");
-    const focusTarget = activePanel?.dataset.inventoryPanel === "manual" ? els.itemNameInput : activePanel?.dataset.inventoryPanel === "daily" ? els.dailyMenuCsvInput : els.sheetUrlInput;
+    const focusTarget = activePanel?.dataset.inventoryPanel === "manual" ? els.itemNameInput : 
+                        activePanel?.dataset.inventoryPanel === "daily" ? els.dailyMenuCsvInput : 
+                        activePanel?.dataset.inventoryPanel === "list" ? els.inventorySearchInput : 
+                        els.sheetUrlInput;
     openModal(els.inventoryModal, focusTarget);
   });
   els.inventoryModal.addEventListener("click", (event) => {
@@ -7820,10 +8104,34 @@ function bindEvents() {
   els.inventoryTabButtons.forEach((button) => {
     button.addEventListener("click", () => {
       setInventoryTab(button.dataset.inventoryTab);
-      const focusTarget = button.dataset.inventoryTab === "manual" ? els.itemNameInput : button.dataset.inventoryTab === "daily" ? els.dailyMenuCsvInput : els.sheetUrlInput;
-      focusTarget.focus();
+      const focusTarget = button.dataset.inventoryTab === "manual" ? els.itemNameInput : 
+                          button.dataset.inventoryTab === "daily" ? els.dailyMenuCsvInput : 
+                          button.dataset.inventoryTab === "list" ? els.inventorySearchInput : 
+                          els.sheetUrlInput;
+      if (focusTarget) focusTarget.focus();
     });
   });
+  // Kelola Menu tab listeners
+  els.addNewMenuButton.addEventListener("click", () => {
+    resetProductForm();
+    setInventoryTab("manual");
+    els.itemNameInput.focus();
+  });
+
+  els.inventorySearchInput.addEventListener("input", () => {
+    renderInventoryProductsList();
+  });
+
+  els.inventoryProductsList.addEventListener("click", (event) => {
+    const editBtn = event.target.closest("[data-edit-inventory-product]");
+    const deleteBtn = event.target.closest("[data-delete-inventory-product]");
+    if (editBtn) {
+      startEditProduct(editBtn.dataset.editInventoryProduct);
+    } else if (deleteBtn) {
+      openDeleteProductModal(deleteBtn.dataset.deleteInventoryProduct);
+    }
+  });
+
   els.openReceiptSettingsButton.addEventListener("click", () => {
     openModal(els.receiptSettingsModal, els.storeNameInput);
   });

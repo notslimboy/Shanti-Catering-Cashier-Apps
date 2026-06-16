@@ -2,33 +2,33 @@ import re
 import csv
 from datetime import datetime
 
-# Menu hari ini (6-7 Juni)
+# Menu hari ini (15-16 Juni)
 TODAY_MENU = [
-    "Jangkang Goreng",
-    "Pepes Udang Jamur",
-    "Oseng Lorjuk",
-    "Sayur Bayam",
-    "Mendol",
-    "Botok Ontong",
-    "Bubur Ayam",
-    "Es Degan"
+    "Ayam Goreng BaPut",
+    "Kotokan Iwak Pe",
+    "Sayur Sop Makaroni",
+    "Pangsit Kuah",
+    "Oseng Tahu Tempe",
+    "Perkedel",
+    "Bubur Suro",
+    "Kolak Kacang Ijo"
 ]
 
 # Pemetaan kata kunci ke menu resmi
 MENU_KEYWORDS = {
-    "Jangkang Goreng": ["jangkang goreng", "jangkang", "jangkang grg"],
-    "Pepes Udang Jamur": ["pepes udang jamur", "pepes udang", "pepes udang jmr"],
-    "Oseng Lorjuk": ["oseng lorjuk", "lorjuk", "oseng lorjok", "lorjok", "oseng lorju", "lorju"],
-    "Sayur Bayam": ["sayur bayam", "bayam", "sayur bym", "bym", "sayur bayem", "bayem"],
-    "Mendol": ["mendol"],
-    "Botok Ontong": ["botok ontong", "bothok ontong", "ontong", "botok"],
-    "Bubur Ayam": ["bubur ayam", "bubur", "bubur aym", "buryam"],
-    "Es Degan": ["es degan", "degan", "es degan ijo", "degan ijo"]
+    "Ayam Goreng BaPut": ["ayam goreng baput", "ayam gr baput", "ayam grng baput", "ayam baput", "ayam goreng bawang putih", "ayam goren baput", "ay baput", "ayam bawang putih", "ayam"],
+    "Kotokan Iwak Pe": ["kotokan iwak pe", "kotokan ikan pe", "iwak pe", "ikan pe", "kotokan p", "kotokan"],
+    "Sayur Sop Makaroni": ["sayur sop makaroni", "sop makaroni", "sup makaroni", "sayur makaroni", "sayur sop", "sop mkrni", "sop", "sup mkrni"],
+    "Pangsit Kuah": ["pangsit kuah", "pabgsit kuah", "pangsit"],
+    "Oseng Tahu Tempe": ["oseng tahu tempe", "oseng tatem", "ongseng tahu tempe", "orek tahu tempe", "oseng tempe"],
+    "Perkedel": ["perkedel", "pergedel"],
+    "Bubur Suro": ["bubur suro", "bbr suro", "bubur suru", "suro", "bubur"],
+    "Kolak Kacang Ijo": ["kolak kacang ijo", "kolak kacang hijau", "kolak cangjo", "kacang ijo", "kac ijo", "k ijo", "k.ijo", "cangjo", "bubur kcg hijau", "kcg hijau", "kcg ijo"]
 }
 
-# Jam target (6 Juni 18:22 s.d. 7 Juni 12:00 siang)
-start_time = datetime(2026, 6, 6, 18, 22, 0)
-end_time = datetime(2026, 6, 7, 12, 0, 0)
+# Jam target (15 Juni 20:04 s.d. 16 Juni 12:00 siang)
+start_time = datetime(2026, 6, 15, 20, 4, 0)
+end_time = datetime(2026, 6, 16, 12, 0, 0)
 
 timestamp_regex = re.compile(r'^\[(\d{2})/(\d{2})/(\d{2}),\s+(\d{2})[.:](\d{2})[.:](\d{2})\]\s+(.*?)$')
 
@@ -135,8 +135,9 @@ def parse_message_orders(text):
         if any(w in line_lower for w in ['stiker tidak disertakan', 'gambar tidak disertakan', 'pesan ini dihapus', 'bismillaah', 'matur nuwun', 'maturnuwun', 'terima kasih', 'terimakasih', 'trims', 'suwun']):
             continue
             
-        # Split line by delimiters, protecting dots followed by digits (like Mendol....2)
-        sub_lines = re.split(r'\s*\.\.\.+\s*(?!\d|\.)|\s+-\s+|\t|;', line_clean)
+        # Split line by delimiters
+        delims = r'\s*\.\.\.+\s*(?!\s*\d|\s*\.)|\s+-\s+|\t|;|\s+pesan\s*:\s*|\s+pesan\s+|\s+pesen\s*:\s*|\s+pesen\s+|\s+psn\s*:\s*|\s+psn\s+|\s+beli\s*:\s*|\s+beli\s+|\s*:\s*(?!\s*\d)|\b(?:tambah|nambah|plus|tambahin)\b'
+        sub_lines = re.split(delims, line_clean, flags=re.IGNORECASE)
         final_sub_lines = []
         for sl in sub_lines:
             for ssl in sl.split(','):
@@ -144,6 +145,14 @@ def parse_message_orders(text):
                     final_sub_lines.append(ssl.strip())
                     
         for sub_line in final_sub_lines:
+            # Clean leading list markers
+            sub_line = re.sub(r'^\s*(?:\d+\s*[\.\)\-\:]|[\-\•\*\•])\s*', '', sub_line)
+            
+            # Clean "jadi" or "total" clarifications first (to align indices)
+            sub_line = re.sub(r'\b(jadi|total)\s+.*', '', sub_line, flags=re.IGNORECASE)
+            
+            # Ubah pecahan 1/2 menjadi teks "setengah" agar tidak mengacaukan deteksi kuantitas numerik
+            sub_line = re.sub(r'\b1/2\b', 'setengah', sub_line)
             sub_lower = sub_line.lower()
             
             # Question check first
@@ -171,35 +180,95 @@ def parse_message_orders(text):
             if occurrences:
                 for i, occ in enumerate(occurrences):
                     start = occ['start']
-                    end = occurrences[i+1]['start'] if i+1 < len(occurrences) else len(sub_line)
-                    segment = sub_line[start:end]
-                    segment_lower = segment.lower()
+                    end = occ['end']
                     
-                    qty_match = re.search(r'\b\d+\b', segment_lower)
+                    left_boundary = occurrences[i-1]['end'] if i > 0 else 0
+                    right_boundary = occurrences[i+1]['start'] if i+1 < len(occurrences) else len(sub_line)
+                    
+                    preceding_text = sub_line[left_boundary:start]
+                    succeeding_text = sub_line[end:right_boundary]
+                    
+                    # Determine quantity
+                    qty_match_before = re.findall(r'\b\d+\b', preceding_text)
                     qty = 1
-                    if qty_match:
-                        qty = int(qty_match.group())
-                    else:
-                        before_text = sub_lower[:start]
-                        qty_match_before = re.findall(r'\b\d+\b', before_text)
-                        if qty_match_before:
-                            qty = int(qty_match_before[-1])
-                            
-                    clean_seg = segment_lower.replace(occ['keyword'], ' ')
-                    if qty_match:
-                        clean_seg = clean_seg.replace(qty_match.group(), ' ')
-                    note = re.sub(r'[\.\-\_:=,\(\)]+', ' ', clean_seg).strip()
-                    note = re.sub(r'\b(porsi|porsy|x|pcs|biji|butir|dan|bh|pax)\b', ' ', note).strip()
-                    note = re.sub(r'\s+', ' ', note)
+                    note_preceding = preceding_text
                     
-                    bracket_match = re.search(r'\((.*?)\)', segment)
+                    if qty_match_before:
+                        last_match = list(re.finditer(r'\b\d+\b', preceding_text))[-1]
+                        qty = int(last_match.group())
+                        note_preceding = preceding_text[:last_match.start()] + preceding_text[last_match.end():]
+                    else:
+                        qty_match_after = re.findall(r'\b\d+\b', succeeding_text)
+                        if qty_match_after:
+                            first_match = list(re.finditer(r'\b\d+\b', succeeding_text))[0]
+                            qty = int(first_match.group())
+                            
+                    # Clean succeeding_text for note of i
+                    note_succeeding = succeeding_text
+                    if i + 1 < len(occurrences):
+                        next_qty_matches = list(re.finditer(r'\b\d+\b', succeeding_text))
+                        if next_qty_matches:
+                            last_match = next_qty_matches[-1]
+                            note_succeeding = succeeding_text[:last_match.start()] + succeeding_text[last_match.end():]
+                    else:
+                        qty_match_after = re.findall(r'\b\d+\b', succeeding_text)
+                        if qty_match_after and not qty_match_before:
+                            first_match = list(re.finditer(r'\b\d+\b', succeeding_text))[0]
+                            note_succeeding = succeeding_text[:first_match.start()] + succeeding_text[first_match.end():]
+                            
+                    combined_note = (note_preceding + ' ' + note_succeeding).lower()
+                    combined_note = re.sub(r'[\.\-\_:=,\(\)\+]+', ' ', combined_note).strip()
+                    combined_note = re.sub(r'\b(porsi|porsy|x|pcs|biji|butir|dan|bh|pax)\b', ' ', combined_note).strip()
+                    
+                    # Clean polite/filler words
+                    polite_words = ['matur nuwun', 'terima kasih', 'ready', 'pesan', 'pesen', 'order', 'halo', 'ok', 'oke', 'maturnuwun', 'mbk', 'mas', 'pak', 'bu', 'dan', 'yg', 'yang', 'mtrnuwun', 'suwun', 'nuwun', 'mks', 'makasih', 'thx', 'thanks', 'tq', 'nuhun', 'atur']
+                    note_words = re.findall(r'[a-zA-Z0-9]+', combined_note)
+                    clean_words = [w for w in note_words if w not in polite_words]
+                    combined_note = ' '.join(clean_words)
+                    
+                    bracket_match = re.search(r'\((.*?)\)', succeeding_text)
                     if bracket_match:
-                        note = bracket_match.group(1).replace(',', ';').strip()
+                        combined_note = bracket_match.group(1).replace(',', ';').strip()
                         
-                    if note.lower() in ['', 'dan']:
-                        note = ''
+                    # Deteksi porsi setengah (global)
+                    is_half = False
+                    half_patterns = [r'\b1/2\b', r'\bsetengah\b', r'\bseparuh\b', r'\bseparo\b']
+                    if any(re.search(pat, sub_lower) for pat in half_patterns):
+                        is_half = True
+                    
+                    # Deteksi porsi jumbo (global)
+                    is_jumbo = False
+                    jumbo_patterns = [r'\bjumbo\b', r'\bbesar\b', r'\bgede\b']
+                    if any(re.search(pat, sub_lower) for pat in jumbo_patterns):
+                        is_jumbo = True
+                    
+                    # Bersihkan kata kunci setengah & jumbo dari combined_note
+                    for pat in half_patterns:
+                        combined_note = re.sub(pat, '', combined_note, flags=re.IGNORECASE)
+                    for pat in jumbo_patterns:
+                        combined_note = re.sub(pat, '', combined_note, flags=re.IGNORECASE)
+                    
+                    # Bersihkan spasi ganda
+                    combined_note = re.sub(r'\s+', ' ', combined_note).strip()
+                    
+                    if combined_note in ['', 'dan']:
+                        combined_note = ''
                         
-                    order_items.append({'item': occ['menu'], 'quantity': qty, 'note': note})
+                    item_name = occ['menu']
+                    if is_half:
+                        item_name = f"{item_name} 1/2"
+                        if combined_note:
+                            combined_note = f"separuh porsi; {combined_note}"
+                        else:
+                            combined_note = "separuh porsi"
+                    elif is_jumbo:
+                        item_name = f"{item_name} Jumbo"
+                        if combined_note:
+                            combined_note = f"porsi jumbo; {combined_note}"
+                        else:
+                            combined_note = "porsi jumbo"
+                            
+                    order_items.append({'item': item_name, 'quantity': qty, 'note': combined_note})
             else:
                 # Non-menu segment
                 is_instruction = any(w in sub_lower for w in ['antar', 'kirim', 'ambil', 'titip', 'pagar', 'centel', 'pintu', 'gerbang', 'sore', 'pagi', 'siang', 'jam'])
@@ -209,7 +278,7 @@ def parse_message_orders(text):
                     else:
                         delivery_note = sub_line
                 else:
-                    polite_words = ['matur nuwun', 'terima kasih', 'ready', 'pesan', 'pesen', 'order', 'halo', 'ok', 'oke', 'maturnuwun', 'mbk', 'mas', 'pak', 'bu', 'dan', 'yg', 'yang']
+                    polite_words = ['matur nuwun', 'terima kasih', 'ready', 'pesan', 'pesen', 'order', 'halo', 'ok', 'oke', 'maturnuwun', 'mbk', 'mas', 'pak', 'bu', 'dan', 'yg', 'yang', 'mtrnuwun', 'suwun', 'nuwun', 'mks', 'makasih', 'thx', 'thanks', 'tq', 'nuhun', 'atur']
                     is_purely_polite = all(w in polite_words or len(w) < 2 for w in re.findall(r'[a-zA-Z]+', sub_lower))
                     if not is_purely_polite and sub_line:
                         if re.search(r'[a-zA-Z0-9]', sub_line):
@@ -301,7 +370,7 @@ if __name__ == '__main__':
             orders_by_sender[sender] = []
         orders_by_sender[sender].append(order_info)
 
-    # Consolidate orders for each sender separately (NEVER merge different senders!)
+    # Consolidate/deduplicate/replace orders for each sender separately (NEVER merge different senders!)
     final_consolidated_orders = []
     for sender, msgs in orders_by_sender.items():
         msgs.sort(key=lambda x: x['datetime'])
@@ -321,7 +390,7 @@ if __name__ == '__main__':
                         items_same = False
                         break
                         
-            has_add_keyword = any(k in next_msg['raw_text'].lower() for k in ["tambah", "nambah", "plus", "tambahin", "tambah lagi"])
+            has_add_keyword = any(k in next_msg['raw_text'].lower() for k in ["tambah", "nambah", "plus", "tambah lagi", "+"])
             
             if items_same and not has_add_keyword:
                 # RESEND/RECHAT: Keep original quantity, update chatDate to the latest
@@ -334,8 +403,8 @@ if __name__ == '__main__':
                             current['delivery_note'] += "; " + next_msg['delivery_note']
                     else:
                         current['delivery_note'] = next_msg['delivery_note']
-            else:
-                # ADDITION/REVISION: Merge quantities
+            elif has_add_keyword:
+                # ADDITION: Merge quantities
                 merged_items = []
                 for it1 in current['items']:
                     merged_items.append(dict(it1))
@@ -349,6 +418,18 @@ if __name__ == '__main__':
                     if not found:
                         merged_items.append(dict(it2))
                 current['items'] = merged_items
+                current['chatDate'] = next_msg['chatDate']
+                current['datetime'] = next_msg['datetime']
+                current['address_lines'] = list(set(current['address_lines'] + next_msg['address_lines']))
+                if next_msg['delivery_note']:
+                    if current['delivery_note']:
+                        if next_msg['delivery_note'] not in current['delivery_note']:
+                            current['delivery_note'] += "; " + next_msg['delivery_note']
+                    else:
+                        current['delivery_note'] = next_msg['delivery_note']
+            else:
+                # REPLACEMENT: Overwrite previous items with new ones!
+                current['items'] = next_msg['items']
                 current['chatDate'] = next_msg['chatDate']
                 current['datetime'] = next_msg['datetime']
                 current['address_lines'] = list(set(current['address_lines'] + next_msg['address_lines']))
@@ -412,20 +493,4 @@ if __name__ == '__main__':
                     item_note
                 ])
 
-    # Add manual Wisper 5/18 (checking if it matches DB to write correct official name and ongkir)
-    wisper_manual = "Wisper 5 / 18"
-    wisper_ongkir = 5000
-    # Search database for Wisper 5 / 18
-    for cust in db:
-        if "Wisper 5" in cust['name']:
-            wisper_manual = cust['name']
-            wisper_ongkir = cust['ongkir']
-            break
-            
-    with open(output_path, 'a', newline='', encoding='utf-8') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow([wisper_manual, "07/06/2026 08.34.00", "", wisper_ongkir, "Botok Ontong", 2, ""])
-        writer.writerow([wisper_manual, "07/06/2026 08.34.00", "", wisper_ongkir, "Mendol", 1, ""])
-        writer.writerow([wisper_manual, "07/06/2026 08.34.00", "", wisper_ongkir, "Es Degan", 1, ""])
-
-    print(f"Sukses! Menulis {len(final_consolidated_orders) + 1} order ke {output_path}")
+    print(f"Sukses! Menulis {len(final_consolidated_orders)} order ke {output_path}")

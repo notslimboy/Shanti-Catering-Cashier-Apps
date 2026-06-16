@@ -402,6 +402,21 @@ Google Sheet sync:
 - After imports, manual edits, checkout stock changes, delete/restore stock adjustments, and database restore, the frontend syncs the product list with `/api/products`.
 - On startup, the frontend loads products from SQLite if available. If SQLite has no products but the browser cache has products, it seeds the SQL mirror.
 
+Product Portion Variants (1/2 and Jumbo):
+
+- Portions like `1/2` and `Jumbo` are represented as distinct products in the database with their own specific prices and stocks (e.g. parent `Oseng Tahu Tempe` at Rp15,000, variant `Oseng Tahu Tempe 1/2` at Rp10,000, and `Oseng Tahu Tempe Jumbo` at Rp25,000).
+- Relational mapping is resolved dynamically via name prefix matching: `getParentProduct(product)` strips suffixes like ` 1/2`, `setengah`, `separuh`, or `jumbo` to identify the parent product, while `getAvailableVariants(parent)` filters the inventory list for items starting with the parent's name.
+- Cart dropdown: If a product in the cart has multiple variants available, a select dropdown is rendered under the cart item. Changing the dropdown swaps the active variant and auto-updates the cart item notes (e.g., adding "separuh porsi" or "porsi jumbo").
+- Virtual variants: If a parent product exists but its `1/2` portion does not exist in the database, a virtual variant product is created dynamically with a calculated price (rounded to 500 or 1000) and unlimited stock.
+
+Kelola Menu (Menu Management) Dialog Panel:
+
+- The main tab in the "Kelola Barang" (Inventory) modal is "Kelola Menu", which lists all parent products in a clean, scrollable card list.
+- Under each parent product card, any available portion variants (like `1/2` or `Jumbo`) are listed as nested cards.
+- Directly from this list, cashiers can click "Edit" on a parent product or any variant. This programmatically navigates to the manual input form (which is hidden from the main tab buttons), prepopulates the values, and lets them change prices or stock.
+- Clicking "+ Tambah Menu" from the list navigates to the blank manual form. A "Kembali ke Daftar" button is always present in the form to return to the menu list.
+- After saving or updating a product, the form resets and automatically navigates the user back to the "Kelola Menu" list.
+
 Google Sheet URL handling:
 
 - Normal Google Sheets URLs are converted to CSV export through `gviz/tq?tqx=out:csv`.

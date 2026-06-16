@@ -750,9 +750,10 @@
         </div>
 
         <div class="modal-tabs" role="tablist" aria-label="Pilihan kelola barang">
-          <button class="tab-button active" id="syncTabButton" type="button" role="tab" aria-selected="true" aria-controls="syncTabPanel" data-inventory-tab="sync">Sync Google</button>
+          <button class="tab-button active" id="menuListTabButton" type="button" role="tab" aria-selected="true" aria-controls="menuListTabPanel" data-inventory-tab="list">Kelola Menu</button>
+          <button class="tab-button" id="syncTabButton" type="button" role="tab" aria-selected="false" aria-controls="syncTabPanel" data-inventory-tab="sync">Sync Google</button>
           <button class="tab-button" id="dailyMenuTabButton" type="button" role="tab" aria-selected="false" aria-controls="dailyMenuTabPanel" data-inventory-tab="daily">Menu Hari Ini</button>
-          <button class="tab-button" id="manualTabButton" type="button" role="tab" aria-selected="false" aria-controls="manualTabPanel" data-inventory-tab="manual">Add Manual</button>
+          <button class="tab-button" id="manualTabButton" type="button" role="tab" aria-selected="false" aria-controls="manualTabPanel" data-inventory-tab="manual" style="display: none;">Add Manual</button>
         </div>
 
         <div class="review-panel inventory-review" id="inventoryReviewPanel" hidden>
@@ -763,7 +764,7 @@
           <button class="ghost-button" id="mergeDuplicateProductsButton" type="button">Gabungkan Duplikat</button>
         </div>
 
-        <section class="tab-panel active" id="syncTabPanel" role="tabpanel" aria-labelledby="syncTabButton" data-inventory-panel="sync">
+        <section class="tab-panel" id="syncTabPanel" role="tabpanel" aria-labelledby="syncTabButton" data-inventory-panel="sync" hidden>
           <div class="connection-card" id="connectionCard">
             <span class="connection-dot" id="connectionDot" aria-hidden="true"></span>
             <div>
@@ -851,7 +852,7 @@
               <input id="itemAliasInput" type="text" placeholder="ketan duren, ketan durian">
             </label>
             <button class="primary-button full-width" id="itemSubmitButton" type="submit">Simpan Barang</button>
-            <button class="ghost-button full-width" id="cancelEditProductButton" type="button" hidden>Batal Edit</button>
+            <button class="ghost-button full-width" id="cancelEditProductButton" type="button" style="margin-top: 8px;">Kembali ke Daftar</button>
           </form>
         </section>
 
@@ -916,6 +917,16 @@
             </div>
 
             <div class="review-panel daily-menu-review" id="dailyMenuReview" hidden></div>
+          </div>
+        </section>
+
+        <section class="tab-panel active" id="menuListTabPanel" role="tabpanel" aria-labelledby="menuListTabButton" data-inventory-panel="list">
+          <div class="inventory-search-container">
+            <input id="inventorySearchInput" type="text" placeholder="Cari menu atau varian..." class="inventory-search-input">
+            <button class="primary-button" id="addNewMenuButton" type="button" style="white-space: nowrap;">+ Tambah Menu</button>
+          </div>
+          <div id="inventoryProductsList" class="inventory-products-list">
+            <!-- Diisi secara dinamis lewat javascript -->
           </div>
         </section>
 

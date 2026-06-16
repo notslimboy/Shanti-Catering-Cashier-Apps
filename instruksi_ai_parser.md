@@ -72,6 +72,9 @@ customer,chatDate,payment,ongkir,item,quantity,note
      - Extract customization notes written inline (e.g. "Lorjuk tanpa cabe" -> item: `Oseng Lorjuk`, note: `tanpa cabe`).
      - Extract delivery/pickup instructions (e.g. "di antar", "diambil sendiri", "gojek jam 9") and append them to the `note` column for all items belonging to that customer.
      - **Note/Quantity Splitting**: If a customer orders a quantity of an item but a customization note applies only to a subset (e.g. "Mendol 2 (yg satu gk sah digoreng)"), split them into separate rows in the CSV: 1x with the customization note (e.g., `gk sah digoreng`), and the remaining quantity without the note.
+     - **Portion Variant Rules (1/2 & Jumbo)**: If a customer orders a specific portion size for any item:
+        - **Half Portion**: If indicated by words like "separuh", "setengah", "separo", "1/2" (e.g. "oseng tempe 1/2" or "kotokan separuh"), write the item name with a trailing ` 1/2` (e.g. `Oseng Tahu Tempe 1/2`), and write `separuh porsi` in the `note` column.
+        - **Jumbo Portion**: If indicated by words like "jumbo", "besar", "porsi gede" (e.g. "ayam baput jumbo" or "sop porsi gede"), write the item name with a trailing ` Jumbo` (e.g. `Ayam Goreng BaPut Jumbo`), and write `porsi jumbo` in the `note` column.
 
 ---
 

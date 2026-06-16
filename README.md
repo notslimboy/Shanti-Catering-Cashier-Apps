@@ -172,6 +172,12 @@ Storage notes:
 - After import, manual edits, checkout, delete/restore with stock adjustments, the app saves products back to SQL.
 - Google Sheets remain a one-way source; stock in Google Sheets is not automatically changed after sales.
 
+### Product Portion Variants (1/2 & Jumbo)
+Portion variants such as `1/2` and `Jumbo` are stored as distinct products in the database with their own specific prices and stocks. They are dynamically linked to their parent product (e.g. `Oseng Tahu Tempe`) using name prefix matching. The cashier cart renders a dropdown select box if multiple variants are available, allowing instant swapping and automatic note updates (e.g. "separuh porsi" or "porsi jumbo").
+
+### Kelola Menu Panel
+The main view of the **Kelola Barang** modal is the **Kelola Menu** panel. It displays a real-time searchable list of all parent products. Portion variants are grouped directly under their parent products as nested rows. Cashiers can click **Edit** on any item to fill the manual entry form, or click **+ Tambah Menu** to open a blank form. A **Kembali ke Daftar** button allows returning to the list.
+
 ## Order Import
 
 `Import Pesanan` is used to create many draft orders at once.

@@ -5921,3 +5921,176 @@ label {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Custom styles for Kelola Menu (Daftar Barang) */
+.inventory-search-container {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.inventory-search-input {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  color: var(--ink);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.inventory-search-input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-ring);
+}
+
+.inventory-products-list {
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 6px;
+}
+
+.menu-item-group-card {
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.menu-item-group-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.menu-item-parent-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.menu-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.menu-item-name {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--ink);
+  margin: 0;
+}
+
+.menu-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.menu-item-category-pill {
+  font-size: 0.72rem;
+  background: var(--soft-teal);
+  color: var(--teal-dark);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 800;
+}
+
+.menu-item-sku-pill {
+  font-size: 0.72rem;
+  background: var(--bg);
+  color: var(--ink);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.menu-item-actions-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.menu-item-price-stock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.menu-item-price {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--teal);
+}
+
+.menu-item-stock {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.menu-item-stock-qty {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.menu-item-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.menu-item-variants-container {
+  margin-top: 12px;
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menu-item-variant-header-text {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 4px 0;
+}
+
+.menu-item-variant-row-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--soft-surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--teal);
+  border-radius: 6px;
+  padding: 8px 12px;
+  gap: 12px;
+}
+
+.menu-item-variant-name {
+  font-size: 0.88rem;
+  font-weight: 750;
+  color: var(--ink);
+}
+
+.menu-item-variant-name-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+}
