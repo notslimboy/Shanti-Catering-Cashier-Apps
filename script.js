@@ -1046,14 +1046,35 @@ function getActiveDialog() {
   return Array.from(document.querySelectorAll("dialog[open]")).at(-1) || null;
 }
 
+const toastTimers = new WeakMap();
+const activeToastBySignature = new Map();
+
 function isToastPopoverOpen(container = els.toastContainer) {
   return Boolean(container?.matches?.(":popover-open"));
+}
+
+function getToastSignature(title, text, variant) {
+  return `${variant}::${title}::${text}`;
+}
+
+function clearToastTimers(toast) {
+  const timers = toastTimers.get(toast);
+  if (!timers) return;
+  if (timers.hide) window.clearTimeout(timers.hide);
+  if (timers.remove) window.clearTimeout(timers.remove);
+  toastTimers.delete(toast);
 }
 
 function mountToastLayer(options = {}) {
   const container = els.toastContainer;
   if (!container) return;
+  if (!container.children.length) {
+    releaseToastLayer();
+    return;
+  }
 
+  container.hidden = false;
+  container.classList.add("has-toast");
   if (!container.hasAttribute("popover")) {
     container.setAttribute("popover", "manual");
   }
@@ -1062,9 +1083,14 @@ function mountToastLayer(options = {}) {
     try {
       if (options.toFront && isToastPopoverOpen(container)) container.hidePopover();
       if (!isToastPopoverOpen(container)) container.showPopover();
-      container.classList.remove("is-dialog-mounted");
+      container.classList.remove("is-dialog-mounted", "is-popover-fallback");
       return;
     } catch (error) {
+      try {
+        container.hidePopover();
+      } catch (hideError) {
+        // The fallback below will keep the toast visible inside the active modal.
+      }
       container.removeAttribute("popover");
     }
   }
@@ -1073,13 +1099,18 @@ function mountToastLayer(options = {}) {
   const host = activeDialog || document.body;
   if (container.parentElement !== host) host.append(container);
   container.classList.toggle("is-dialog-mounted", Boolean(activeDialog));
+  container.classList.add("is-popover-fallback");
 }
 
 function releaseToastLayer() {
   const container = els.toastContainer;
-  if (!container || container.children.length) return;
+  if (!container) return;
+  if (container.children.length) {
+    container.hidden = false;
+    return;
+  }
 
-  if (isToastPopoverOpen(container) && typeof container.hidePopover === "function") {
+  if (typeof container.hidePopover === "function") {
     try {
       container.hidePopover();
     } catch (error) {
@@ -1087,10 +1118,12 @@ function releaseToastLayer() {
     }
   }
 
+  container.removeAttribute("popover");
   if (container.parentElement !== document.body) {
     document.body.append(container);
   }
-  container.classList.remove("is-dialog-mounted");
+  container.classList.remove("has-toast", "is-dialog-mounted", "is-popover-fallback");
+  container.hidden = true;
 }
 
 function refreshToastLayer(options = {}) {
@@ -1101,26 +1134,55 @@ function refreshToastLayer(options = {}) {
   mountToastLayer(options);
 }
 
+function dismissToast(toast) {
+  if (!toast) return;
+  const signature = toast.dataset.toastSignature;
+  if (signature && activeToastBySignature.get(signature) === toast) {
+    activeToastBySignature.delete(signature);
+  }
+  clearToastTimers(toast);
+  toast.classList.remove("show", "toast-pulse");
+  const remove = window.setTimeout(() => {
+    toast.remove();
+    releaseToastLayer();
+  }, 220);
+  toastTimers.set(toast, { remove });
+}
+
+function armToastTimer(toast, duration) {
+  clearToastTimers(toast);
+  const hide = window.setTimeout(() => dismissToast(toast), duration);
+  toastTimers.set(toast, { hide });
+}
+
 function showToast(message, options = {}) {
   const text = String(message || "").trim();
   if (!text || !els.toastContainer) return;
 
   const variant = options.variant || getToastVariant(text);
-  const title = options.title || (variant === "error" ? "Info" : "Notifikasi");
+  const title = options.title || (variant === "error" ? "Perlu dicek" : "Notifikasi");
+  const duration = Number(options.duration) > 0 ? Number(options.duration) : 3200;
+  const signature = getToastSignature(title, text, variant);
+  const existingToast = activeToastBySignature.get(signature);
+  if (existingToast?.isConnected) {
+    existingToast.classList.remove("toast-pulse");
+    void existingToast.offsetWidth;
+    existingToast.classList.add("show", "toast-pulse");
+    refreshToastLayer({ toFront: true });
+    armToastTimer(existingToast, duration);
+    return;
+  }
+
   const toast = document.createElement("div");
   toast.className = `toast ${variant}`;
+  toast.dataset.toastSignature = signature;
   toast.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(text)}</span>`;
+  activeToastBySignature.set(signature, toast);
   els.toastContainer.append(toast);
   refreshToastLayer({ toFront: true });
 
   requestAnimationFrame(() => toast.classList.add("show"));
-  window.setTimeout(() => {
-    toast.classList.remove("show");
-    window.setTimeout(() => {
-      toast.remove();
-      releaseToastLayer();
-    }, 220);
-  }, options.duration || 3200);
+  armToastTimer(toast, duration);
 }
 
 function setSyncStatus(message, options = {}) {

@@ -2904,16 +2904,34 @@ label {
   position: fixed;
   top: max(16px, env(safe-area-inset-top));
   left: 50%;
+  right: auto;
   z-index: 9999;
-  display: grid;
+  display: none;
   gap: 10px;
-  width: min(380px, calc(100vw - 32px));
+  width: min(420px, calc(100dvw - 32px));
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
+  box-shadow: none;
   transform: translateX(-50%);
   pointer-events: none;
 }
 
+.toast-container[hidden],
+.toast-container:empty {
+  display: none !important;
+}
+
+.toast-container.has-toast,
 .toast-container:popover-open,
-.toast-container.is-dialog-mounted {
+.toast-container.is-dialog-mounted,
+.toast-container.is-popover-fallback {
   position: fixed;
   top: max(16px, env(safe-area-inset-top));
   left: 50%;
@@ -2921,19 +2939,24 @@ label {
   z-index: 9999;
   display: grid;
   gap: 10px;
-  width: min(380px, calc(100vw - 32px));
+  width: min(420px, calc(100dvw - 32px));
+  max-width: none;
+  max-height: none;
   margin: 0;
   padding: 0;
   border: 0;
+  outline: 0;
   background: transparent;
   color: inherit;
   overflow: visible;
+  box-shadow: none;
   transform: translateX(-50%);
   pointer-events: none;
 }
 
 .toast-container::backdrop {
-  display: none;
+  background: transparent;
+  pointer-events: none;
 }
 
 .mobile-mini-cart {
@@ -2968,6 +2991,21 @@ label {
 .toast.show {
   opacity: 1;
   transform: translateY(0);
+}
+
+.toast.toast-pulse {
+  animation: toastPulse 260ms ease;
+}
+
+@keyframes toastPulse {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+
+  45% {
+    transform: translateY(0) scale(1.015);
+  }
 }
 
 .toast.success {
@@ -5092,12 +5130,15 @@ label {
     grid-template-columns: 1fr;
   }
 
-  .toast-container {
-    left: 14px;
-    right: 14px;
-    top: 14px;
-    width: auto;
-    transform: none;
+  .toast-container,
+  .toast-container:popover-open,
+  .toast-container.is-dialog-mounted,
+  .toast-container.is-popover-fallback {
+    left: 50%;
+    right: auto;
+    top: max(12px, env(safe-area-inset-top));
+    width: min(420px, calc(100dvw - 24px));
+    transform: translateX(-50%);
   }
 }
 
