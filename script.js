@@ -692,14 +692,17 @@ function setupModalScrollLock() {
     dialog.addEventListener("close", () => requestAnimationFrame(() => {
       updateModalScrollLock();
       updateSidebarActiveState();
+      refreshToastLayer();
     }));
     dialog.addEventListener("cancel", () => requestAnimationFrame(() => {
       updateModalScrollLock();
       updateSidebarActiveState();
+      refreshToastLayer();
     }));
     new MutationObserver(() => {
       updateModalScrollLock();
       updateSidebarActiveState();
+      refreshToastLayer();
     }).observe(dialog, {
       attributes: true,
       attributeFilter: ["open"],
@@ -717,6 +720,7 @@ function openModal(dialog, focusTarget) {
   dialog.showModal();
   updateModalScrollLock();
   updateSidebarActiveState();
+  refreshToastLayer({ toFront: true });
   if (focusTarget) {
     requestAnimationFrame(() => focusTarget.focus());
   }
@@ -1038,6 +1042,65 @@ function getToastVariant(message, fallback = "info") {
   return fallback;
 }
 
+function getActiveDialog() {
+  return Array.from(document.querySelectorAll("dialog[open]")).at(-1) || null;
+}
+
+function isToastPopoverOpen(container = els.toastContainer) {
+  return Boolean(container?.matches?.(":popover-open"));
+}
+
+function mountToastLayer(options = {}) {
+  const container = els.toastContainer;
+  if (!container) return;
+
+  if (!container.hasAttribute("popover")) {
+    container.setAttribute("popover", "manual");
+  }
+
+  if (typeof container.showPopover === "function" && typeof container.hidePopover === "function") {
+    try {
+      if (options.toFront && isToastPopoverOpen(container)) container.hidePopover();
+      if (!isToastPopoverOpen(container)) container.showPopover();
+      container.classList.remove("is-dialog-mounted");
+      return;
+    } catch (error) {
+      container.removeAttribute("popover");
+    }
+  }
+
+  const activeDialog = getActiveDialog();
+  const host = activeDialog || document.body;
+  if (container.parentElement !== host) host.append(container);
+  container.classList.toggle("is-dialog-mounted", Boolean(activeDialog));
+}
+
+function releaseToastLayer() {
+  const container = els.toastContainer;
+  if (!container || container.children.length) return;
+
+  if (isToastPopoverOpen(container) && typeof container.hidePopover === "function") {
+    try {
+      container.hidePopover();
+    } catch (error) {
+      // Keep the container mounted; the next toast will refresh the layer.
+    }
+  }
+
+  if (container.parentElement !== document.body) {
+    document.body.append(container);
+  }
+  container.classList.remove("is-dialog-mounted");
+}
+
+function refreshToastLayer(options = {}) {
+  if (!els.toastContainer?.children.length) {
+    releaseToastLayer();
+    return;
+  }
+  mountToastLayer(options);
+}
+
 function showToast(message, options = {}) {
   const text = String(message || "").trim();
   if (!text || !els.toastContainer) return;
@@ -1048,11 +1111,15 @@ function showToast(message, options = {}) {
   toast.className = `toast ${variant}`;
   toast.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(text)}</span>`;
   els.toastContainer.append(toast);
+  refreshToastLayer({ toFront: true });
 
   requestAnimationFrame(() => toast.classList.add("show"));
   window.setTimeout(() => {
     toast.classList.remove("show");
-    window.setTimeout(() => toast.remove(), 220);
+    window.setTimeout(() => {
+      toast.remove();
+      releaseToastLayer();
+    }, 220);
   }, options.duration || 3200);
 }
 
@@ -1189,6 +1256,11 @@ function getProductCategory(product) {
   return String(product?.category || "").trim() || DEFAULT_CATEGORY;
 }
 
+function isHiddenHalfMenuProduct(product) {
+  const name = String(product?.name || "");
+  return /(^|[\s()[\]{}.,;:-])1\s*[\/⁄]\s*2($|[\s()[\]{}.,;:-])/i.test(name);
+}
+
 function getDailyMenuEditorDate() {
   return state.dailyMenu.date || getLocalDateKey();
 }
@@ -1253,8 +1325,12 @@ function getProductFilterPool() {
   return getDailyMenuProducts(getTodayMenuDate());
 }
 
+function getVisibleMenuProducts() {
+  return getProductFilterPool().filter((product) => !isHiddenHalfMenuProduct(product));
+}
+
 function getCategories() {
-  const categories = new Set(getProductFilterPool().map(getProductCategory));
+  const categories = new Set(getVisibleMenuProducts().map(getProductCategory));
   return [...categories].sort((left, right) => left.localeCompare(right, "id-ID"));
 }
 
@@ -5591,7 +5667,7 @@ function renderProducts() {
   const activeDailyMenu = isDailyMenuFilterActive();
   const dailyIds = getDailyMenuProductIds();
   const hasDailyMenu = dailyIds.size > 0;
-  const products = getProductFilterPool()
+  const products = getVisibleMenuProducts()
     .map((product, index) => ({ product, index, searchScore: getProductSearchScore(product, rawQuery) }))
     .filter(({ product, searchScore }) => {
       const categoryMatch = state.selectedCategory === "all" || normalizeKey(getProductCategory(product)) === normalizeKey(state.selectedCategory);

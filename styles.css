@@ -2912,6 +2912,30 @@ label {
   pointer-events: none;
 }
 
+.toast-container:popover-open,
+.toast-container.is-dialog-mounted {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top));
+  left: 50%;
+  right: auto;
+  z-index: 9999;
+  display: grid;
+  gap: 10px;
+  width: min(380px, calc(100vw - 32px));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.toast-container::backdrop {
+  display: none;
+}
+
 .mobile-mini-cart {
   display: none;
 }
