@@ -5996,11 +5996,15 @@ function setDynamicPrintPageRule(pageSize, margin = "0mm") {
   style.textContent = `@media print { @page { size: ${pageSize}; margin: ${margin}; } }`;
 }
 
+function getReceiptPrintWidthMm(receiptWidth = state.settings.receiptWidth) {
+  return String(receiptWidth) === "58" ? 48 : 72;
+}
+
 function getReceiptPageWidthCss() {
-  const inlineWidth = document.documentElement.style.getPropertyValue("--receipt-width").trim();
-  const computedWidth = getComputedStyle(document.documentElement).getPropertyValue("--receipt-width").trim();
-  const width = inlineWidth || computedWidth || `${state.settings.receiptWidth}mm`;
-  return /^\d+(\.\d+)?mm$/.test(width) ? width : `${state.settings.receiptWidth}mm`;
+  const inlineWidth = document.documentElement.style.getPropertyValue("--receipt-print-width").trim();
+  const computedWidth = getComputedStyle(document.documentElement).getPropertyValue("--receipt-print-width").trim();
+  const width = inlineWidth || computedWidth || `${getReceiptPrintWidthMm()}mm`;
+  return /^\d+(\.\d+)?mm$/.test(width) ? width : `${getReceiptPrintWidthMm()}mm`;
 }
 
 function setReceiptPageHeight(pageHeightMm) {
@@ -6024,10 +6028,10 @@ function applyReceiptSettingsStyles(salePayload = {}) {
   const receiptWidth = salePayload.receiptWidth || state.settings.receiptWidth;
   const fontSizeKey = salePayload.receiptFontSize || state.settings.receiptFontSize;
   const fontSize = RECEIPT_FONT_SIZES[fontSizeKey] || RECEIPT_FONT_SIZES.medium;
-  const printWidth = String(receiptWidth) === "58" ? 48 : 72;
+  const printWidth = getReceiptPrintWidthMm(receiptWidth);
   document.documentElement.style.setProperty("--receipt-width", `${receiptWidth}mm`);
   document.documentElement.style.setProperty("--receipt-print-width", `${printWidth}mm`);
-  document.documentElement.style.setProperty("--print-page-size", `${receiptWidth}mm var(--receipt-page-height)`);
+  document.documentElement.style.setProperty("--print-page-size", `${printWidth}mm var(--receipt-page-height)`);
   document.documentElement.style.setProperty("--print-page-margin", "0mm");
   document.documentElement.style.setProperty("--receipt-font-size", `${fontSize.body}px`);
   document.documentElement.style.setProperty("--receipt-small-font-size", `${fontSize.small}px`);
@@ -6044,8 +6048,7 @@ function measureReceiptPageHeight(html) {
   const heightPx = receipt ? receipt.getBoundingClientRect().height : measure.getBoundingClientRect().height;
   measure.remove();
 
-  let heightMm = Math.ceil((heightPx * 25.4) / 96);
-  heightMm = Math.max(heightMm - 3, 42);
+  const heightMm = Math.max(Math.ceil((heightPx * 25.4) / 96) + 2, 42);
   setReceiptPageHeight(heightMm);
 }
 
@@ -6059,7 +6062,7 @@ function measureReceiptBatchPageHeight(htmlList) {
   measure.remove();
 
   const totalHeightPx = heights.reduce((sum, h) => sum + h, 0);
-  let heightMm = Math.ceil((totalHeightPx * 25.4) / 96) + 1;
+  let heightMm = Math.ceil((totalHeightPx * 25.4) / 96) + 2;
   if (htmlList.length > 1) {
     heightMm += (htmlList.length - 1) * 8; // Jarak 8mm antar orderan
   }
@@ -6105,7 +6108,101 @@ async function waitForPrintAreaReady() {
   await new Promise((resolve) => setTimeout(resolve, 80));
 }
 
-async function printReceiptHtmlInFrame(htmlList, pageHeightMm) {
+function waitWithTimeout(promise, timeoutMs) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
+function waitForNextFrame(frameWindow) {
+  const scheduleFrame = frameWindow?.requestAnimationFrame?.bind(frameWindow) || requestAnimationFrame;
+  return new Promise((resolve) => scheduleFrame(resolve));
+}
+
+async function waitForFrameStylesheets(frameDocument, timeoutMs = 2000) {
+  const links = [...frameDocument.querySelectorAll('link[rel~="stylesheet"]')];
+
+  await Promise.all(links.map((link) => {
+    if (link.sheet) return Promise.resolve();
+    return waitWithTimeout(new Promise((resolve) => {
+      link.addEventListener("load", resolve, { once: true });
+      link.addEventListener("error", resolve, { once: true });
+    }), timeoutMs);
+  }));
+
+  await waitWithTimeout(new Promise((resolve) => {
+    const startedAt = Date.now();
+    const checkReady = () => {
+      const ready = links.every((link) => {
+        if (!link.sheet) return false;
+        try {
+          void link.sheet.cssRules;
+          return true;
+        } catch (error) {
+          return true;
+        }
+      });
+
+      if (ready || Date.now() - startedAt >= timeoutMs) {
+        resolve();
+        return;
+      }
+      setTimeout(checkReady, 50);
+    };
+    checkReady();
+  }), timeoutMs + 50);
+}
+
+async function waitForFrameImages(frameDocument, timeoutMs = 2000) {
+  const images = [...frameDocument.images];
+  await Promise.all(images.map((image) => {
+    const loaded = image.complete
+      ? Promise.resolve()
+      : new Promise((resolve) => {
+          image.addEventListener("load", resolve, { once: true });
+          image.addEventListener("error", resolve, { once: true });
+        });
+    const decoded = loaded.then(() => image.decode?.().catch(() => {}) || Promise.resolve());
+    return waitWithTimeout(decoded, timeoutMs);
+  }));
+}
+
+async function waitForPrintFrameReady(frame, layoutSelector = ".print-area") {
+  let frameDocument = frame.contentDocument;
+  if (!frameDocument) return;
+
+  if (frameDocument.readyState !== "complete") {
+    await waitWithTimeout(new Promise((resolve) => {
+      frame.addEventListener("load", resolve, { once: true });
+    }), 1500);
+  }
+
+  frameDocument = frame.contentDocument;
+  if (!frameDocument) return;
+
+  await waitForFrameStylesheets(frameDocument);
+  await waitForFrameImages(frameDocument);
+  await waitWithTimeout(frameDocument.fonts?.ready?.catch(() => {}) || Promise.resolve(), 2000);
+
+  const frameWindow = frame.contentWindow;
+  await waitForNextFrame(frameWindow);
+  await waitForNextFrame(frameWindow);
+  frameDocument.querySelector(layoutSelector)?.getBoundingClientRect();
+  await new Promise((resolve) => setTimeout(resolve, 80));
+}
+
+function receiptPrintArticlesHtml(htmlList = []) {
+  const batchClass = htmlList.length > 1 ? " batch-receipt" : "";
+  return htmlList.map((html) => `<article class="receipt-paper${batchClass}">${html}</article>`).join("");
+}
+
+function prepareReceiptPrintFallback(htmlList = []) {
+  if (!els.printArea) return;
+  els.printArea.innerHTML = receiptPrintArticlesHtml(htmlList);
+}
+
+async function printReceiptHtmlInFrame(htmlList, pageHeightMm, receiptOptions = {}) {
   document.querySelectorAll(".receipt-print-frame").forEach((frame) => frame.remove());
 
   const frame = document.createElement("iframe");
@@ -6124,23 +6221,24 @@ async function printReceiptHtmlInFrame(htmlList, pageHeightMm) {
   const frameDocument = frame.contentDocument;
   if (!frameDocument) {
     frame.remove();
+    prepareReceiptPrintFallback(htmlList);
     window.print();
     return;
   }
 
-  const receiptWidth = state.settings.receiptWidth;
-  const printWidth = String(receiptWidth) === "58" ? 48 : 72;
-  const fontSizeKey = state.settings.receiptFontSize;
+  const receiptWidth = receiptOptions.receiptWidth || state.settings.receiptWidth;
+  const printWidth = getReceiptPrintWidthMm(receiptWidth);
+  const fontSizeKey = receiptOptions.receiptFontSize || state.settings.receiptFontSize;
   const fontSize = RECEIPT_FONT_SIZES[fontSizeKey] || RECEIPT_FONT_SIZES.medium;
   
   let pageSize;
   if (pageHeightMm === "auto") {
-    pageSize = `${receiptWidth}mm`;
+    pageSize = `${printWidth}mm`;
   } else {
-    pageSize = `${receiptWidth}mm ${pageHeightMm}mm`;
+    pageSize = `${printWidth}mm ${pageHeightMm}mm`;
   }
 
-  const printHtml = htmlList.map((html) => `<article class="receipt-paper batch-receipt">${html}</article>`).join("");
+  const printHtml = receiptPrintArticlesHtml(htmlList);
 
   frameDocument.open();
   frameDocument.write(`<!doctype html>
@@ -6150,6 +6248,116 @@ async function printReceiptHtmlInFrame(htmlList, pageHeightMm) {
     <title>Struk Belanja</title>
     <link rel="stylesheet" href="${escapeHtml(getPrintStylesheetHref())}">
     <style>
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #fff;
+        color: #111;
+      }
+      .print-area {
+        display: block;
+        width: ${printWidth}mm;
+        margin: 0;
+        padding: 0;
+        color: #111;
+        background: #fff;
+      }
+      .receipt-paper {
+        display: block !important;
+        width: ${printWidth}mm;
+        min-height: 0;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        background: #fff;
+        color: #111;
+        padding: 0.5mm 0.5mm 0 1mm;
+        font-family: "Courier New", Courier, monospace;
+        font-size: var(--receipt-font-size);
+        font-weight: 700;
+        line-height: 1.35;
+        box-shadow: none;
+      }
+      .receipt-paper h3,
+      .receipt-paper p {
+        margin: 0;
+      }
+      .receipt-paper h3 {
+        font-size: 0.82em;
+        line-height: 1.12;
+      }
+      .receipt-logo {
+        display: block;
+        width: 16mm;
+        height: 16mm;
+        margin: 0 auto 2mm;
+        filter: grayscale(1);
+        object-fit: contain;
+      }
+      .receipt-compact-header h3,
+      .receipt-store-address {
+        font-size: 0.82em;
+        line-height: 1.12;
+      }
+      .receipt-center {
+        text-align: center;
+      }
+      .receipt-line {
+        margin: 5px 0;
+        border-top: 1px dashed #222;
+      }
+      .receipt-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .receipt-row span,
+      .receipt-info {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .receipt-row strong {
+        flex-shrink: 0;
+        text-align: right;
+      }
+      .receipt-customer {
+        display: grid;
+        gap: 2px;
+        margin: 4px 0;
+        border: 2px solid #111;
+        background: transparent;
+        padding: 5px 3px;
+        font-size: 1.12em;
+        font-weight: 900;
+        line-height: 1.12;
+        text-align: center;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        letter-spacing: 0;
+      }
+      .receipt-customer strong {
+        display: block;
+        font-weight: 800;
+        line-height: 1.12;
+        -webkit-text-stroke: 0.25px #111;
+      }
+      .receipt-item {
+        margin-bottom: 5px;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .receipt-small,
+      .receipt-note {
+        font-size: var(--receipt-small-font-size);
+      }
+      .receipt-note {
+        margin-top: 2px;
+        color: #333;
+      }
       @media print {
         @page { size: ${pageSize}; margin: 0mm; }
         html, body {
@@ -6189,17 +6397,12 @@ async function printReceiptHtmlInFrame(htmlList, pageHeightMm) {
 </html>`);
   frameDocument.close();
 
-  await new Promise((resolve) => {
-    frame.addEventListener("load", resolve, { once: true });
-    setTimeout(resolve, 300);
-  });
-  await new Promise((resolve) => requestAnimationFrame(resolve));
-  await new Promise((resolve) => requestAnimationFrame(resolve));
-  await frame.contentDocument?.fonts?.ready?.catch(() => {});
+  await waitForPrintFrameReady(frame);
 
   const frameWindow = frame.contentWindow;
   if (!frameWindow) {
     frame.remove();
+    prepareReceiptPrintFallback(htmlList);
     window.print();
     return;
   }
@@ -6254,13 +6457,7 @@ async function printReportHtmlInFrame(html) {
 </html>`);
   frameDocument.close();
 
-  await new Promise((resolve) => {
-    frame.addEventListener("load", resolve, { once: true });
-    setTimeout(resolve, 300);
-  });
-  await new Promise((resolve) => requestAnimationFrame(resolve));
-  await new Promise((resolve) => requestAnimationFrame(resolve));
-  await frame.contentDocument?.fonts?.ready?.catch(() => {});
+  await waitForPrintFrameReady(frame);
 
   const frameWindow = frame.contentWindow;
   if (!frameWindow) {
@@ -6302,17 +6499,16 @@ async function printSaleReceipt(salePayload = getActiveReceiptPayload()) {
   const heightPx = receipt ? receipt.getBoundingClientRect().height : measure.getBoundingClientRect().height;
   measure.remove();
   
-  let heightMm = Math.ceil((heightPx * 25.4) / 96);
-  heightMm = Math.max(heightMm - 3, 42);
+  const heightMm = Math.max(Math.ceil((heightPx * 25.4) / 96) + 2, 42);
 
-  await printReceiptHtmlInFrame([html], heightMm);
+  await printReceiptHtmlInFrame([html], heightMm, salePayload);
 }
 
 async function printSaleReceiptsBatch(salePayloads = []) {
   if (!salePayloads.length) return;
   const htmlList = salePayloads.map((salePayload) => receiptHtmlFromSale(salePayload));
   const totalHeightMm = measureReceiptBatchPageHeight(htmlList);
-  await printReceiptHtmlInFrame(htmlList, totalHeightMm);
+  await printReceiptHtmlInFrame(htmlList, totalHeightMm, salePayloads[0]);
 }
 
 function getTestReceiptPayload() {
