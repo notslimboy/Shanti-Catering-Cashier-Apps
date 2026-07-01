@@ -18,6 +18,7 @@ sales-*.csv
 customers-*.csv
 _chat*.txt
 backups/
+scratch/ui-ux-pro-max-skill/
 
 # Desktop build output
 build/

@@ -32,10 +32,10 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=186">
+    <link rel="stylesheet" href="styles.css?v=200">
     <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script defer src="script.js?v=186"></script>
+    <script defer src="script.js?v=200"></script>
   </head>
   <body>
     <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
@@ -117,7 +117,7 @@
           </button>
           <button class="ghost-button" id="openCustomerDataButton" type="button">
             <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-customer-data"></use></svg></span>
-            <span class="nav-copy"><strong>Data Customer</strong><small>Edit nama dan ongkir.</small></span>
+            <span class="nav-copy"><strong>Data Customer</strong><small>Edit nama, tag, dan ongkir.</small></span>
           </button>
           <button class="ghost-button" id="openPiutangButton" type="button">
             <span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-delivery-rider"></use></svg></span>
@@ -477,7 +477,7 @@
           Cari customer
           <span class="sales-search-control customer-search-control">
             <span aria-hidden="true">⌕</span>
-            <input id="customerSearchInput" type="search" placeholder="Nama / alamat customer">
+            <input id="customerSearchInput" type="search" placeholder="Nama / alamat / tag customer">
           </span>
         </label>
 
@@ -555,6 +555,10 @@
           <label>
             Nama customer / alamat
             <input id="addCustomerNameInput" name="name" type="text" autocomplete="off" placeholder="Contoh: Pantai Mentari Blok SF no. 9">
+          </label>
+          <label>
+            Tag alamat
+            <input id="addCustomerTagInput" name="tag" type="text" autocomplete="off" placeholder="Otomatis">
           </label>
           <label>
             Ongkir

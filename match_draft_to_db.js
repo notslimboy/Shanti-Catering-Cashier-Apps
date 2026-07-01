@@ -189,14 +189,18 @@ async function run() {
 
           const cAliases = aliases.filter(a => a.customer_id === c.id);
           cAliases.forEach(a => {
+            let aliasScore = 0;
             const aTokens = getTokens(a.alias);
             qTokens.forEach(qt => {
               if (aTokens.includes(qt)) {
-                score += 4;
+                aliasScore += 4;
               } else if (aTokens.some(at => at.includes(qt) || qt.includes(at))) {
-                score += 1;
+                aliasScore += 1;
               }
             });
+            if (aliasScore > score) {
+              score = aliasScore;
+            }
           });
 
           if (score > highestScore) {
@@ -208,6 +212,22 @@ async function run() {
         if (highestScore >= 2) {
           match = bestMatch;
         }
+      }
+
+      // Overrides manual sebelum pencocokan DB
+      if (origName.includes("Catur SPKB")) {
+        match = { name: "Catur SPKB", default_shipping: 5000 };
+      } else if (origName.trim() === "Tohir 1") {
+        match = { name: "Tohir 1", default_shipping: 0 };
+      } else if (origName.trim().toLowerCase() === "j41") {
+        const override = customers.find(c => c.id === 1894); // ITS J 41
+        if (override) {
+          match = override;
+        }
+      } else if (origName.includes("Samlangyu 23")) {
+        match = { name: "Samlangyu 23", default_shipping: 5000 };
+      } else if (origName.includes("Anis BTH")) {
+        match = { name: "Anis BTH", default_shipping: 5000 };
       }
 
       // Overrides manual untuk query khusus yang kurang pas jika menggunakan token matching saja
@@ -231,12 +251,70 @@ async function run() {
             finalName = override.name;
             finalShipping = override.default_shipping || 0;
           }
+        } else if (origName.includes("Blok V No 9")) {
+          match = null;
+          finalName = "Blok V No 9";
+          finalShipping = "0";
+        } else if (origName.includes("Blok U / 177")) {
+          match = null;
+          finalName = "Blok U / 177";
+          finalShipping = "0";
+        } else if (origName.includes("sutorejo timur 32/H5")) {
+          match = null;
+          finalName = "sutorejo timur 32/H5";
+          finalShipping = "0";
+        } else if (origName.includes("X 26")) {
+          match = null;
+          finalName = "X 26 - Bu iis";
+          finalShipping = "0";
+        } else if (origName.includes("Florence J9 / 2")) {
+          match = null;
+          finalName = "Florence J9 / 2";
+          finalShipping = "5000";
+        } else if (origName.includes("Pantai Mentari F")) {
+          match = null;
+          finalName = "Pantai Mentari F / 31";
+          finalShipping = "10000";
+        } else if (origName.includes("Samlangyu 23")) {
+          match = null;
+          finalName = "Samlangyu 23";
+          finalShipping = "5000";
+        } else if (origName.includes("Anis BTH")) {
+          match = null;
+          finalName = "Anis BTH";
+          finalShipping = "5000";
+        } else if (origName.includes("Klampis Semolo Timur 7 A-1")) {
+          match = null;
+          finalName = "Klampis Semolo Timur 7 A-1";
+          finalShipping = "0";
+        } else if (origName.includes("SPR OKY")) {
+          match = null;
+          finalName = "SPR OKY";
+          finalShipping = "0";
+        } else if (origName.includes("Dahlan Bhas Sari")) {
+          match = null;
+          finalName = "Dahlan Bhas Sari";
+          finalShipping = "0";
+        } else if (origName.trim().toLowerCase() === "j41") {
+          const override = customers.find(c => c.id === 1894); // ITS J 41
+          if (override) {
+            finalName = override.name;
+            finalShipping = override.default_shipping || 0;
+          }
+        } else if (origName.includes("Lora")) {
+          match = null;
+          finalName = "Lora";
+          finalShipping = "0";
         } else if (
-          origName.includes("Tohir 23") ||
           origName.includes("Sutorejo Tengah 2/6") ||
           origName.includes("Suto Utara Baru 17 A") ||
           origName.includes("U I76") ||
-          origName.includes("Taman Suto Timur 48 Baru")
+          origName.includes("Taman Suto Timur 48 Baru") ||
+          origName.includes("Sut Sel X/11") ||
+          origName.includes("Suto Ut Gg 11 No 10") ||
+          origName.includes("T - 65") ||
+          origName.includes("T - 72") ||
+          origName.includes("Taman Mulyo Ut 7")
         ) {
           match = null;
           finalName = origName;

@@ -61,7 +61,8 @@ def init_database():
                 last_order_at TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                deposit_balance INTEGER NOT NULL DEFAULT 0
+                deposit_balance INTEGER NOT NULL DEFAULT 0,
+                tag TEXT NOT NULL DEFAULT ''
             );
 
             CREATE TABLE IF NOT EXISTS customer_aliases (
@@ -98,9 +99,14 @@ def init_database():
             );
 
             CREATE INDEX IF NOT EXISTS idx_sales_completed_at ON sales(completed_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_sales_receipt_no_nocase ON sales(receipt_no COLLATE NOCASE);
             CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items(sale_id);
+            CREATE INDEX IF NOT EXISTS idx_sale_items_name_nocase ON sale_items(name COLLATE NOCASE);
+            CREATE INDEX IF NOT EXISTS idx_customers_name_nocase ON customers(name COLLATE NOCASE);
             CREATE INDEX IF NOT EXISTS idx_customers_last_order_at ON customers(last_order_at DESC);
             CREATE INDEX IF NOT EXISTS idx_customer_aliases_customer_id ON customer_aliases(customer_id);
+            CREATE INDEX IF NOT EXISTS idx_customer_aliases_alias_nocase ON customer_aliases(alias COLLATE NOCASE);
+            CREATE INDEX IF NOT EXISTS idx_customer_aliases_alias_key ON customer_aliases(alias_key);
             CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
             CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
             CREATE INDEX IF NOT EXISTS idx_sale_payments_sale_id ON sale_payments(sale_id);
@@ -129,6 +135,8 @@ def init_database():
         for column, column_type in sale_extra_columns.items():
             if column not in sale_columns:
                 connection.execute(f"ALTER TABLE sales ADD COLUMN {column} {column_type}")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_sales_deleted_completed_at ON sales(deleted_at, completed_at DESC)")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_sales_customer_name_nocase ON sales(customer_name COLLATE NOCASE)")
 
         customer_columns = {
             row["name"]
@@ -136,6 +144,8 @@ def init_database():
         }
         if "deposit_balance" not in customer_columns:
             connection.execute("ALTER TABLE customers ADD COLUMN deposit_balance INTEGER NOT NULL DEFAULT 0")
+        if "tag" not in customer_columns:
+            connection.execute("ALTER TABLE customers ADD COLUMN tag TEXT NOT NULL DEFAULT ''")
 
         payment_columns = {
             row["name"]
@@ -147,6 +157,7 @@ def init_database():
             connection.execute("ALTER TABLE sale_payments ADD COLUMN created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
 
         backfill_customers_from_sales(connection)
+        backfill_customer_tags(connection)
 
 
 def trigger_auto_backup():
@@ -192,10 +203,98 @@ def split_alias_payload(value):
     return aliases
 
 
+CUSTOMER_ADDRESS_TAG_RULES = [
+    (re.compile(r"\b(?:sutorejo|suto|sut)\s*(?:tengah|teng|tgh)\b|\bsutotengah\b|\bsutoteng\b|\bsutotgh\b"), "Sutorejo"),
+    (re.compile(r"\b(?:sutorejo|suto|sut)\s*(?:selatan|sel)\b|\bsutoselatan\b|\bsutosel\b"), "Sutorejo"),
+    (re.compile(r"\b(?:sutorejo|suto|sut)\s*(?:utara|ut)\b|\bsutoutara\b|\bsutout\b"), "Sutorejo"),
+    (re.compile(r"\b(?:sutorejo|suto|sut)\s*(?:timur|tim)\b|\bsutotimur\b|\bsutotim\b"), "Sutorejo"),
+    (re.compile(r"\bsutorejo\b|\bsuto\b|\banak\s*7\s*37\b|\bartha\s*catur\b"), "Sutorejo"),
+    (re.compile(r"\bbpd\b"), "BPD"),
+    (re.compile(r"\bmuly(?:o|osari)?\s*(?:tengah|tng|teng|tgh)\b|\bmulyotengah\b|\bmulyotng\b|\bmulyoteng\b|\bmulyotgh\b"), "Mulyosari"),
+    (re.compile(r"\bmuly(?:o|osari)?\s*(?:utara|ut)\b|\bmulyoutara\b|\bmulyout\b"), "Mulyosari"),
+    (re.compile(r"\bmulyosari\b|\bmulyo\b|\bmuly\b"), "Mulyosari"),
+    (re.compile(r"\b(?:wisper|wis\s*per|spr)\b"), "Wisper"),
+    (re.compile(r"\b(?:bhaskara|bhaska|bhas|bhsksari)\b|\bbu\s*bambang\s*gg\s*1\b|\bzainal\s*gg\s*3\b"), "Bhaskara"),
+    (re.compile(r"\b(?:kenjeran|pantai\s*ment(?:ari|ri)|sahabudin|tuwowo|tohir|babatan|dupak(?:\s*pecah\s*belah)?|pecah\s*belah|ngadi|putro\s*agung)\b"), "Kenjeran"),
+    (re.compile(r"\bkeputih\b|\bjoko\s*sukolilo\b"), "Keputih"),
+    (re.compile(r"\bdharmahusada\b"), "Dharmahusada"),
+    (re.compile(r"\bpakuwon\b|\b(?:puri|griya)\s*asri\b|\bvilla\s*royal\b|\broyal\s+[a-z]?\d\b|\bsan\s*(?:antonio|diego)\b|\bwestwood\b|\bflorence\b|\blaguna\b|\bmutiara\b|\bnenet\b"), "Pakuwon"),
+    (re.compile(r"\bbumi\s*galaxy\s*permai\b|\bbumigalaxypermai\b|\bgalaxy\s*permai\b|\bsma\s*5\s*ratna\s*juli\b|\bsma5ratnajuli\b"), "Bumi Galaxy"),
+    (re.compile(r"\bbumi\s*marina\b"), "Bumi Marina"),
+    (re.compile(r"\brungkut\b"), "Rungkut"),
+    (re.compile(r"\bmanyar\b"), "Manyar"),
+    (re.compile(r"\bkalijudan\b"), "Kalijudan"),
+    (re.compile(r"\bsupit\b"), "Supit"),
+]
+
+CUSTOMER_TAG_ALIASES = {
+    "pakuwoncity": "Pakuwon",
+    "puriasri": "Pakuwon",
+    "griyaasri": "Pakuwon",
+    "villaroyal": "Pakuwon",
+    "royal": "Pakuwon",
+    "sandiego": "Pakuwon",
+    "sanantonio": "Pakuwon",
+    "westwood": "Pakuwon",
+    "florence": "Pakuwon",
+    "laguna": "Pakuwon",
+    "mutiara": "Pakuwon",
+    "kenejeran": "Kenjeran",
+    "pantaimentari": "Kenjeran",
+    "pantaimentri": "Kenjeran",
+    "pantainmentari": "Kenjeran",
+    "sahabudin": "Kenjeran",
+    "tuwowo": "Kenjeran",
+    "tohir": "Kenjeran",
+    "babatan": "Kenjeran",
+    "dupak": "Kenjeran",
+    "dupakpecahbelah": "Kenjeran",
+    "pecahbelah": "Kenjeran",
+    "ngadi": "Kenjeran",
+    "putroagung": "Kenjeran",
+}
+CUSTOMER_ITS_BLOCK_PATTERN = re.compile(r"\b(?:its\s*)?(?:perum\s*)?(?:blok\s*)?(?:(p1)\s*[/ -]?\s*\d+|([tuvwjdnxmrficahb])(?!\s*o\s*\d)\s*(?:lama\s*)?(?:[/.-]|\s)*[a-z]?\s*\d+)\b")
+CUSTOMER_ITS_FALLBACK_PATTERN = re.compile(r"\b(?:its|dptsi|bapkm|sdmo|dpsp|spkb|ftspk|wr\s*3|teknik|tek|t\s*lingkungan|lingku(?:ngan)?|arsitek(?:tur)?|bahasa|mesin|kimia|fisika|geofisika|statistika|mipa|instrumen(?:tasi)?|hidrodinamika|brin|nasdec|riset|research\s*center|gedung\s*riset|gedung\s*rc|rc\s*(?:lt|lantai)|perpus(?:takaan)?|manajemen\s*bisnis)\b")
+
+
+def normalize_customer_tag(value):
+    tag = re.sub(r"\s+", " ", str(value or "").strip())
+    return CUSTOMER_TAG_ALIASES.get(customer_alias_key(tag), tag)
+
+
+def customer_tag_search_text(*values):
+    raw_text = " ".join(str(value or "").strip() for value in values if str(value or "").strip())
+    spaced = re.sub(r"[^0-9a-z]+", " ", raw_text.lower()).strip()
+    compact = customer_alias_key(raw_text)
+    return f"{spaced} {compact}".strip()
+
+
+def infer_customer_tag(*values):
+    tag_text = customer_tag_search_text(*values)
+    if not tag_text:
+        return ""
+
+    if CUSTOMER_ITS_FALLBACK_PATTERN.search(tag_text):
+        return "ITS"
+
+    for pattern, tag in CUSTOMER_ADDRESS_TAG_RULES:
+        if pattern.search(tag_text):
+            return tag
+
+    block_match = CUSTOMER_ITS_BLOCK_PATTERN.search(tag_text)
+    if block_match:
+        return "ITS"
+    return ""
+
+
+def resolve_customer_tag(name, aliases=None, tag=""):
+    return normalize_customer_tag(tag) or infer_customer_tag(name, *(aliases or []))
+
+
 def fetch_customer_row(connection, customer_id):
     return connection.execute(
         """
-        SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance
+        SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance, tag
         FROM customers
         WHERE id = ?
         """,
@@ -258,7 +357,7 @@ def find_customer_by_name_or_alias(connection, name):
 
     exact = connection.execute(
         """
-        SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance
+        SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance, tag
         FROM customers
         WHERE LOWER(name) = LOWER(?)
         LIMIT 1
@@ -276,7 +375,7 @@ def find_customer_by_name_or_alias(connection, name):
         return fetch_customer_row(connection, alias["customer_id"])
 
     rows = connection.execute(
-        "SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance FROM customers"
+        "SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance, tag FROM customers"
     ).fetchall()
     for row in rows:
         if customer_alias_key(row["name"]) == key:
@@ -292,6 +391,7 @@ def upsert_customer(connection, name, default_shipping=0, last_order_at=""):
     shipping = rupiah_number(default_shipping)
     order_at = str(last_order_at or utc_now_text()).strip()
     now = utc_now_text()
+    customer_tag = infer_customer_tag(customer_name)
     existing = find_customer_by_name_or_alias(connection, customer_name)
     if existing is not None:
         connection.execute(
@@ -309,18 +409,23 @@ def upsert_customer(connection, name, default_shipping=0, last_order_at=""):
                     THEN ?
                     ELSE last_order_at
                 END,
+                tag = CASE
+                    WHEN TRIM(COALESCE(tag, '')) = ''
+                    THEN ?
+                    ELSE tag
+                END,
                 updated_at = ?
             WHERE id = ?
             """,
-            (order_at, shipping, order_at, order_at, now, existing["id"]),
+            (order_at, shipping, order_at, order_at, customer_tag, now, existing["id"]),
         )
         add_customer_alias(connection, existing["id"], customer_name)
         return existing["id"]
 
     connection.execute(
         """
-        INSERT INTO customers (name, default_shipping, last_order_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO customers (name, default_shipping, last_order_at, created_at, updated_at, tag)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(name) DO UPDATE SET
             default_shipping = CASE
                 WHEN COALESCE(customers.last_order_at, '') = ''
@@ -334,9 +439,14 @@ def upsert_customer(connection, name, default_shipping=0, last_order_at=""):
                 THEN excluded.last_order_at
                 ELSE customers.last_order_at
             END,
+            tag = CASE
+                WHEN TRIM(COALESCE(customers.tag, '')) = ''
+                THEN excluded.tag
+                ELSE customers.tag
+            END,
             updated_at = ?
         """,
-        (customer_name, shipping, order_at, now, now, now),
+        (customer_name, shipping, order_at, now, now, customer_tag, now),
     )
     row = connection.execute("SELECT id FROM customers WHERE name = ?", (customer_name,)).fetchone()
     return row["id"] if row else None
@@ -354,6 +464,25 @@ def backfill_customers_from_sales(connection):
     ).fetchall()
     for row in rows:
         upsert_customer(connection, row["customer_name"], row["discount"], row["completed_at"])
+
+
+def backfill_customer_tags(connection):
+    rows = connection.execute(
+        """
+        SELECT id, name, tag
+        FROM customers
+        WHERE TRIM(COALESCE(name, '')) != ''
+        """
+    ).fetchall()
+    alias_map = get_customer_alias_map(connection, [row["id"] for row in rows])
+    for row in rows:
+        current_tag = normalize_customer_tag(row["tag"])
+        tag = current_tag or infer_customer_tag(row["name"], *alias_map.get(row["id"], []))
+        if tag and tag != row["tag"]:
+            connection.execute(
+                "UPDATE customers SET tag = ?, updated_at = ? WHERE id = ?",
+                (tag, utc_now_text(), row["id"]),
+            )
 
 
 def rupiah_number(value):
@@ -759,14 +888,26 @@ class CashierHandler(SimpleHTTPRequestHandler):
         search_key = customer_alias_key(search)
 
         with get_connection() as connection:
-            rows = connection.execute(
-                """
-                SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance
-                FROM customers
-                WHERE TRIM(COALESCE(name, '')) != ''
-                ORDER BY COALESCE(last_order_at, '') DESC, name ASC
-                """,
-            ).fetchall()
+            if search:
+                rows = connection.execute(
+                    """
+                    SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance, tag
+                    FROM customers
+                    WHERE TRIM(COALESCE(name, '')) != ''
+                    ORDER BY COALESCE(last_order_at, '') DESC, name ASC
+                    """,
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """
+                    SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance, tag
+                    FROM customers
+                    WHERE TRIM(COALESCE(name, '')) != ''
+                    ORDER BY COALESCE(last_order_at, '') DESC, name ASC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
             alias_map = get_customer_alias_map(connection, [row["id"] for row in rows])
 
         customers = [customer_to_dict(row, alias_map.get(row["id"], [])) for row in rows]
@@ -776,8 +917,10 @@ class CashierHandler(SimpleHTTPRequestHandler):
                 customer
                 for customer in customers
                 if search_text in str(customer["name"]).lower()
+                or search_text in str(customer.get("tag", "")).lower()
                 or any(search_text in str(alias).lower() for alias in customer["aliases"])
                 or (search_key and search_key in customer_alias_key(customer["name"]))
+                or (search_key and search_key in customer_alias_key(customer.get("tag", "")))
                 or any(search_key and search_key in customer_alias_key(alias) for alias in customer["aliases"])
             ]
 
@@ -806,6 +949,7 @@ class CashierHandler(SimpleHTTPRequestHandler):
             shipping_source = payload.get("shipping")
         shipping = rupiah_number(shipping_source)
         aliases = split_alias_payload(payload.get("aliases"))
+        customer_tag = resolve_customer_tag(customer_name, aliases, payload.get("tag") or payload.get("customerTag") or payload.get("address_tag") or payload.get("addressTag"))
 
         deposit_source = payload.get("depositBalance")
         if deposit_source is None:
@@ -827,10 +971,10 @@ class CashierHandler(SimpleHTTPRequestHandler):
                 now = utc_now_text()
                 cursor = connection.execute(
                     """
-                    INSERT INTO customers (name, default_shipping, last_order_at, created_at, updated_at, deposit_balance)
-                    VALUES (?, ?, '', ?, ?, ?)
+                    INSERT INTO customers (name, default_shipping, last_order_at, created_at, updated_at, deposit_balance, tag)
+                    VALUES (?, ?, '', ?, ?, ?, ?)
                     """,
-                    (customer_name, shipping, now, now, deposit),
+                    (customer_name, shipping, now, now, deposit, customer_tag),
                 )
                 customer_id = cursor.lastrowid
                 for alias in aliases:
@@ -873,6 +1017,7 @@ class CashierHandler(SimpleHTTPRequestHandler):
         if shipping_source is None:
             shipping_source = payload.get("shipping")
         shipping = rupiah_number(shipping_source)
+        customer_tag = resolve_customer_tag(customer_name, [], payload.get("tag") or payload.get("customerTag") or payload.get("address_tag") or payload.get("addressTag"))
 
         deposit_source = payload.get("depositBalance")
         if deposit_source is None:
@@ -903,19 +1048,19 @@ class CashierHandler(SimpleHTTPRequestHandler):
                     connection.execute(
                         """
                         UPDATE customers
-                        SET name = ?, default_shipping = ?, deposit_balance = ?, updated_at = ?
+                        SET name = ?, default_shipping = ?, deposit_balance = ?, tag = ?, updated_at = ?
                         WHERE id = ?
                         """,
-                        (customer_name, shipping, deposit_balance, utc_now_text(), customer_id),
+                        (customer_name, shipping, deposit_balance, customer_tag, utc_now_text(), customer_id),
                     )
                 else:
                     connection.execute(
                         """
                         UPDATE customers
-                        SET name = ?, default_shipping = ?, updated_at = ?
+                        SET name = ?, default_shipping = ?, tag = ?, updated_at = ?
                         WHERE id = ?
                         """,
-                        (customer_name, shipping, utc_now_text(), customer_id),
+                        (customer_name, shipping, customer_tag, utc_now_text(), customer_id),
                     )
                 add_customer_alias(connection, customer_id, existing["name"])
                 updated = fetch_customer_row(connection, customer_id)
@@ -985,7 +1130,7 @@ class CashierHandler(SimpleHTTPRequestHandler):
             placeholders = ",".join("?" for _ in duplicate_ids)
             duplicates = connection.execute(
                 f"""
-                SELECT id, name, default_shipping, last_order_at, created_at, updated_at
+                SELECT id, name, default_shipping, last_order_at, created_at, updated_at, deposit_balance, tag
                 FROM customers
                 WHERE id IN ({placeholders})
                 """,
@@ -1011,6 +1156,13 @@ class CashierHandler(SimpleHTTPRequestHandler):
             )
             updated = fetch_customer_row(connection, target_id)
             alias_map = get_customer_alias_map(connection, [target_id])
+            merged_tag = resolve_customer_tag(updated["name"], alias_map.get(target_id, []), updated["tag"])
+            if merged_tag != normalize_customer_tag(updated["tag"]):
+                connection.execute(
+                    "UPDATE customers SET tag = ?, updated_at = ? WHERE id = ?",
+                    (merged_tag, utc_now_text(), target_id),
+                )
+                updated = fetch_customer_row(connection, target_id)
 
         self.send_json(
             {

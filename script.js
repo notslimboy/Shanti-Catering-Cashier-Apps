@@ -1,8 +1,10 @@
 const STORAGE_KEY = "kasir-bento-state-v1";
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const SALES_PAGE_SIZE = 10;
+const CUSTOMER_SUGGESTION_LIMIT = 80;
 const SUPABASE_URL = "https://ddfalsclevkqhiyojngx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP";
+const CUSTOMER_TAG_ALIAS_PREFIX = "tagalamat:";
 
 const currency = new Intl.NumberFormat("id-ID", {
   style: "currency",
@@ -145,6 +147,69 @@ const state = {
   selectedFile: null,
 };
 
+const customerProfilesCache = {
+  dirty: true,
+  signature: "",
+  profiles: [],
+  lastSuggestionsHtml: "",
+};
+
+const CUSTOMER_ADDRESS_TAG_RULES = [
+  { tag: "Sutorejo", pattern: /\b(?:sutorejo|suto|sut)\s*(?:tengah|teng|tgh)\b|\bsutotengah\b|\bsutoteng\b|\bsutotgh\b/ },
+  { tag: "Sutorejo", pattern: /\b(?:sutorejo|suto|sut)\s*(?:selatan|sel)\b|\bsutoselatan\b|\bsutosel\b/ },
+  { tag: "Sutorejo", pattern: /\b(?:sutorejo|suto|sut)\s*(?:utara|ut)\b|\bsutoutara\b|\bsutout\b/ },
+  { tag: "Sutorejo", pattern: /\b(?:sutorejo|suto|sut)\s*(?:timur|tim)\b|\bsutotimur\b|\bsutotim\b/ },
+  { tag: "Sutorejo", pattern: /\bsutorejo\b|\bsuto\b|\banak\s*7\s*37\b|\bartha\s*catur\b/ },
+  { tag: "BPD", pattern: /\bbpd\b/ },
+  { tag: "Mulyosari", pattern: /\bmuly(?:o|osari)?\s*(?:tengah|tng|teng|tgh)\b|\bmulyotengah\b|\bmulyotng\b|\bmulyoteng\b|\bmulyotgh\b/ },
+  { tag: "Mulyosari", pattern: /\bmuly(?:o|osari)?\s*(?:utara|ut)\b|\bmulyoutara\b|\bmulyout\b/ },
+  { tag: "Mulyosari", pattern: /\bmulyosari\b|\bmulyo\b|\bmuly\b/ },
+  { tag: "Wisper", pattern: /\b(?:wisper|wis\s*per|spr)\b/ },
+  { tag: "Bhaskara", pattern: /\b(?:bhaskara|bhaska|bhas|bhsksari)\b|\bbu\s*bambang\s*gg\s*1\b|\bzainal\s*gg\s*3\b/ },
+  { tag: "Kenjeran", pattern: /\b(?:kenjeran|pantai\s*ment(?:ari|ri)|sahabudin|tuwowo|tohir|babatan|dupak(?:\s*pecah\s*belah)?|pecah\s*belah|ngadi|putro\s*agung)\b/ },
+  { tag: "Keputih", pattern: /\bkeputih\b|\bjoko\s*sukolilo\b/ },
+  { tag: "Dharmahusada", pattern: /\bdharmahusada\b/ },
+  { tag: "Pakuwon", pattern: /\bpakuwon\b|\b(?:puri|griya)\s*asri\b|\bvilla\s*royal\b|\broyal\s+[a-z]?\d\b|\bsan\s*(?:antonio|diego)\b|\bwestwood\b|\bflorence\b|\blaguna\b|\bmutiara\b|\bnenet\b/ },
+  { tag: "Bumi Galaxy", pattern: /\bbumi\s*galaxy\s*permai\b|\bbumigalaxypermai\b|\bgalaxy\s*permai\b|\bsma\s*5\s*ratna\s*juli\b|\bsma5ratnajuli\b/ },
+  { tag: "Bumi Marina", pattern: /\bbumi\s*marina\b/ },
+  { tag: "Rungkut", pattern: /\brungkut\b/ },
+  { tag: "Manyar", pattern: /\bmanyar\b/ },
+  { tag: "Kalijudan", pattern: /\bkalijudan\b/ },
+  { tag: "Supit", pattern: /\bsupit\b/ },
+];
+
+const CUSTOMER_TAG_ALIASES = new Map([
+  ["pakuwoncity", "Pakuwon"],
+  ["puriasri", "Pakuwon"],
+  ["griyaasri", "Pakuwon"],
+  ["villaroyal", "Pakuwon"],
+  ["royal", "Pakuwon"],
+  ["sandiego", "Pakuwon"],
+  ["sanantonio", "Pakuwon"],
+  ["westwood", "Pakuwon"],
+  ["florence", "Pakuwon"],
+  ["laguna", "Pakuwon"],
+  ["mutiara", "Pakuwon"],
+  ["kenejeran", "Kenjeran"],
+  ["pantaimentari", "Kenjeran"],
+  ["pantaimentri", "Kenjeran"],
+  ["pantainmentari", "Kenjeran"],
+  ["sahabudin", "Kenjeran"],
+  ["tuwowo", "Kenjeran"],
+  ["tohir", "Kenjeran"],
+  ["babatan", "Kenjeran"],
+  ["dupak", "Kenjeran"],
+  ["dupakpecahbelah", "Kenjeran"],
+  ["pecahbelah", "Kenjeran"],
+  ["ngadi", "Kenjeran"],
+  ["putroagung", "Kenjeran"],
+]);
+
+const CUSTOMER_ITS_BLOCK_PATTERN = /\b(?:its\s*)?(?:perum\s*)?(?:blok\s*)?(?:(p1)\s*[/ -]?\s*\d+|([tuvwjdnxmrficahb])(?!\s*o\s*\d)\s*(?:lama\s*)?(?:[/.-]|\s)*[a-z]?\s*\d+)\b/;
+const CUSTOMER_ITS_FALLBACK_PATTERN = /\b(?:its|dptsi|bapkm|sdmo|dpsp|spkb|ftspk|wr\s*3|teknik|tek|t\s*lingkungan|lingku(?:ngan)?|arsitek(?:tur)?|bahasa|mesin|kimia|fisika|geofisika|statistika|mipa|instrumen(?:tasi)?|hidrodinamika|brin|nasdec|riset|research\s*center|gedung\s*riset|gedung\s*rc|rc\s*(?:lt|lantai)|perpus(?:takaan)?|manajemen\s*bisnis)\b/;
+
+const saleSearchKeyCache = new WeakMap();
+
 let syncTimer = null;
 let syncInFlight = false;
 let productSyncInFlight = false;
@@ -251,6 +316,7 @@ const els = {
   addCustomerModal: document.querySelector("#addCustomerModal"),
   addCustomerForm: document.querySelector("#addCustomerForm"),
   addCustomerNameInput: document.querySelector("#addCustomerNameInput"),
+  addCustomerTagInput: document.querySelector("#addCustomerTagInput"),
   addCustomerShippingInput: document.querySelector("#addCustomerShippingInput"),
   addCustomerDepositInput: document.querySelector("#addCustomerDepositInput"),
   addCustomerAliasesInput: document.querySelector("#addCustomerAliasesInput"),
@@ -829,6 +895,14 @@ function normalizeKey(value) {
     .replace(/[\s_-]+/g, "");
 }
 
+function debounce(callback, delay = 180) {
+  let timeoutId;
+  return (...args) => {
+    window.clearTimeout(timeoutId);
+    timeoutId = window.setTimeout(() => callback(...args), delay);
+  };
+}
+
 function cleanSingleAlias(item) {
   let alias = item;
   if (typeof alias === "string") {
@@ -882,6 +956,38 @@ function parseAliasList(value) {
 
   rawItems.forEach(addAlias);
   return aliases;
+}
+
+function isCustomerTagAlias(alias) {
+  return String(alias ?? "").trim().toLowerCase().startsWith(CUSTOMER_TAG_ALIAS_PREFIX);
+}
+
+function getCustomerTagFromAlias(alias) {
+  const text = String(alias ?? "").trim();
+  if (!isCustomerTagAlias(text)) return "";
+  return text.slice(CUSTOMER_TAG_ALIAS_PREFIX.length).trim();
+}
+
+function makeCustomerTagAlias(tag) {
+  return `${CUSTOMER_TAG_ALIAS_PREFIX}${String(tag ?? "").trim()}`;
+}
+
+function getCustomerTagAliasKey(customerId) {
+  return `tagalamat${normalizeKey(customerId)}`;
+}
+
+function splitCustomerTagAliases(aliases) {
+  let tag = "";
+  const visibleAliases = [];
+  parseAliasList(aliases).forEach((alias) => {
+    const aliasTag = getCustomerTagFromAlias(alias);
+    if (aliasTag) {
+      tag = aliasTag;
+      return;
+    }
+    visibleAliases.push(alias);
+  });
+  return { aliases: visibleAliases, tag };
 }
 
 function mergeAliasLists(...values) {
@@ -1731,7 +1837,80 @@ function getCustomerMatchSignatures(value) {
   return signatures;
 }
 
+function normalizeCustomerTag(value) {
+  const tag = String(value ?? "").trim().replace(/\s+/g, " ");
+  return CUSTOMER_TAG_ALIASES.get(compactCustomerKey(tag)) || tag;
+}
+
+function normalizeCustomerTagText(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[^0-9a-z]+/g, " ")
+    .trim();
+}
+
+function inferCustomerAddressTag(...values) {
+  const rawText = values
+    .flatMap((value) => (Array.isArray(value) ? value : [value]))
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+  if (!rawText) return "";
+
+  const tagText = `${normalizeCustomerTagText(rawText)} ${compactCustomerKey(rawText)}`.trim();
+  if (CUSTOMER_ITS_FALLBACK_PATTERN.test(tagText)) return "ITS";
+
+  for (const rule of CUSTOMER_ADDRESS_TAG_RULES) {
+    if (rule.pattern.test(tagText)) return rule.tag;
+  }
+
+  const blockMatch = tagText.match(CUSTOMER_ITS_BLOCK_PATTERN);
+  if (blockMatch) return "ITS";
+  return "";
+}
+
+function resolveCustomerTag(name, aliases = [], tag = "") {
+  return normalizeCustomerTag(tag) || inferCustomerAddressTag(name, aliases);
+}
+
+function invalidateCustomerProfilesCache() {
+  customerProfilesCache.dirty = true;
+  customerProfilesCache.signature = "";
+  customerProfilesCache.lastSuggestionsHtml = "";
+}
+
+function getCustomerProfilesSignature() {
+  const newestCustomer = state.customers[0] || {};
+  const newestSale = state.sales[0] || {};
+  const newestDraft = state.importDrafts[0] || {};
+  const newestHeld = state.heldCarts[0] || {};
+  return [
+    state.customers.length,
+    newestCustomer.id || "",
+    newestCustomer.name || "",
+    newestCustomer.tag || newestCustomer.customerTag || newestCustomer.address_tag || newestCustomer.addressTag || "",
+    newestCustomer.updated_at || newestCustomer.updatedAt || "",
+    state.sales.length,
+    newestSale.id || "",
+    newestSale.customer_name || newestSale.customerName || "",
+    newestSale.completed_at || newestSale.completedAt || "",
+    state.importDrafts.length,
+    newestDraft.customerName || "",
+    newestDraft.importedAt || "",
+    state.heldCarts.length,
+    newestHeld.id || "",
+    newestHeld.createdAt || "",
+    state.lastReceipt?.customerName || "",
+    state.lastReceipt?.completedAt || "",
+  ].join("|");
+}
+
 function getCustomerProfiles() {
+  const signature = getCustomerProfilesSignature();
+  if (!customerProfilesCache.dirty && customerProfilesCache.signature === signature) {
+    return customerProfilesCache.profiles;
+  }
+
   const profiles = new Map();
   const addProfile = (name, shipping = 0, dateValue = "", newDepositBalance) => {
     const customerName = String(name || "").trim();
@@ -1753,6 +1932,7 @@ function getCustomerProfiles() {
     if (!current || timestamp >= current.timestamp) {
       profiles.set(key, {
         name: customerName,
+        searchKey: key,
         shipping: Number(shipping || 0),
         depositBalance: maxDeposit,
         timestamp,
@@ -1778,19 +1958,54 @@ function getCustomerProfiles() {
   state.heldCarts.forEach((heldCart) => addProfile(heldCart.sale?.customerName, heldCart.sale?.shipping, heldCart.createdAt));
   if (state.lastReceipt) addProfile(state.lastReceipt.customerName, state.lastReceipt.shipping, state.lastReceipt.completedAt);
 
-  return [...profiles.values()].sort((left, right) => right.timestamp - left.timestamp || left.name.localeCompare(right.name, "id-ID"));
+  customerProfilesCache.profiles = [...profiles.values()].sort((left, right) => right.timestamp - left.timestamp || left.name.localeCompare(right.name, "id-ID"));
+  customerProfilesCache.signature = signature;
+  customerProfilesCache.dirty = false;
+  return customerProfilesCache.profiles;
 }
 
 function getCustomerProfile(customerName) {
   const key = normalizeKey(customerName);
-  return getCustomerProfiles().find((profile) => normalizeKey(profile.name) === key) || null;
+  return getCustomerProfiles().find((profile) => profile.searchKey === key) || null;
 }
 
-function renderCustomerSuggestions() {
+function getActiveCustomerSuggestionQuery() {
+  const activeElement = document.activeElement;
+  if (activeElement?.getAttribute?.("list") === "customerSuggestions") {
+    return activeElement.value || "";
+  }
+  return els.customerNameInput?.value || state.sale.customerName || "";
+}
+
+function getCustomerSuggestionProfiles(query = getActiveCustomerSuggestionQuery()) {
+  const profiles = getCustomerProfiles();
+  const searchKey = normalizeKey(query);
+  if (!searchKey) return profiles.slice(0, CUSTOMER_SUGGESTION_LIMIT);
+
+  return profiles
+    .map((profile) => {
+      const key = profile.searchKey || normalizeKey(profile.name);
+      let score = 0;
+      if (key === searchKey) score = 100;
+      else if (key.startsWith(searchKey)) score = 80;
+      else if (key.includes(searchKey)) score = 50;
+      else return null;
+      return { profile, score };
+    })
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score || right.profile.timestamp - left.profile.timestamp || left.profile.name.localeCompare(right.profile.name, "id-ID"))
+    .slice(0, CUSTOMER_SUGGESTION_LIMIT)
+    .map((item) => item.profile);
+}
+
+function renderCustomerSuggestions(query) {
   if (!els.customerSuggestions) return;
-  els.customerSuggestions.innerHTML = getCustomerProfiles()
+  const html = getCustomerSuggestionProfiles(query)
     .map((profile) => `<option value="${escapeHtml(profile.name)}"></option>`)
     .join("");
+  if (html === customerProfilesCache.lastSuggestionsHtml) return;
+  els.customerSuggestions.innerHTML = html;
+  customerProfilesCache.lastSuggestionsHtml = html;
 }
 
 function applyCustomerDefaults(customerName, targetSale = state.sale) {
@@ -1832,7 +2047,8 @@ function renderCustomerProfileHint() {
     return;
   }
 
-  const partial = getCustomerProfiles().find((item) => normalizeKey(item.name).includes(normalizeKey(customerName)));
+  const customerKey = normalizeKey(customerName);
+  const partial = getCustomerProfiles().find((item) => item.searchKey.includes(customerKey));
   if (partial) {
     els.customerProfileHint.textContent = `Mirip dengan ${partial.name}. Pilih dari saran untuk pakai ongkir ${currency.format(partial.shipping)}.`;
     els.customerProfileHint.className = "customer-profile-hint";
@@ -1849,16 +2065,36 @@ function setCustomerDataStatus(message, options = {}) {
   if (options.toast && text) showToast(text, { title: "Data Customer", variant: options.variant || getToastVariant(text) });
 }
 
+function getCustomerWrapEditorValue(editor) {
+  return String(editor?.textContent || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ");
+}
+
+function syncCustomerWrapEditor(editor, options = {}) {
+  const fieldName = editor?.dataset?.wrapField;
+  const form = editor?.closest?.(".customer-card");
+  const input = fieldName ? form?.elements?.[fieldName] : null;
+  if (!input) return;
+  const value = options.trim ? getCustomerWrapEditorValue(editor).trim() : getCustomerWrapEditorValue(editor);
+  input.value = value;
+  if (options.trim) editor.textContent = value;
+}
+
 function normalizeCustomerRecord(customer) {
   const lastOrderAt = String(customer?.last_order_at ?? customer?.lastOrderAt ?? "").trim();
+  const name = String(customer?.name ?? customer?.customerName ?? "").trim();
+  const aliasData = splitCustomerTagAliases(customer?.aliases ?? customer?.alias ?? []);
+  const aliases = aliasData.aliases;
+  const savedTag = aliasData.tag;
+  const explicitTag = customer?.tag ?? customer?.customerTag ?? customer?.address_tag ?? customer?.addressTag ?? "";
   return {
     id: String(customer?.id ?? "").trim(),
-    name: String(customer?.name ?? customer?.customerName ?? "").trim(),
+    name,
     shipping: parseIntegerInput(customer?.default_shipping ?? customer?.defaultShipping ?? customer?.shipping ?? 0),
     depositBalance: parseIntegerInput(customer?.deposit_balance ?? customer?.depositBalance ?? 0),
+    tag: resolveCustomerTag(name, aliases, explicitTag || savedTag),
     lastOrderAt,
     timestamp: lastOrderAt ? new Date(lastOrderAt).getTime() || 0 : 0,
-    aliases: parseAliasList(customer?.aliases ?? customer?.alias ?? []),
+    aliases,
   };
 }
 
@@ -1926,7 +2162,7 @@ function getEditableCustomerRows() {
   return state.customers
     .map(normalizeCustomerRecord)
     .filter((customer) => customer.id && customer.name)
-    .filter((customer) => !searchKey || normalizeKey(customer.name).includes(searchKey) || customer.aliases.some((alias) => normalizeKey(alias).includes(searchKey)));
+    .filter((customer) => !searchKey || normalizeKey(customer.name).includes(searchKey) || normalizeKey(customer.tag).includes(searchKey) || customer.aliases.some((alias) => normalizeKey(alias).includes(searchKey)));
 }
 
 function renderCustomerSimilarSection() {
@@ -1990,7 +2226,13 @@ function renderCustomerDataList(statusMessage = "") {
       <form class="customer-card" data-customer-id="${escapeHtml(customer.id)}" data-original-name="${escapeHtml(customer.name)}">
         <label class="customer-name-field">
           Nama customer
-          <input name="name" type="text" autocomplete="off" value="${escapeHtml(customer.name)}">
+          <span class="customer-wrap-editor" role="textbox" tabindex="0" contenteditable="plaintext-only" data-wrap-field="name" aria-label="Nama customer">${escapeHtml(customer.name)}</span>
+          <input name="name" type="hidden" value="${escapeHtml(customer.name)}">
+        </label>
+        <label class="customer-tag-field">
+          Tag alamat
+          <span class="customer-wrap-editor" role="textbox" tabindex="0" contenteditable="plaintext-only" data-wrap-field="tag" data-placeholder="Otomatis" aria-label="Tag alamat">${escapeHtml(customer.tag)}</span>
+          <input name="tag" type="hidden" value="${escapeHtml(customer.tag)}">
         </label>
         <label class="customer-shipping-field">
           Ongkir
@@ -2031,6 +2273,7 @@ async function openCustomerDataManager() {
 
 function openAddCustomerDialog() {
   els.addCustomerForm?.reset();
+  if (els.addCustomerTagInput) els.addCustomerTagInput.value = "";
   if (els.addCustomerShippingInput) els.addCustomerShippingInput.value = "0";
   if (els.addCustomerDepositInput) els.addCustomerDepositInput.value = "0";
   openModal(els.addCustomerModal, els.addCustomerNameInput);
@@ -2038,6 +2281,7 @@ function openAddCustomerDialog() {
 
 async function saveNewCustomer(form) {
   const nameInput = form?.elements?.name;
+  const tagInput = form?.elements?.tag;
   const shippingInput = form?.elements?.defaultShipping;
   const depositInput = form?.elements?.depositBalance;
   const aliasesInput = form?.elements?.aliases;
@@ -2046,6 +2290,7 @@ async function saveNewCustomer(form) {
   const defaultShipping = parseIntegerInput(shippingInput?.value || 0);
   const depositBalance = parseIntegerInput(depositInput?.value || 0);
   const aliases = String(aliasesInput?.value || "").trim();
+  const customerTag = resolveCustomerTag(customerName, parseAliasList(aliases), tagInput?.value || "");
 
   if (!customerName) {
     setCustomerDataStatus("Nama customer tidak boleh kosong.", { toast: true, variant: "error" });
@@ -2055,17 +2300,20 @@ async function saveNewCustomer(form) {
 
   if (shippingInput) shippingInput.value = formatIntegerInput(defaultShipping);
   if (depositInput) depositInput.value = formatIntegerInput(depositBalance);
+  if (tagInput) tagInput.value = customerTag;
   if (submitButton) submitButton.disabled = true;
   setCustomerDataStatus("Menyimpan customer baru...");
 
   try {
     const data = await createCustomerInDatabase({
       name: customerName,
+      tag: customerTag,
       defaultShipping,
       depositBalance,
       aliases,
     });
     if (data.customer) state.customers.unshift(data.customer);
+    invalidateCustomerProfilesCache();
     els.addCustomerModal?.close();
     renderCustomerSuggestions();
     renderCustomerProfileHint();
@@ -2102,6 +2350,7 @@ async function removeCustomerData(button) {
   try {
     await deleteCustomerInDatabase(customerId);
     state.customers = state.customers.filter((customer) => String(customer.id) !== customerId);
+    invalidateCustomerProfilesCache();
     renderCustomerSuggestions();
     renderCustomerProfileHint();
     renderCustomerDataList("Data customer dihapus.");
@@ -2145,13 +2394,18 @@ async function mergeCustomerGroup(form) {
 async function saveCustomerDataForm(form) {
   const customerId = String(form?.dataset?.customerId || "").trim();
   const originalName = String(form?.dataset?.originalName || "").trim();
+  form?.querySelectorAll?.(".customer-wrap-editor").forEach((editor) => {
+    syncCustomerWrapEditor(editor, { trim: true });
+  });
   const nameInput = form?.elements?.name;
+  const tagInput = form?.elements?.tag;
   const shippingInput = form?.elements?.defaultShipping;
   const depositInput = form?.elements?.depositBalance;
   const submitButton = form?.querySelector('button[type="submit"]');
   const customerName = String(nameInput?.value || "").trim();
   const defaultShipping = parseIntegerInput(shippingInput?.value || 0);
   const depositBalance = parseIntegerInput(depositInput?.value || 0);
+  const customerTag = resolveCustomerTag(customerName, [], tagInput?.value || "");
 
   if (!customerId) {
     setCustomerDataStatus("ID customer tidak valid.", { toast: true, variant: "error" });
@@ -2165,12 +2419,14 @@ async function saveCustomerDataForm(form) {
 
   if (shippingInput) shippingInput.value = formatIntegerInput(defaultShipping);
   if (depositInput) depositInput.value = formatIntegerInput(depositBalance);
+  if (tagInput) tagInput.value = customerTag;
   if (submitButton) submitButton.disabled = true;
   setCustomerDataStatus("Menyimpan data customer...");
 
   try {
     const data = await updateCustomerInDatabase(customerId, {
       name: customerName,
+      tag: customerTag,
       defaultShipping,
       depositBalance,
     });
@@ -2184,6 +2440,7 @@ async function saveCustomerDataForm(form) {
     } else {
       state.customers.unshift(updated);
     }
+    invalidateCustomerProfilesCache();
 
     const activeCustomerKey = normalizeKey(state.sale.customerName);
     const editedCurrentCustomer = activeCustomerKey && [originalName, normalized.name].some((name) => normalizeKey(name) === activeCustomerKey);
@@ -2195,8 +2452,20 @@ async function saveCustomerDataForm(form) {
       render();
     }
 
-    renderCustomerSuggestions();
-    renderCustomerProfileHint();
+    await loadCustomers({ toast: false });
+    const persisted = state.customers
+      .map(normalizeCustomerRecord)
+      .find((customer) => customer.id === normalized.id);
+    if (!persisted) {
+      throw new Error("Data customer tersimpan, tapi belum terbaca ulang dari database.");
+    }
+    const persistedOk = persisted.name === customerName
+      && persisted.shipping === defaultShipping
+      && persisted.depositBalance === depositBalance
+      && (!customerTag || persisted.tag === customerTag);
+    if (!persistedOk) {
+      throw new Error("Database belum mengembalikan data terbaru. Coba Muat Ulang lalu simpan lagi.");
+    }
     renderCustomerDataList("Data customer tersimpan.");
     showToast("Data customer berhasil diperbarui.", { title: "Data Customer", variant: "success" });
   } catch (error) {
@@ -2299,11 +2568,25 @@ function getSelectedSales() {
 
 function saleMatchesSearch(sale, query) {
   if (!query) return true;
+  return getSaleSearchKey(sale).includes(query);
+}
+
+function getSaleSearchKey(sale) {
+  if (!sale || typeof sale !== "object") return "";
+  const cached = saleSearchKeyCache.get(sale);
+  if (cached) return cached;
+
   const itemText = (Array.isArray(sale.items) ? sale.items : [])
     .map((item) => `${item.name || ""} ${item.sku || ""} ${item.note || ""}`)
     .join(" ");
-  const haystack = normalizeKey(`${sale.receipt_no || ""} ${sale.payment || ""} ${sale.customer_name || ""} ${sale.customer_address || ""} ${sale.chat_date || ""} ${sale.order_note || ""} ${sale.due_text || ""} ${itemText}`);
-  return haystack.includes(query);
+  const searchKey = normalizeKey(`${sale.receipt_no || ""} ${sale.payment || ""} ${sale.customer_name || ""} ${sale.customerName || ""} ${sale.customer_address || ""} ${sale.customerAddress || ""} ${sale.chat_date || ""} ${sale.chatDate || ""} ${sale.order_note || ""} ${sale.orderNote || ""} ${sale.due_text || ""} ${sale.dueText || ""} ${itemText}`);
+  saleSearchKeyCache.set(sale, searchKey);
+  return searchKey;
+}
+
+function prepareSalesForSearch(sales = []) {
+  sales.forEach(getSaleSearchKey);
+  return sales;
 }
 
 function getSaleSortTime(sale) {
@@ -4463,23 +4746,70 @@ async function updateSaleInDatabase(saleId, payload) {
   }
 }
 
+function isMissingCustomerTagColumnError(error) {
+  const message = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+  return message.includes("tag") && (message.includes("column") || message.includes("schema cache") || error?.code === "PGRST204");
+}
+
+async function saveSupabaseCustomerTagAlias(supabase, customerId, tag) {
+  const aliasKey = getCustomerTagAliasKey(customerId);
+  const { error: deleteError } = await supabase
+    .from("customer_aliases")
+    .delete()
+    .eq("alias_key", aliasKey);
+  if (deleteError) throw deleteError;
+
+  const tagText = String(tag || "").trim();
+  if (!tagText) return;
+
+  const { error: insertError } = await supabase
+    .from("customer_aliases")
+    .insert({
+      customer_id: customerId,
+      alias: makeCustomerTagAlias(tagText),
+      alias_key: aliasKey,
+    });
+  if (insertError) throw insertError;
+}
+
 async function updateCustomerInDatabase(customerId, payload) {
   if (state.settings.dbMode === "supabase") {
     const supabase = getSupabaseClient();
-    
-    const { data: customerData, error: customerError } = await supabase
+    let shouldPersistTagAlias = false;
+
+    const customerUpdate = {
+      name: payload.name,
+      default_shipping: payload.defaultShipping || 0,
+      deposit_balance: payload.depositBalance || 0,
+      updated_at: new Date().toISOString()
+    };
+    if (payload.tag !== undefined) customerUpdate.tag = payload.tag || "";
+
+    let { data: customerData, error: customerError } = await supabase
       .from("customers")
-      .update({
-        name: payload.name,
-        default_shipping: payload.defaultShipping || 0,
-        deposit_balance: payload.depositBalance || 0,
-        updated_at: new Date().toISOString()
-      })
+      .update(customerUpdate)
       .eq("id", customerId)
       .select()
       .single();
-      
+
+    if (customerError && isMissingCustomerTagColumnError(customerError)) {
+      shouldPersistTagAlias = payload.tag !== undefined;
+      const fallbackUpdate = { ...customerUpdate };
+      delete fallbackUpdate.tag;
+      const retry = await supabase
+        .from("customers")
+        .update(fallbackUpdate)
+        .eq("id", customerId)
+        .select()
+        .single();
+      customerData = retry.data ? { ...retry.data, tag: customerUpdate.tag || "" } : retry.data;
+      customerError = retry.error;
+    }
+
     if (customerError) throw customerError;
+    if (shouldPersistTagAlias) {
+      await saveSupabaseCustomerTagAlias(supabase, customerId, customerUpdate.tag || "");
+    }
     
     let finalAliases = [];
     if (payload.aliases !== undefined) {
@@ -4521,19 +4851,39 @@ async function updateCustomerInDatabase(customerId, payload) {
 async function createCustomerInDatabase(payload) {
   if (state.settings.dbMode === "supabase") {
     const supabase = getSupabaseClient();
-    
-    const { data: customerData, error: customerError } = await supabase
+    let shouldPersistTagAlias = false;
+
+    const customerInsert = {
+      name: payload.name,
+      default_shipping: payload.defaultShipping || 0,
+      deposit_balance: payload.depositBalance || 0,
+      tag: payload.tag || "",
+      last_order_at: ""
+    };
+
+    let { data: customerData, error: customerError } = await supabase
       .from("customers")
-      .insert({
-        name: payload.name,
-        default_shipping: payload.defaultShipping || 0,
-        deposit_balance: payload.depositBalance || 0,
-        last_order_at: ""
-      })
+      .insert(customerInsert)
       .select()
       .single();
-      
+
+    if (customerError && isMissingCustomerTagColumnError(customerError)) {
+      shouldPersistTagAlias = Boolean(customerInsert.tag);
+      const fallbackInsert = { ...customerInsert };
+      delete fallbackInsert.tag;
+      const retry = await supabase
+        .from("customers")
+        .insert(fallbackInsert)
+        .select()
+        .single();
+      customerData = retry.data ? { ...retry.data, tag: customerInsert.tag || "" } : retry.data;
+      customerError = retry.error;
+    }
+
     if (customerError) throw customerError;
+    if (shouldPersistTagAlias) {
+      await saveSupabaseCustomerTagAlias(supabase, customerData.id, customerInsert.tag || "");
+    }
     
     let finalAliases = [];
     const rawAliases = Array.isArray(payload.aliases)
@@ -4803,18 +5153,20 @@ async function loadCustomers(options = {}) {
       if (aliasError) throw aliasError;
 
       const customers = customersData.map(c => {
-        const aliases = aliasesData.filter(a => a.customer_id === c.id).map(a => a.alias);
+        const aliases = aliasesData.filter(a => String(a.customer_id) === String(c.id)).map(a => a.alias);
         return {
           id: c.id,
           name: c.name,
           default_shipping: Number(c.default_shipping || 0),
           last_order_at: c.last_order_at || "",
           deposit_balance: Number(c.deposit_balance || 0),
+          tag: c.tag || c.customer_tag || c.address_tag || "",
           aliases: aliases
         };
       });
 
       state.customers = customers;
+      invalidateCustomerProfilesCache();
       renderCustomerSuggestions();
       renderCustomerProfileHint();
       renderCustomerDataList();
@@ -4822,6 +5174,7 @@ async function loadCustomers(options = {}) {
     } else {
       const data = await requestJson("/api/customers?limit=500");
       state.customers = Array.isArray(data.customers) ? data.customers : [];
+      invalidateCustomerProfilesCache();
       renderCustomerSuggestions();
       renderCustomerProfileHint();
       renderCustomerDataList();
@@ -4829,6 +5182,7 @@ async function loadCustomers(options = {}) {
     }
   } catch (error) {
     state.customers = [];
+    invalidateCustomerProfilesCache();
     renderCustomerSuggestions();
     renderCustomerProfileHint();
     renderCustomerDataList("Data customer belum terbaca.");
@@ -4840,7 +5194,8 @@ async function loadCustomers(options = {}) {
 async function loadSalesDashboard() {
   try {
     const data = await dbFetchSales({ limit: 1000, includeDeleted: true });
-    state.sales = Array.isArray(data.sales) ? data.sales : [];
+    state.sales = prepareSalesForSearch(Array.isArray(data.sales) ? data.sales : []);
+    invalidateCustomerProfilesCache();
     
     if (state.settings.dbMode === "supabase") {
       const activeSales = state.sales.filter(s => !s.deletedAt);
@@ -7889,6 +8244,11 @@ async function importSpreadsheet() {
 
 function bindEvents() {
   window.addEventListener("beforeprint", ensureReceiptReadyBeforePrint);
+  const scheduleSalesSearchRender = debounce(() => {
+    resetSalesPage();
+    renderSalesDashboard();
+    saveState();
+  }, 180);
 
   els.sidebarMenuButton?.addEventListener("click", toggleSidebar);
   els.closeSidebarButton?.addEventListener("click", closeSidebar);
@@ -8051,6 +8411,27 @@ function bindEvents() {
     if (event.target.matches('input[name="defaultShipping"]') || event.target.matches('input[name="depositBalance"]')) {
       formatMoneyInput(event.target);
     }
+    if (event.target.matches(".customer-wrap-editor")) {
+      syncCustomerWrapEditor(event.target);
+    }
+  });
+  els.customerDataList.addEventListener("keydown", (event) => {
+    if (!event.target.matches(".customer-wrap-editor")) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.target.blur();
+    }
+  });
+  els.customerDataList.addEventListener("paste", (event) => {
+    if (!event.target.matches(".customer-wrap-editor")) return;
+    event.preventDefault();
+    const text = event.clipboardData?.getData("text/plain") || "";
+    document.execCommand("insertText", false, text.replace(/\s+/g, " ").trim());
+  });
+  els.customerDataList.addEventListener("focusout", (event) => {
+    if (event.target.matches(".customer-wrap-editor")) {
+      syncCustomerWrapEditor(event.target, { trim: true });
+    }
   });
   els.customerDataList.addEventListener("click", (event) => {
     const deleteButton = event.target.closest("[data-delete-customer]");
@@ -8161,9 +8542,7 @@ function bindEvents() {
   });
   els.salesSearchInput.addEventListener("input", () => {
     state.salesSearch = els.salesSearchInput.value;
-    resetSalesPage();
-    renderSalesDashboard();
-    saveState();
+    scheduleSalesSearchRender();
   });
   els.salesSortInput?.addEventListener("change", () => {
     state.salesSort = ["newest", "oldest"].includes(els.salesSortInput.value) ? els.salesSortInput.value : "newest";
@@ -8646,7 +9025,8 @@ async function loadPiutangData(options = {}) {
   try {
     const salesData = await dbFetchSales({ limit: 1000, includeDeleted: false });
     if (salesData && Array.isArray(salesData.sales)) {
-      state.sales = salesData.sales;
+      state.sales = prepareSalesForSearch(salesData.sales);
+      invalidateCustomerProfilesCache();
     }
 
     await loadCustomers({ toast: false });

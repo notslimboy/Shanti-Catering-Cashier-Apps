@@ -19,13 +19,14 @@ customer,chatDate,payment,ongkir,item,quantity,note
    - One row represents one ordered item.
    - Repeat the `customer`, `chatDate`, `payment`, and `ongkir` values for every item belonging to the same customer/order.
 
-2. **`customer`**:
+ 2. **`customer`**:
    - Contains the **WhatsApp contact name/customer name along with their delivery address, block number, or location landmark** mentioned in the chat.
-   - **DATABASE MATCHING & DEDUPLICATION RULE**: You **MUST MATCH** the customer identity from the chat to the official database name or aliases listed in the **DATABASE CONTEXT** section at the bottom of this file.
-     - If a match is found, output the **Official Bold Customer Name** (e.g. `SPR F20`, `Kalijudan Taruna 2/6`, `ITS N/2`, `ITS i 6`).
-     - If the name in the chat is redundant with the contact name (e.g. contact is `SPR F - 20` and message has `SPR F20`), deduplicate them and output only the official database name (e.g., `SPR F20`).
-     - If no match is found in the database, output the clean customer name/address from the chat.
-   - **IMPORTANT**: All customer identity details and address information must be merged and placed in this column. Do not split them into the note column.
+   - **DATABASE MATCHING & DEDUPLICATION RULE**: You **MUST MATCH** the customer identity from the chat to the official database name or aliases listed in the **DATABASE CONTEXT** section.
+     - **CRITICAL**: You must strictly adhere to the **## SAFEGUARDS & MATCHING PROTECTION** rules. Never match if the street/block/house numbers do not match exactly.
+     - If a safe match is found, output the **Official Bold Customer Name** (e.g. `SPR F20`, `Kalijudan Taruna 2/6`, `ITS N/2`, `ITS i 6`).
+     - If the name in the chat is redundant with the contact name, deduplicate them and output only the official database name.
+     - If no match is found, output the clean customer name/address from the chat.
+   - **IMPORTANT**: All customer identity details and address information must be merged and placed in this column. Do not split them into the note column (unless it's an alternative dropship address, see Safeguard #3).
    - Examples: `Mulyosari prima 1/92 mc 19`, `Villa Royal C4 / 18`, `Bhsksari 60`, `Emi Bumi Marina`, `Sutorejo Sel 1/22`, `SMA 5 .. ratna juli`.
 
 3. **`chatDate`**:
@@ -76,6 +77,50 @@ customer,chatDate,payment,ongkir,item,quantity,note
         - **Half Portion**: If indicated by words like "separuh", "setengah", "separo", "1/2" (e.g. "oseng tempe 1/2" or "kotokan separuh"), write the item name with a trailing ` 1/2` (e.g. `Oseng Tahu Tempe 1/2`), and write `separuh porsi` in the `note` column.
         - **Jumbo Portion**: If indicated by words like "jumbo", "besar", "porsi gede" (e.g. "ayam baput jumbo" or "sop porsi gede"), write the item name with a trailing ` Jumbo` (e.g. `Ayam Goreng BaPut Jumbo`), and write `porsi jumbo` in the `note` column.
 
+## SAFEGUARDS & MATCHING PROTECTION (CRITICAL RULES)
+To prevent severe errors such as order mix-ups, wrong address deliveries, or missing orders, you **MUST STRICTLY** follow these matching safeguards:
+
+### 1. Strict Numeric Address Matching (Anti-Wrong Customer Guard)
+- If a chat contains a street number, block number, house number, or gang number (e.g., `32`, `18`, `23`, `2/6`, `M3/17`), you **MUST NOT** match it to a database customer that has a different number or does not contain that exact number.
+- **NEVER** force-match a customer just because a single number matches if the rest of the address is completely different.
+  - *Example 1*: `sutorejo timur 32/H5` has the number `32`. **DO NOT** match it to `Puri Asri P3 no. 32 Nenet`! (Output a new customer: `sutorejo timur 32/H5` instead).
+  - *Example 2*: `H - 18` has the number `18`. **DO NOT** match it to `Villa Royal C4/18`! (Output a new customer: `H - 18` instead).
+  - *Example 3*: `Tohir 23` has the number `23`. **DO NOT** match it to `Mulyo BPD BLOK B / 23`! (Match to the official database entry `Tohir 23` instead, or output `Tohir 23` as a new customer if it's not in the database).
+
+### 2. Duplicated Words/Tokens Protection
+- Do not let repeated words or numbers in a chat message skew the matching score. Evaluate the similarity based on unique tokens, not the frequency of a word appearing multiple times.
+
+### 3. Dropship and Alternative Delivery Addresses
+- If a registered customer (e.g., `Sutorejo Tengah 2/6`) orders but explicitly specifies a **different delivery address** in the message body (e.g., "Bu Eddy Suteng Blok KK 21"), you **MUST**:
+  1. Map the `customer` column to the official registered name (e.g., `Sutorejo Tengah 2/6`) so the billing is correct.
+  2. **Wajib** copy the alternative delivery address (e.g., `Bu Eddy Suteng Blok KK 21`) into the `note` column for all items in that order. This ensures the courier delivers to the right location.
+
+### 4. WhatsApp System Tag Cleansing (Anti-Missing Order Guard)
+- WhatsApp automatic export tags such as `"gambar tidak disertakan"`, `"stiker tidak disertakan"`, or `"pesan ini dihapus"` must be **stripped/cleaned** from the text.
+- **NEVER** skip or ignore an entire line of order just because it contains one of these tags. Parse the order items normally after removing the tag.
+  - *Example*: `- 5 biji Martabak jadul gambar tidak disertakan` -> Strip the tag to become `- 5 biji Martabak jadul`, and parse it as: item: `Martabak Jadul`, quantity: `5`.
+
+### 5. Contextual Reply / Implicit Order Guard (Anti-Missing Implicit Item)
+- If a customer places an order using ambiguous words like "ini", "itu", "pesan juga", or just lists quantities and notes (e.g., "pesan 2 porsi" or "order ini 4") without explicitly naming the food item, you **MUST** look at the chat context immediately preceding that message.
+- Map the implicit order to the food item mentioned in the message they are replying to or the food item discussed right before.
+  - *Example*: Sender A orders `Kpl Ikan Mayung`. Immediately after, Sender B writes: `Kl begitu saya pesan 2 porsi tidak pakai cabe`. You **MUST** parse Sender B's order as: `Kpl Ikan Mayung`, quantity: `2`, note: `tidak pakai cabe`.
+
+### 6. Numeric-Location Mismatch Guard
+- Never force-match a customer to a database entry based on numbers alone if the location names differ. For example, if the sender is `Sutorejo Tengah 2/6`, do NOT map them to `Kalijudan Taruna 2/6` just because they both contain the number `2/6`. Map to the correct sender's registered name `Sutorejo Tengah 2/6` with its correct ongkir (0), and if there's a different delivery address in the message, apply the Dropship rule (Safeguard #3).
+
+### 7. Grill-Me / Ambiguity Review Guard (Anti-Wrong Guessing)
+- If you (the AI) are NOT SURE or encounter any ambiguity regarding the customer match, delivery address, ordered item, or quantity, **DO NOT GUESS** or make assumptions.
+- Instead, you must flag the row for user review:
+  - If the customer is ambiguous: write `[PERLU REVIEW] <sender_name>` in the `customer` column.
+  - If the item is ambiguous or the contextual reply is unclear: write `[PERLU REVIEW] <raw_item>` in the `item` column.
+  - If the note/customization is unclear: prefix the `note` column with `[PERLU REVIEW]`.
+- This ensures the cashier app user can easily filter and manually correct the draft in the "Perlu Review" tab.
+
+### 8. Line Separator / Admin Divider Guard (Kitchen Control Marker)
+- If a message sent by the admin (e.g., `Elok`, `Shanti Catering`) contains ONLY line-like characters such as dashes (`----`, `————-`), underscores (`____`), tildes (`~~~~`), or equal signs (`====`), it is a kitchen control marker for batching.
+- You **MUST** completely ignore and skip these messages.
+- **DO NOT** parse them as orders, **DO NOT** output any rows for them in the CSV, and **DO NOT** tag them with `[PERLU REVIEW]`. Simply skip them.
+
 ---
 
 ## SIMULATION EXAMPLE
@@ -117,118 +162,187 @@ Below is the list of official customer names registered in the cashier app datab
 
 - **Suto Tengah Blok G 11** (Match terms: ["Suto Tengah Blok G 11"]) | Ongkir: 0
 - **Retno Alazar - Sut Tengah XII/10** (Match terms: ["Retno Alazar - Sut Tengah XII/10"]) | Ongkir: 0
-- **SAHABUDIN 26** (Match terms: ["SAHABUDIN 26"]) | Ongkir: 5000
-- **Sutorejo Tengah 8/10** (Match terms: ["Sutorejo Tengah 8/10"]) | Ongkir: 0
 - **Mulyo Tengah 6/5** (Match terms: ["Mulyo Tengah 6/5"]) | Ongkir: 0
-- **SUTO SEL 7/37** (Match terms: ["SUTO SEL 7/37", "Sut sel 7/37"]) | Ongkir: 0
-- **Mulyo Utara 6/24** (Match terms: ["Mulyo Utara 6/24"]) | Ongkir: 0
-- **ITS D 20** (Match terms: ["ITS D 20"]) | Ongkir: 0
-- **ITS N 11** (Match terms: ["ITS N 11"]) | Ongkir: 0
-- **ITS X 16** (Match terms: ["ITS X 16"]) | Ongkir: 0
-- **ITS F 6** (Match terms: ["ITS F 6"]) | Ongkir: 0
-- **ITS W/6** (Match terms: ["ITS W/6"]) | Ongkir: 0
-- **ITS T/4** (Match terms: ["ITS T/4", "ITS T 4"]) | Ongkir: 0
 - **C** (Match terms: ["C"]) | Ongkir: 0
 - **B** (Match terms: ["B"]) | Ongkir: 0
 - **ITS X 4** (Match terms: ["ITS X 4"]) | Ongkir: 0
-- **Sutorejo Selatan XI/4** (Match terms: ["Sutorejo Selatan XI/4"]) | Ongkir: 0
-- **Wisper 5 / 18** (Match terms: ["Wisper 5 / 18"]) | Ongkir: 5000
-- **Jl.Bhaskara 2 no 12** (Match terms: ["Jl.Bhaskara 2 no 12"]) | Ongkir: 0
-- **Suto Sel 8/27** (Match terms: ["Suto Sel 8/27"]) | Ongkir: 0
 - **BPD B 11** (Match terms: ["BPD B 11"]) | Ongkir: 0
-- **Mulyo BPD B -1** (Match terms: ["Mulyo BPD B -1", "Mulyosari BPD B1"]) | Ongkir: 0
 - **ITS T 86** (Match terms: ["ITS T 86", "T86"]) | Ongkir: 0
 - **herlin T.lingkungan** (Match terms: ["herlin T.lingkungan"]) | Ongkir: 5000
 - **Santi BAPKM** (Match terms: ["Santi BAPKM"]) | Ongkir: 5000
-- **ITS T 52** (Match terms: ["ITS T 52", "T52"]) | Ongkir: 0
-- **SUTO TIMUR 3 / 33** (Match terms: ["SUTO TIMUR 3 / 33", "Suto Timur 3 / 33"]) | Ongkir: 0
 - **ITS U 87** (Match terms: ["ITS U 87"]) | Ongkir: 0
-- **Bu Nawir Mulyosari** (Match terms: ["Bu Nawir Mulyosari"]) | Ongkir: 0
-- **Suto Teng 8 / 44** (Match terms: ["Suto Teng 8 / 44"]) | Ongkir: 0
-- **SPR F20** (Match terms: ["SPR F20"]) | Ongkir: 10000
+- **SPR F20** (Match terms: ["SPR F20", "SPR F - 20"]) | Ongkir: 10000
 - **BPD B 22** (Match terms: ["BPD B 22"]) | Ongkir: 0
 - **ITS U 180** (Match terms: ["ITS U 180"]) | Ongkir: 0
 - **ITS R - 8** (Match terms: ["ITS R - 8"]) | Ongkir: 0
 - **Mulyo Tengah 6 / 9** (Match terms: ["Mulyo Tengah 6 / 9"]) | Ongkir: 0
 - **Suto Sel 3/5** (Match terms: ["Suto Sel 3/5"]) | Ongkir: 0
-- **NGADI 5** (Match terms: ["NGADI 5"]) | Ongkir: 5000
-- **Anak 7/37** (Match terms: ["Anak 7/37"]) | Ongkir: 0
 - **BPD D 24/25** (Match terms: ["BPD D 24/25"]) | Ongkir: 0
-- **Villa Royal C4/18** (Match terms: ["Villa Royal C4/18"]) | Ongkir: 5000
-- **Pantai Mentari Blok SF no. 9** (Match terms: ["Pantai Mentari Blok SF no. 9", "Pantai Mentari Blok SF / 9"]) | Ongkir: 10000
-- **Emi Bumi Marina - Teknik Fisika** (Match terms: ["Emi Bumi Marina - Teknik Fisika"]) | Ongkir: 5000
-- **Puri Asri P3 no. 32 Nenet** (Match terms: ["Puri Asri P3 no. 32 Nenet"]) | Ongkir: 5000
-- **Mutiara C3 / 367** (Match terms: ["Mutiara C3 / 367"]) | Ongkir: 0
-- **Vila Westwood A6-1** (Match terms: ["Vila Westwood A6-1", "villa westwood A6-1"]) | Ongkir: 5000
-- **Mulyo BPD BLOK B / 23** (Match terms: ["Mulyo BPD BLOK B / 23"]) | Ongkir: 0
-- **ITS T/73** (Match terms: ["ITS T/73", "Blok T/73"]) | Ongkir: 0
-- **Keputih Tgl Timur 2 / 15A** (Match terms: ["Keputih Tgl Timur 2 / 15A"]) | Ongkir: 0
-- **MUJI DPTSI RC Lt.4** (Match terms: ["MUJI DPTSI RC Lt.4"]) | Ongkir: 0
-- **Mulyosari prima 1/92 mc 19** (Match terms: ["Mulyosari prima 1/92 mc 19"]) | Ongkir: 5000
-- **Desi - Teknik Kimia** (Match terms: ["Desi - Teknik Kimia"]) | Ongkir: 5000
-- **P1/40** (Match terms: ["P1/40"]) | Ongkir: 0
-- **ITS V 10** (Match terms: ["ITS V 10", "ITS V10"]) | Ongkir: 0
-- **Bumi Galaxy Permai M3 / 17** (Match terms: ["Bumi Galaxy Permai M3 / 17"]) | Ongkir: 15000
-- **Dharmahusada BF 20** (Match terms: ["Dharmahusada BF 20"]) | Ongkir: 0
+- **Mulyo Utara 6/24** (Match terms: ["Mulyo Utara 6/24"]) | Ongkir: 0
+- **Mulyo BPD B -1** (Match terms: ["Mulyo BPD B -1", "Mulyosari BPD B1"]) | Ongkir: 0
 - **Bhaskara sari 38** (Match terms: ["Bhaskara sari 38", "Bhas Sari 38"]) | Ongkir: 0
-- **Kalijudan Taruna 2/6** (Match terms: ["Kalijudan Taruna 2/6"]) | Ongkir: 15000
+- **Pantai Mentari Blok SF no. 9** (Match terms: ["Pantai Mentari Blok SF no. 9", "Pantai Mentari Blok SF / 9", "pantai mentari blok SF no. 9"]) | Ongkir: 10000
+- **ITS T/4** (Match terms: ["ITS T/4", "ITS T 4"]) | Ongkir: 0
+- **Anak 7/37** (Match terms: ["Anak 7/37"]) | Ongkir: 0
+- **ITS W/6** (Match terms: ["ITS W/6"]) | Ongkir: 0
+- **Keputih Tgl Timur 2 / 15A** (Match terms: ["Keputih Tgl Timur 2 / 15A"]) | Ongkir: 15000
+- **MUJI DPTSI RC Lt.4** (Match terms: ["MUJI DPTSI RC Lt.4"]) | Ongkir: 0
+- **Puri Asri P3 no. 32 Nenet** (Match terms: ["Puri Asri P3 no. 32 Nenet"]) | Ongkir: 5000
+- **Desi - Teknik Kimia** (Match terms: ["Desi - Teknik Kimia"]) | Ongkir: 5000
+- **ITS D 20** (Match terms: ["ITS D 20"]) | Ongkir: 0
+- **NGADI 5** (Match terms: ["NGADI 5"]) | Ongkir: 5000
+- **Suto Teng 8 / 44** (Match terms: ["Suto Teng 8 / 44"]) | Ongkir: 0
+- **Villa Royal C4/18** (Match terms: ["Villa Royal C4/18"]) | Ongkir: 5000
 - **Zainal Gg. 3** (Match terms: ["Zainal Gg. 3"]) | Ongkir: 0
 - **ITS N/2** (Match terms: ["ITS N/2", "N - 2"]) | Ongkir: 0
 - **Mulyo Utara 7 / 6** (Match terms: ["Mulyo Utara 7 / 6"]) | Ongkir: 0
-- **Sutorejo Sel 1/22** (Match terms: ["Sutorejo Sel 1/22"]) | Ongkir: 0
-- **Bhsksari 60** (Match terms: ["Bhsksari 60"]) | Ongkir: 0
+- **Mulyosari prima 1/92 mc 19** (Match terms: ["Mulyosari prima 1/92 mc 19"]) | Ongkir: 5000
+- **P1/40** (Match terms: ["P1/40"]) | Ongkir: 0
+- **Sutorejo Tengah 8/10** (Match terms: ["Sutorejo Tengah 8/10"]) | Ongkir: 0
+- **Vila Westwood A6-1** (Match terms: ["Vila Westwood A6-1", "villa westwood A6-1"]) | Ongkir: 5000
+- **Wisper 5 / 18** (Match terms: ["Wisper 5 / 18"]) | Ongkir: 5000
+- **Jl.Bhaskara 2 no 12** (Match terms: ["Jl.Bhaskara 2 no 12"]) | Ongkir: 0
+- **ITS V 10** (Match terms: ["ITS V 10", "ITS V10"]) | Ongkir: 0
+- **Mulyo BPD BLOK B / 23** (Match terms: ["Mulyo BPD BLOK B / 23"]) | Ongkir: 0
+- **Bu Nawir Mulyosari** (Match terms: ["Bu Nawir Mulyosari"]) | Ongkir: 0
+- **Suto Sel 8/27** (Match terms: ["Suto Sel 8/27", "Sut.sel 8/27"]) | Ongkir: 0
+- **SUTO TIMUR 3 / 33** (Match terms: ["SUTO TIMUR 3 / 33", "Suto Timur 3 / 33"]) | Ongkir: 0
+- **ITS N 11** (Match terms: ["ITS N 11"]) | Ongkir: 0
+- **ITS T 52** (Match terms: ["ITS T 52", "T52"]) | Ongkir: 0
+- **ITS F 6** (Match terms: ["ITS F 6"]) | Ongkir: 0
+- **SAHABUDIN 26** (Match terms: ["SAHABUDIN 26"]) | Ongkir: 5000
+- **Mutiara C3 / 367** (Match terms: ["Mutiara C3 / 367"]) | Ongkir: 5000
+- **SUTO SEL 7/37** (Match terms: ["SUTO SEL 7/37", "Sut sel 7/37", "Sut sel 7 no 37"]) | Ongkir: 0
+- **Dharmahusada BF 20** (Match terms: ["Dharmahusada BF 20"]) | Ongkir: 0
+- **ITS T/73** (Match terms: ["ITS T/73", "Blok T/73"]) | Ongkir: 0
+- **Kalijudan Taruna 2/6** (Match terms: ["Kalijudan Taruna 2/6"]) | Ongkir: 15000
+- **Sutorejo Selatan XI/4** (Match terms: ["Sutorejo Selatan XI/4"]) | Ongkir: 0
+- **ITS X 16** (Match terms: ["ITS X 16"]) | Ongkir: 0
+- **Emi Bumi Marina - Teknik Fisika** (Match terms: ["Emi Bumi Marina - Teknik Fisika"]) | Ongkir: 5000
+- **Bumi Galaxy Permai M3 / 17** (Match terms: ["Bumi Galaxy Permai M3 / 17"]) | Ongkir: 15000
 - **BU BAMBANG GG 1** (Match terms: ["BU BAMBANG GG 1"]) | Ongkir: 0
 - **DUPAK PECAH BELAH** (Match terms: ["DUPAK PECAH BELAH"]) | Ongkir: 35000
 - **BPD B 14** (Match terms: ["BPD B 14"]) | Ongkir: 0
-- **ITS T 8 LAMA** (Match terms: ["ITS T 8 LAMA"]) | Ongkir: 5000
 - **ITS D23** (Match terms: ["ITS D23"]) | Ongkir: 5000
 - **BHAS 1/15** (Match terms: ["BHAS 1/15"]) | Ongkir: 0
 - **MULYO  UTARA 7/8** (Match terms: ["MULYO  UTARA 7/8"]) | Ongkir: 0
 - **Wisper 11 / 17** (Match terms: ["Wisper 11 / 17"]) | Ongkir: 5000
-- **BHAS UTARA D 14** (Match terms: ["BHAS UTARA D 14", "BHAS UTARA"]) | Ongkir: 0
-- **WisPer Tengah 9/JJ-37** (Match terms: ["WisPer Tengah 9/JJ-37", "WisPer Tengah 9/JJ -37 Sby", "WISPER TGH 9/JJ-37"]) | Ongkir: 5000
 - **SUTO TGH 12/10** (Match terms: ["SUTO TGH 12/10"]) | Ongkir: 0
 - **ITS U/117** (Match terms: ["ITS U/117"]) | Ongkir: 0
 - **ITS X/22** (Match terms: ["ITS X/22"]) | Ongkir: 0
-- **ITS T 85** (Match terms: ["ITS T 85"]) | Ongkir: 5000
 - **SUTO TGH VI GG 11 - ANAK BU EDI** (Match terms: ["SUTO TGH VI GG 11 - ANAK BU EDI"]) | Ongkir: 0
 - **Mulyo Utara 11/58** (Match terms: ["Mulyo Utara 11/58"]) | Ongkir: 5000
-- **D 19 SDMO Teknik** (Match terms: ["D 19 SDMO Teknik"]) | Ongkir: 5000
-- **ITS T 93** (Match terms: ["ITS T 93", "T 93 ITS"]) | Ongkir: 0
 - **Babatan Pantai 39** (Match terms: ["Babatan Pantai 39"]) | Ongkir: 5000
 - **BPD B/16** (Match terms: ["BPD B/16", "BPD Blok B/16"]) | Ongkir: 0
-- **Bhas Tengah D - 37** (Match terms: ["Bhas Tengah D - 37"]) | Ongkir: 0
-- **Suto Tengah 13 /45** (Match terms: ["Suto Tengah 13 /45"]) | Ongkir: 0
+- **Bhas Tengah D - 37** (Match terms: ["Bhas Tengah D - 37", "Bhas Tengah D - 37 (bali)"]) | Ongkir: 0
 - **Suto Sel 8/40** (Match terms: ["Suto Sel 8/40"]) | Ongkir: 0
-- **Wisper 1/49** (Match terms: ["Wisper 1/49", "Wisma Permai 1 no.49"]) | Ongkir: 20000
 - **Pakuwon City San Diego M2** (Match terms: ["Pakuwon City San Diego M2"]) | Ongkir: 5000
 - **Jl. Dharmahusada Indah 42** (Match terms: ["Jl. Dharmahusada Indah 42"]) | Ongkir: 5000
 - **Manyar Tirtoyoso 3/18** (Match terms: ["Manyar Tirtoyoso 3/18"]) | Ongkir: 20000
-- **BPD B / 33** (Match terms: ["BPD B / 33"]) | Ongkir: 0
 - **Mulyosari BPD B-20** (Match terms: ["Mulyosari BPD B-20"]) | Ongkir: 0
-- **Blok T 86.bu Ratna** (Match terms: ["Blok T 86.bu Ratna"]) | Ongkir: 0
-- **Mulyo Tng 6 / 5** (Match terms: ["Mulyo Tng 6 / 5"]) | Ongkir: 0
-- **Mbak JU KARIS - Ibu Artha suteng blok G no.11** (Match terms: ["Mbak JU KARIS - Ibu Artha suteng blok G no.11"]) | Ongkir: 0
+- **BPD B / 33** (Match terms: ["BPD B / 33"]) | Ongkir: 0
+- **ITS T 9** (Match terms: ["ITS T 9"]) | Ongkir: 0
 - **Blok U/117** (Match terms: ["Blok U/117"]) | Ongkir: 0
-- **Wisper 1/75** (Match terms: ["Wisper 1/75", "Jl. Wisma Permai 1 no 75"]) | Ongkir: 5000
+- **Bhsksari 60** (Match terms: ["Bhsksari 60"]) | Ongkir: 0
 - **Suto Tengah 13 /45 - Sut Teng XIII/45** (Match terms: ["Suto Tengah 13 /45 - Sut Teng XIII/45"]) | Ongkir: 0
-- **Gatot - Tri T 29** (Match terms: ["Gatot - Tri T 29"]) | Ongkir: 0
-- **ITS J 41** (Match terms: ["ITS J 41"]) | Ongkir: 0
-- **Leli - Wisper 5/6** (Match terms: ["Leli - Wisper 5/6"]) | Ongkir: 5000
+- **Suto Tengah 13 /45** (Match terms: ["Suto Tengah 13 /45"]) | Ongkir: 0
 - **Suto Tengah 12 / 10** (Match terms: ["Suto Tengah 12 / 10"]) | Ongkir: 5000
-- **Pucangan 3.no.49** (Match terms: ["Pucangan 3.no.49"]) | Ongkir: 25000
-- **Sadikin 11** (Match terms: ["Sadikin 11"]) | Ongkir: 5000
-- **Griya Asri G2 - 28** (Match terms: ["Griya Asri G2 - 28"]) | Ongkir: 5000
-- **ITS J / 3** (Match terms: ["ITS J / 3", "J / 3"]) | Ongkir: 5000
+- **ITS T 93** (Match terms: ["ITS T 93", "T 93 ITS"]) | Ongkir: 0
+- **ITS T 85** (Match terms: ["ITS T 85"]) | Ongkir: 5000
 - **ITS P 7** (Match terms: ["ITS P 7"]) | Ongkir: 5000
-- **SPR F - 20** (Match terms: ["SPR F - 20"]) | Ongkir: 10000
 - **M BPD B/46** (Match terms: ["M BPD B/46"]) | Ongkir: 0
 - **Bhaskara sari 60** (Match terms: ["Bhaskara sari 60"]) | Ongkir: 0
-- **pantai mentari blok SF no. 9** (Match terms: ["pantai mentari blok SF no. 9"]) | Ongkir: 10000
 - **Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2** (Match terms: ["Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2"]) | Ongkir: 0
-- **T - 72** (Match terms: ["T - 72"]) | Ongkir: 0
-- **ITS i 6** (Match terms: ["ITS i 6", "ITS BLK I6"]) | Ongkir: 0
-- **ITS T 9** (Match terms: ["ITS T 9"]) | Ongkir: 0
-- **Sut sel 7 no 37** (Match terms: ["Sut sel 7 no 37"]) | Ongkir: 0
-- **Sut.sel 8/27** (Match terms: ["Sut.sel 8/27"]) | Ongkir: 0
+- **Mbak JU KARIS - Ibu Artha suteng blok G no.11** (Match terms: ["Mbak JU KARIS - Ibu Artha suteng blok G no.11"]) | Ongkir: 0
 - **Mulyosari BPD B-22** (Match terms: ["Mulyosari BPD B-22"]) | Ongkir: 0
+- **Bhas Utara B 14** (Match terms: ["Bhas Utara B 14", "BHAS UTARA D 14", "BHAS UTARA"]) | Ongkir: 0
+- **ITS J / 3** (Match terms: ["ITS J / 3", "J / 3"]) | Ongkir: 0
+- **Suto Utara 6 /11** (Match terms: ["Suto Utara 6 /11", "Suto Utara 6/11"]) | Ongkir: 0
+- **Sandiego Blok M 12/60-62** (Match terms: ["Sandiego Blok M 12/60-62"]) | Ongkir: 5000
+- **J 5 Endah** (Match terms: ["J 5 Endah"]) | Ongkir: 0
+- **Leli - Wisper 5/6** (Match terms: ["Leli - Wisper 5/6"]) | Ongkir: 5000
+- **ITS i 6** (Match terms: ["ITS i 6", "ITS BLK I6"]) | Ongkir: 5000
+- **Suto Sel 7 / 37** (Match terms: ["Suto Sel 7 / 37"]) | Ongkir: 0
+- **Alfita - T71** (Match terms: ["Alfita - T71"]) | Ongkir: 0
+- **W / 6** (Match terms: ["W / 6"]) | Ongkir: 0
+- **ITS M 3** (Match terms: ["ITS M 3"]) | Ongkir: 0
+- **BPD  B 34-35** (Match terms: ["BPD  B 34-35"]) | Ongkir: 0
+- **Mulyosari BPD 20** (Match terms: ["Mulyosari BPD 20"]) | Ongkir: 0
+- **Bpd B 22 Baru** (Match terms: ["Bpd B 22 Baru"]) | Ongkir: 0
+- **Florence J5/23.** (Match terms: ["Florence J5/23."]) | Ongkir: 0
+- **Sadikin 11** (Match terms: ["Sadikin 11"]) | Ongkir: 5000
+- **Jl. Suto prima indah barat blok PQ 35.** (Match terms: ["Jl. Suto prima indah barat blok PQ 35."]) | Ongkir: 0
+- **Gatot - Tri T 29** (Match terms: ["Gatot - Tri T 29"]) | Ongkir: 0
+- **Bu Nawir Mulyosari - MU 6/24** (Match terms: ["Bu Nawir Mulyosari - MU 6/24"]) | Ongkir: 0
+- **Sutorejo Sel 1/22** (Match terms: ["Sutorejo Sel 1/22"]) | Ongkir: 0
+- **Blok T 86.bu Ratna** (Match terms: ["Blok T 86.bu Ratna"]) | Ongkir: 0
+- **Wisper 1/75** (Match terms: ["Wisper 1/75", "Jl. Wisma Permai 1 no 75"]) | Ongkir: 5000
+- **U 180** (Match terms: ["U 180"]) | Ongkir: 0
+- **T - 72** (Match terms: ["T - 72"]) | Ongkir: 0
+- **D 19 SDMO Teknik** (Match terms: ["D 19 SDMO Teknik"]) | Ongkir: 5000
+- **Pucangan 3.no.49** (Match terms: ["Pucangan 3.no.49"]) | Ongkir: 25000
+- **Wisper 1/49** (Match terms: ["Wisper 1/49", "Wisma Permai 1 no.49"]) | Ongkir: 20000
+- **WisPer Tengah 9/JJ-37** (Match terms: ["WisPer Tengah 9/JJ-37", "WisPer Tengah 9/JJ -37 Sby", "WISPER TGH 9/JJ-37"]) | Ongkir: 5000
+- **Griya Asri G2 - 28** (Match terms: ["Griya Asri G2 - 28"]) | Ongkir: 5000
+- **Mulyo Tng 6 / 5** (Match terms: ["Mulyo Tng 6 / 5"]) | Ongkir: 0
+- **ITS J 41** (Match terms: ["ITS J 41"]) | Ongkir: 0
+- **Wisper 5/18** (Match terms: ["Wisper 5/18"]) | Ongkir: 5000
+- **Sutorejo Tengah 2/6** (Match terms: ["Sutorejo Tengah 2/6"]) | Ongkir: 0
+- **Suto Utara Baru 17 A** (Match terms: ["Suto Utara Baru 17 A"]) | Ongkir: 0
+- **Leli Wisper - Wisma Permai V/6** (Match terms: ["Leli Wisper - Wisma Permai V/6"]) | Ongkir: 0
+- **U I76** (Match terms: ["U I76"]) | Ongkir: 0
+- **Tohir 23** (Match terms: ["Tohir 23"]) | Ongkir: 5000
+- **Mulyosari Mas F 19 - Mulyo mas f19 - matur swn** (Match terms: ["Mulyosari Mas F 19 - Mulyo mas f19 - matur swn"]) | Ongkir: 0
+- **J 5 Endah - Blok J/5** (Match terms: ["J 5 Endah - Blok J/5"]) | Ongkir: 0
+- **Anak Bu Edi Baru - Sut teng VI gg 11** (Match terms: ["Anak Bu Edi Baru - Sut teng VI gg 11"]) | Ongkir: 0
+- **Tohir 14** (Match terms: ["Tohir 14"]) | Ongkir: 0
+- **Prof Yulfi Zetra - Asww - Blok T99** (Match terms: ["Prof Yulfi Zetra - Asww - Blok T99"]) | Ongkir: 0
+- **Alfita** (Match terms: ["Alfita"]) | Ongkir: 0
+- **U / 9 Atria** (Match terms: ["U / 9 Atria"]) | Ongkir: 0
+- **ITS N8** (Match terms: ["ITS N8"]) | Ongkir: 0
+- **ITS U 196** (Match terms: ["ITS U 196"]) | Ongkir: 0
+- **Tuwowo Rejo** (Match terms: ["Tuwowo Rejo"]) | Ongkir: 15000
+- **Bhaskara V/6** (Match terms: ["Bhaskara V/6"]) | Ongkir: 0
+- **RENA SMA** (Match terms: ["RENA SMA"]) | Ongkir: 0
+- **Susi Rohmadi** (Match terms: ["Susi Rohmadi"]) | Ongkir: 25000
+- **Alif Sutorejo Prima** (Match terms: ["Alif Sutorejo Prima"]) | Ongkir: 0
+- **ITS W20** (Match terms: ["ITS W20"]) | Ongkir: 0
+- **Mulyo utara 2/69** (Match terms: ["Mulyo utara 2/69"]) | Ongkir: 0
+- **jojoran 1 Blok B no 19 - Kiki** (Match terms: ["jojoran 1 Blok B no 19 - Kiki"]) | Ongkir: 15000
+- **ITS J 5** (Match terms: ["ITS J 5"]) | Ongkir: 5000
+- **Temen Pak Didik (IDA)** (Match terms: ["Temen Pak Didik (IDA)"]) | Ongkir: 0
+- **WISPER TENGAH KK** (Match terms: ["WISPER TENGAH KK"]) | Ongkir: 5000
+- **44 Ny. Iin Oman - Jl. Memet Sastrowiryo no 22** (Match terms: ["44 Ny. Iin Oman - Jl. Memet Sastrowiryo no 22"]) | Ongkir: 0
+- **Taman Suto Timur 48 Baru** (Match terms: ["Taman Suto Timur 48 Baru"]) | Ongkir: 0
+- **Gimo Gg 3 - Bhaskara 3/10** (Match terms: ["Gimo Gg 3 - Bhaskara 3/10"]) | Ongkir: 0
+- **Blok T/11** (Match terms: ["Blok T/11"]) | Ongkir: 0
+- **Bhaskara Utara B 14** (Match terms: ["Bhaskara Utara B 14"]) | Ongkir: 0
+- **Mulyo Utara/21** (Match terms: ["Mulyo Utara/21"]) | Ongkir: 0
+- **Sut.Tengah 12/10** (Match terms: ["Sut.Tengah 12/10"]) | Ongkir: 0
+- **WPT IX / JJ - 37** (Match terms: ["WPT IX / JJ - 37"]) | Ongkir: 0
+- **Sahabudin 26** (Match terms: ["Sahabudin 26"]) | Ongkir: 5000
+- **Sutorejo Tengah 8 / 10** (Match terms: ["Sutorejo Tengah 8 / 10"]) | Ongkir: 0
+- **N.2** (Match terms: ["N.2"]) | Ongkir: 0
+- **Blok X-16** (Match terms: ["Blok X-16"]) | Ongkir: 0
+- **N11 Tanti** (Match terms: ["N11 Tanti"]) | Ongkir: 0
+- **T73** (Match terms: ["T73"]) | Ongkir: 0
+- **U9** (Match terms: ["U9"]) | Ongkir: 0
+- **T71** (Match terms: ["T71"]) | Ongkir: 0
+- **T 93** (Match terms: ["T 93"]) | Ongkir: 0
+- **U 117** (Match terms: ["U 117"]) | Ongkir: 0
+- **U87** (Match terms: ["U87"]) | Ongkir: 0
+- **Tohir 17 Komplek AL** (Match terms: ["Tohir 17 Komplek AL"]) | Ongkir: 5000
+- **Bhaskara V/56** (Match terms: ["Bhaskara V/56"]) | Ongkir: 0
+- **ITS U 132** (Match terms: ["ITS U 132"]) | Ongkir: 5000
+- **M 4 A** (Match terms: ["M 4 A"]) | Ongkir: 0
+- **ITS T 8 LAMA** (Match terms: ["ITS T 8 LAMA"]) | Ongkir: 5000
+- **Tenggilis Mejoyo Fayzia** (Match terms: ["Tenggilis Mejoyo Fayzia"]) | Ongkir: 35000
+- **Tek Lingkungan Khusnul** (Match terms: ["Tek Lingkungan Khusnul"]) | Ongkir: 5000
+- **V / 3** (Match terms: ["V / 3"]) | Ongkir: 0
+- **Dharmahusada Emas Fendi - Dharmas bf20** (Match terms: ["Dharmahusada Emas Fendi - Dharmas bf20"]) | Ongkir: 0
+- **Wisper Tengah Blok Kk** (Match terms: ["Wisper Tengah Blok Kk"]) | Ongkir: 5000
+- **Mulyo Utara/21 - MU21 pesan** (Match terms: ["Mulyo Utara/21 - MU21 pesan"]) | Ongkir: 0
+- **U 4 / 5 A Perpus - Blok U-IV/5A** (Match terms: ["U 4 / 5 A Perpus - Blok U-IV/5A"]) | Ongkir: 0
+- **T - 49** (Match terms: ["T - 49"]) | Ongkir: 0
+- **Dina Tohir 9** (Match terms: ["Dina Tohir 9"]) | Ongkir: 5000
+- **Tohir 17** (Match terms: ["Tohir 17"]) | Ongkir: 5000
