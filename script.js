@@ -5,6 +5,28 @@ const CUSTOMER_SUGGESTION_LIMIT = 80;
 const SUPABASE_URL = "https://ddfalsclevkqhiyojngx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP";
 const CUSTOMER_TAG_ALIAS_PREFIX = "tagalamat:";
+const CUSTOMER_TAG_FILTER_ALL = "all";
+const CUSTOMER_TAG_FILTER_OTHER = "__other";
+const CUSTOMER_TAG_FILTER_OTHER_LABEL = "Lainnya";
+const CUSTOMER_TAG_FILTER_ORDER = [
+  "ITS",
+  "Sutorejo",
+  "Mulyosari",
+  "BPD",
+  "Wisper",
+  "Bhaskara",
+  "Kenjeran",
+  "Pakuwon",
+  "Keputih",
+  "Dharmahusada",
+  "Bumi Galaxy",
+  "Bumi Marina",
+  "Rungkut",
+  "Manyar",
+  "Kalijudan",
+  "Supit",
+  CUSTOMER_TAG_FILTER_OTHER_LABEL,
+];
 
 const currency = new Intl.NumberFormat("id-ID", {
   style: "currency",
@@ -120,6 +142,7 @@ const state = {
     month: getLocalDateKey().slice(0, 7),
   },
   customerSearch: "",
+  customerTagFilter: "all",
   selectedCategory: "all",
   dailyMenu: {
     date: getLocalDateKey(),
@@ -295,6 +318,7 @@ const els = {
   openCustomerDataButton: document.querySelector("#openCustomerDataButton"),
   customerDataModal: document.querySelector("#customerDataModal"),
   customerSearchInput: document.querySelector("#customerSearchInput"),
+  customerTagFilter: document.querySelector("#customerTagFilter"),
   customerDepositHint: document.querySelector("#customerDepositHint"),
   openPiutangButton: document.querySelector("#openPiutangButton"),
   piutangModal: document.querySelector("#piutangModal"),
@@ -2098,6 +2122,55 @@ function normalizeCustomerRecord(customer) {
   };
 }
 
+function getCustomerDisplayTag(customer) {
+  return String(customer?.tag || "").trim() || CUSTOMER_TAG_FILTER_OTHER_LABEL;
+}
+
+function getCustomerTagFilterKey(customer) {
+  return String(customer?.tag || "").trim() ? String(customer.tag).trim() : CUSTOMER_TAG_FILTER_OTHER;
+}
+
+function isCustomerMatchingTagFilter(customer, filterKey = state.customerTagFilter) {
+  if (!filterKey || filterKey === CUSTOMER_TAG_FILTER_ALL) return true;
+  if (filterKey === CUSTOMER_TAG_FILTER_OTHER) return !String(customer?.tag || "").trim();
+  return String(customer?.tag || "").trim() === filterKey;
+}
+
+function getNormalizedCustomersForFilter() {
+  return state.customers
+    .map(normalizeCustomerRecord)
+    .filter((customer) => customer.id && customer.name);
+}
+
+function getCustomerTagFilterOptions(customers = getNormalizedCustomersForFilter()) {
+  const counts = new Map();
+  customers.forEach((customer) => {
+    const label = getCustomerDisplayTag(customer);
+    counts.set(label, (counts.get(label) || 0) + 1);
+  });
+
+  const orderIndex = new Map(CUSTOMER_TAG_FILTER_ORDER.map((tag, index) => [tag, index]));
+  const tags = [...counts.keys()].sort((left, right) => {
+    const leftIndex = orderIndex.has(left) ? orderIndex.get(left) : Number.MAX_SAFE_INTEGER;
+    const rightIndex = orderIndex.has(right) ? orderIndex.get(right) : Number.MAX_SAFE_INTEGER;
+    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+    return left.localeCompare(right, "id-ID");
+  });
+
+  return [
+    {
+      key: CUSTOMER_TAG_FILTER_ALL,
+      label: "Semua",
+      count: customers.length,
+    },
+    ...tags.map((tag) => ({
+      key: tag === CUSTOMER_TAG_FILTER_OTHER_LABEL ? CUSTOMER_TAG_FILTER_OTHER : tag,
+      label: tag,
+      count: counts.get(tag) || 0,
+    })),
+  ];
+}
+
 function getSimilarCustomerGroups() {
   const customers = state.customers
     .map(normalizeCustomerRecord)
@@ -2159,9 +2232,8 @@ function getSimilarCustomerGroups() {
 
 function getEditableCustomerRows() {
   const searchKey = normalizeKey(state.customerSearch);
-  return state.customers
-    .map(normalizeCustomerRecord)
-    .filter((customer) => customer.id && customer.name)
+  return getNormalizedCustomersForFilter()
+    .filter((customer) => isCustomerMatchingTagFilter(customer))
     .filter((customer) => !searchKey || normalizeKey(customer.name).includes(searchKey) || normalizeKey(customer.tag).includes(searchKey) || customer.aliases.some((alias) => normalizeKey(alias).includes(searchKey)));
 }
 
@@ -2198,10 +2270,43 @@ function renderCustomerSimilarSection() {
     .join("");
 }
 
+function renderCustomerTagFilter() {
+  if (!els.customerTagFilter) return;
+  const customers = getNormalizedCustomersForFilter();
+  const options = getCustomerTagFilterOptions(customers);
+  const optionKeys = new Set(options.map((option) => option.key));
+  if (!optionKeys.has(state.customerTagFilter)) state.customerTagFilter = CUSTOMER_TAG_FILTER_ALL;
+
+  if (!customers.length) {
+    els.customerTagFilter.innerHTML = "";
+    els.customerTagFilter.hidden = true;
+    return;
+  }
+
+  els.customerTagFilter.hidden = false;
+  els.customerTagFilter.innerHTML = `
+    <span class="customer-tag-filter-label">Tag alamat</span>
+    <div class="customer-tag-filter-chips" role="group" aria-label="Filter tag alamat">
+      ${options
+        .map((option) => {
+          const active = option.key === state.customerTagFilter;
+          return `
+            <button class="customer-filter-chip${active ? " active" : ""}" type="button" data-customer-tag-filter="${escapeHtml(option.key)}" aria-pressed="${active ? "true" : "false"}">
+              <span>${escapeHtml(option.label)}</span>
+              <strong>${escapeHtml(option.count)}</strong>
+            </button>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
 function renderCustomerDataList(statusMessage = "") {
   if (!els.customerDataList) return;
 
   renderCustomerSimilarSection();
+  renderCustomerTagFilter();
   const rows = getEditableCustomerRows();
 
   const totalCount = state.customers.map(normalizeCustomerRecord).filter((customer) => customer.id && customer.name).length;
@@ -2265,6 +2370,7 @@ function renderCustomerDataList(statusMessage = "") {
 
 async function openCustomerDataManager() {
   state.customerSearch = "";
+  state.customerTagFilter = CUSTOMER_TAG_FILTER_ALL;
   if (els.customerSearchInput) els.customerSearchInput.value = "";
   renderCustomerDataList("Memuat data customer...");
   openModal(els.customerDataModal, els.customerSearchInput);
@@ -8400,6 +8506,12 @@ function bindEvents() {
   });
   els.customerSearchInput.addEventListener("input", () => {
     state.customerSearch = els.customerSearchInput.value;
+    renderCustomerDataList();
+  });
+  els.customerTagFilter?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-customer-tag-filter]");
+    if (!button) return;
+    state.customerTagFilter = button.dataset.customerTagFilter || CUSTOMER_TAG_FILTER_ALL;
     renderCustomerDataList();
   });
   els.customerSimilarList.addEventListener("submit", (event) => {

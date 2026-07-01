@@ -32,10 +32,10 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=200">
+    <link rel="stylesheet" href="styles.css?v=205">
     <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script defer src="script.js?v=200"></script>
+    <script defer src="script.js?v=205"></script>
   </head>
   <body>
     <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
@@ -480,6 +480,8 @@
             <input id="customerSearchInput" type="search" placeholder="Nama / alamat / tag customer">
           </span>
         </label>
+
+        <div class="customer-tag-filter" id="customerTagFilter" aria-label="Filter tag alamat"></div>
 
         <div class="customer-scroll-area" id="customerScrollArea">
           <section class="customer-similar-section" id="customerSimilarSection" hidden>
