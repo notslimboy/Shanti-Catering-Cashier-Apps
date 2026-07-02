@@ -63,6 +63,8 @@ customer,chatDate,payment,ongkir,item,quantity,note
    - **CRITICAL 1**: **DO NOT** put any address, house number, street name, block code, or location details in this column (as all of those belong in the `customer` column).
    - **CRITICAL 2**: If the note contains commas `,`, replace them with semicolons `;` so it doesn't break the CSV column layout (e.g., "tanpa susu dan adpokat, gojek jam 9" becomes `tanpa susu dan adpokat; gojek jam 9`).
    - **CRITICAL 3**: If there are items of the same product but with different notes (e.g., "2x Siomay (tanpa pare)" and "1x Siomay (pake pare)"), they MUST be written as separate rows in the CSV. **DO NOT** group their quantities or combine their notes into a single row.
+   - **CRITICAL 4**: **ALWAYS check and extract item-level notes/customizations very carefully** (including text inside parentheses like `(tidak mau sayur, yang banyak kuahnya)` or inline comments like `tdk pedas d pisah( kuah bnyk )`). These kitchen-level notes are critical for the cooking crew and MUST NOT be missed.
+   - **CRITICAL 5**: If the note contains the delivery address (e.g. `pakuwon city`, `mulyosari`), but also has kitchen/item instructions (e.g. `tanpa sayur`, `kuah banyak`), strip out the address part from the note and only keep the item/kitchen instructions. If the note is *only* the address/location, leave the note column empty, because the customer name/profile already represents the address.
 
 9. **Message Filtering & Order Consolidation**:
    - Ignore chats that are not food orders. Skip lines that are purely questions (e.g. containing "ready?", "adakah?", "apakah?") without an explicit order quantity or ordering intent.
@@ -160,189 +162,204 @@ The user will provide the **Daftar Menu Hari Ini** and the **WhatsApp chat histo
 ## DATABASE CONTEXT: OFFICIAL CUSTOMERS & ONGKIR
 Below is the list of official customer names registered in the cashier app database, their match terms/aliases, and their default shipping/ongkir fee:
 
-- **Suto Tengah Blok G 11** (Match terms: ["Suto Tengah Blok G 11"]) | Ongkir: 0
-- **Retno Alazar - Sut Tengah XII/10** (Match terms: ["Retno Alazar - Sut Tengah XII/10"]) | Ongkir: 0
-- **Mulyo Tengah 6/5** (Match terms: ["Mulyo Tengah 6/5"]) | Ongkir: 0
-- **C** (Match terms: ["C"]) | Ongkir: 0
-- **B** (Match terms: ["B"]) | Ongkir: 0
-- **ITS X 4** (Match terms: ["ITS X 4"]) | Ongkir: 0
-- **BPD B 11** (Match terms: ["BPD B 11"]) | Ongkir: 0
-- **ITS T 86** (Match terms: ["ITS T 86", "T86"]) | Ongkir: 0
-- **herlin T.lingkungan** (Match terms: ["herlin T.lingkungan"]) | Ongkir: 5000
-- **Santi BAPKM** (Match terms: ["Santi BAPKM"]) | Ongkir: 5000
-- **ITS U 87** (Match terms: ["ITS U 87"]) | Ongkir: 0
-- **SPR F20** (Match terms: ["SPR F20", "SPR F - 20"]) | Ongkir: 10000
-- **BPD B 22** (Match terms: ["BPD B 22"]) | Ongkir: 0
-- **ITS U 180** (Match terms: ["ITS U 180"]) | Ongkir: 0
-- **ITS R - 8** (Match terms: ["ITS R - 8"]) | Ongkir: 0
-- **Mulyo Tengah 6 / 9** (Match terms: ["Mulyo Tengah 6 / 9"]) | Ongkir: 0
-- **Suto Sel 3/5** (Match terms: ["Suto Sel 3/5"]) | Ongkir: 0
-- **BPD D 24/25** (Match terms: ["BPD D 24/25"]) | Ongkir: 0
-- **Mulyo Utara 6/24** (Match terms: ["Mulyo Utara 6/24"]) | Ongkir: 0
-- **Mulyo BPD B -1** (Match terms: ["Mulyo BPD B -1", "Mulyosari BPD B1"]) | Ongkir: 0
-- **Bhaskara sari 38** (Match terms: ["Bhaskara sari 38", "Bhas Sari 38"]) | Ongkir: 0
-- **Pantai Mentari Blok SF no. 9** (Match terms: ["Pantai Mentari Blok SF no. 9", "Pantai Mentari Blok SF / 9", "pantai mentari blok SF no. 9"]) | Ongkir: 10000
-- **ITS T/4** (Match terms: ["ITS T/4", "ITS T 4"]) | Ongkir: 0
-- **Anak 7/37** (Match terms: ["Anak 7/37"]) | Ongkir: 0
-- **ITS W/6** (Match terms: ["ITS W/6"]) | Ongkir: 0
-- **Keputih Tgl Timur 2 / 15A** (Match terms: ["Keputih Tgl Timur 2 / 15A"]) | Ongkir: 15000
-- **MUJI DPTSI RC Lt.4** (Match terms: ["MUJI DPTSI RC Lt.4"]) | Ongkir: 0
-- **Puri Asri P3 no. 32 Nenet** (Match terms: ["Puri Asri P3 no. 32 Nenet"]) | Ongkir: 5000
-- **Desi - Teknik Kimia** (Match terms: ["Desi - Teknik Kimia"]) | Ongkir: 5000
-- **ITS D 20** (Match terms: ["ITS D 20"]) | Ongkir: 0
-- **NGADI 5** (Match terms: ["NGADI 5"]) | Ongkir: 5000
-- **Suto Teng 8 / 44** (Match terms: ["Suto Teng 8 / 44"]) | Ongkir: 0
-- **Villa Royal C4/18** (Match terms: ["Villa Royal C4/18"]) | Ongkir: 5000
-- **Zainal Gg. 3** (Match terms: ["Zainal Gg. 3"]) | Ongkir: 0
-- **ITS N/2** (Match terms: ["ITS N/2", "N - 2"]) | Ongkir: 0
-- **Mulyo Utara 7 / 6** (Match terms: ["Mulyo Utara 7 / 6"]) | Ongkir: 0
-- **Mulyosari prima 1/92 mc 19** (Match terms: ["Mulyosari prima 1/92 mc 19"]) | Ongkir: 5000
-- **P1/40** (Match terms: ["P1/40"]) | Ongkir: 0
-- **Sutorejo Tengah 8/10** (Match terms: ["Sutorejo Tengah 8/10"]) | Ongkir: 0
-- **Vila Westwood A6-1** (Match terms: ["Vila Westwood A6-1", "villa westwood A6-1"]) | Ongkir: 5000
-- **Wisper 5 / 18** (Match terms: ["Wisper 5 / 18"]) | Ongkir: 5000
-- **Jl.Bhaskara 2 no 12** (Match terms: ["Jl.Bhaskara 2 no 12"]) | Ongkir: 0
-- **ITS V 10** (Match terms: ["ITS V 10", "ITS V10"]) | Ongkir: 0
-- **Mulyo BPD BLOK B / 23** (Match terms: ["Mulyo BPD BLOK B / 23"]) | Ongkir: 0
-- **Bu Nawir Mulyosari** (Match terms: ["Bu Nawir Mulyosari"]) | Ongkir: 0
-- **Suto Sel 8/27** (Match terms: ["Suto Sel 8/27", "Sut.sel 8/27"]) | Ongkir: 0
-- **SUTO TIMUR 3 / 33** (Match terms: ["SUTO TIMUR 3 / 33", "Suto Timur 3 / 33"]) | Ongkir: 0
-- **ITS N 11** (Match terms: ["ITS N 11"]) | Ongkir: 0
-- **ITS T 52** (Match terms: ["ITS T 52", "T52"]) | Ongkir: 0
-- **ITS F 6** (Match terms: ["ITS F 6"]) | Ongkir: 0
-- **SAHABUDIN 26** (Match terms: ["SAHABUDIN 26"]) | Ongkir: 5000
-- **Mutiara C3 / 367** (Match terms: ["Mutiara C3 / 367"]) | Ongkir: 5000
-- **SUTO SEL 7/37** (Match terms: ["SUTO SEL 7/37", "Sut sel 7/37", "Sut sel 7 no 37"]) | Ongkir: 0
-- **Dharmahusada BF 20** (Match terms: ["Dharmahusada BF 20"]) | Ongkir: 0
-- **ITS T/73** (Match terms: ["ITS T/73", "Blok T/73"]) | Ongkir: 0
-- **Kalijudan Taruna 2/6** (Match terms: ["Kalijudan Taruna 2/6"]) | Ongkir: 15000
-- **Sutorejo Selatan XI/4** (Match terms: ["Sutorejo Selatan XI/4"]) | Ongkir: 0
-- **ITS X 16** (Match terms: ["ITS X 16"]) | Ongkir: 0
-- **Emi Bumi Marina - Teknik Fisika** (Match terms: ["Emi Bumi Marina - Teknik Fisika"]) | Ongkir: 5000
-- **Bumi Galaxy Permai M3 / 17** (Match terms: ["Bumi Galaxy Permai M3 / 17"]) | Ongkir: 15000
-- **BU BAMBANG GG 1** (Match terms: ["BU BAMBANG GG 1"]) | Ongkir: 0
-- **DUPAK PECAH BELAH** (Match terms: ["DUPAK PECAH BELAH"]) | Ongkir: 35000
-- **BPD B 14** (Match terms: ["BPD B 14"]) | Ongkir: 0
-- **ITS D23** (Match terms: ["ITS D23"]) | Ongkir: 5000
-- **BHAS 1/15** (Match terms: ["BHAS 1/15"]) | Ongkir: 0
-- **MULYO  UTARA 7/8** (Match terms: ["MULYO  UTARA 7/8"]) | Ongkir: 0
-- **Wisper 11 / 17** (Match terms: ["Wisper 11 / 17"]) | Ongkir: 5000
-- **SUTO TGH 12/10** (Match terms: ["SUTO TGH 12/10"]) | Ongkir: 0
-- **ITS U/117** (Match terms: ["ITS U/117"]) | Ongkir: 0
-- **ITS X/22** (Match terms: ["ITS X/22"]) | Ongkir: 0
-- **SUTO TGH VI GG 11 - ANAK BU EDI** (Match terms: ["SUTO TGH VI GG 11 - ANAK BU EDI"]) | Ongkir: 0
-- **Mulyo Utara 11/58** (Match terms: ["Mulyo Utara 11/58"]) | Ongkir: 5000
-- **Babatan Pantai 39** (Match terms: ["Babatan Pantai 39"]) | Ongkir: 5000
-- **BPD B/16** (Match terms: ["BPD B/16", "BPD Blok B/16"]) | Ongkir: 0
-- **Bhas Tengah D - 37** (Match terms: ["Bhas Tengah D - 37", "Bhas Tengah D - 37 (bali)"]) | Ongkir: 0
-- **Suto Sel 8/40** (Match terms: ["Suto Sel 8/40"]) | Ongkir: 0
-- **Pakuwon City San Diego M2** (Match terms: ["Pakuwon City San Diego M2"]) | Ongkir: 5000
-- **Jl. Dharmahusada Indah 42** (Match terms: ["Jl. Dharmahusada Indah 42"]) | Ongkir: 5000
-- **Manyar Tirtoyoso 3/18** (Match terms: ["Manyar Tirtoyoso 3/18"]) | Ongkir: 20000
-- **Mulyosari BPD B-20** (Match terms: ["Mulyosari BPD B-20"]) | Ongkir: 0
-- **BPD B / 33** (Match terms: ["BPD B / 33"]) | Ongkir: 0
-- **ITS T 9** (Match terms: ["ITS T 9"]) | Ongkir: 0
-- **Blok U/117** (Match terms: ["Blok U/117"]) | Ongkir: 0
-- **Bhsksari 60** (Match terms: ["Bhsksari 60"]) | Ongkir: 0
-- **Suto Tengah 13 /45 - Sut Teng XIII/45** (Match terms: ["Suto Tengah 13 /45 - Sut Teng XIII/45"]) | Ongkir: 0
-- **Suto Tengah 13 /45** (Match terms: ["Suto Tengah 13 /45"]) | Ongkir: 0
-- **Suto Tengah 12 / 10** (Match terms: ["Suto Tengah 12 / 10"]) | Ongkir: 5000
-- **ITS T 93** (Match terms: ["ITS T 93", "T 93 ITS"]) | Ongkir: 0
-- **ITS T 85** (Match terms: ["ITS T 85"]) | Ongkir: 5000
-- **ITS P 7** (Match terms: ["ITS P 7"]) | Ongkir: 5000
-- **M BPD B/46** (Match terms: ["M BPD B/46"]) | Ongkir: 0
-- **Bhaskara sari 60** (Match terms: ["Bhaskara sari 60"]) | Ongkir: 0
-- **Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2** (Match terms: ["Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2"]) | Ongkir: 0
-- **Mbak JU KARIS - Ibu Artha suteng blok G no.11** (Match terms: ["Mbak JU KARIS - Ibu Artha suteng blok G no.11"]) | Ongkir: 0
-- **Mulyosari BPD B-22** (Match terms: ["Mulyosari BPD B-22"]) | Ongkir: 0
-- **Bhas Utara B 14** (Match terms: ["Bhas Utara B 14", "BHAS UTARA D 14", "BHAS UTARA"]) | Ongkir: 0
-- **ITS J / 3** (Match terms: ["ITS J / 3", "J / 3"]) | Ongkir: 0
-- **Suto Utara 6 /11** (Match terms: ["Suto Utara 6 /11", "Suto Utara 6/11"]) | Ongkir: 0
-- **Sandiego Blok M 12/60-62** (Match terms: ["Sandiego Blok M 12/60-62"]) | Ongkir: 5000
-- **J 5 Endah** (Match terms: ["J 5 Endah"]) | Ongkir: 0
-- **Leli - Wisper 5/6** (Match terms: ["Leli - Wisper 5/6"]) | Ongkir: 5000
-- **ITS i 6** (Match terms: ["ITS i 6", "ITS BLK I6"]) | Ongkir: 5000
-- **Suto Sel 7 / 37** (Match terms: ["Suto Sel 7 / 37"]) | Ongkir: 0
-- **Alfita - T71** (Match terms: ["Alfita - T71"]) | Ongkir: 0
-- **W / 6** (Match terms: ["W / 6"]) | Ongkir: 0
-- **ITS M 3** (Match terms: ["ITS M 3"]) | Ongkir: 0
-- **BPD  B 34-35** (Match terms: ["BPD  B 34-35"]) | Ongkir: 0
-- **Mulyosari BPD 20** (Match terms: ["Mulyosari BPD 20"]) | Ongkir: 0
-- **Bpd B 22 Baru** (Match terms: ["Bpd B 22 Baru"]) | Ongkir: 0
-- **Florence J5/23.** (Match terms: ["Florence J5/23."]) | Ongkir: 0
-- **Sadikin 11** (Match terms: ["Sadikin 11"]) | Ongkir: 5000
-- **Jl. Suto prima indah barat blok PQ 35.** (Match terms: ["Jl. Suto prima indah barat blok PQ 35."]) | Ongkir: 0
-- **Gatot - Tri T 29** (Match terms: ["Gatot - Tri T 29"]) | Ongkir: 0
-- **Bu Nawir Mulyosari - MU 6/24** (Match terms: ["Bu Nawir Mulyosari - MU 6/24"]) | Ongkir: 0
-- **Sutorejo Sel 1/22** (Match terms: ["Sutorejo Sel 1/22"]) | Ongkir: 0
-- **Blok T 86.bu Ratna** (Match terms: ["Blok T 86.bu Ratna"]) | Ongkir: 0
-- **Wisper 1/75** (Match terms: ["Wisper 1/75", "Jl. Wisma Permai 1 no 75"]) | Ongkir: 5000
-- **U 180** (Match terms: ["U 180"]) | Ongkir: 0
-- **T - 72** (Match terms: ["T - 72"]) | Ongkir: 0
-- **D 19 SDMO Teknik** (Match terms: ["D 19 SDMO Teknik"]) | Ongkir: 5000
-- **Pucangan 3.no.49** (Match terms: ["Pucangan 3.no.49"]) | Ongkir: 25000
-- **Wisper 1/49** (Match terms: ["Wisper 1/49", "Wisma Permai 1 no.49"]) | Ongkir: 20000
-- **WisPer Tengah 9/JJ-37** (Match terms: ["WisPer Tengah 9/JJ-37", "WisPer Tengah 9/JJ -37 Sby", "WISPER TGH 9/JJ-37"]) | Ongkir: 5000
-- **Griya Asri G2 - 28** (Match terms: ["Griya Asri G2 - 28"]) | Ongkir: 5000
-- **Mulyo Tng 6 / 5** (Match terms: ["Mulyo Tng 6 / 5"]) | Ongkir: 0
-- **ITS J 41** (Match terms: ["ITS J 41"]) | Ongkir: 0
-- **Wisper 5/18** (Match terms: ["Wisper 5/18"]) | Ongkir: 5000
-- **Sutorejo Tengah 2/6** (Match terms: ["Sutorejo Tengah 2/6"]) | Ongkir: 0
-- **Suto Utara Baru 17 A** (Match terms: ["Suto Utara Baru 17 A"]) | Ongkir: 0
-- **Leli Wisper - Wisma Permai V/6** (Match terms: ["Leli Wisper - Wisma Permai V/6"]) | Ongkir: 0
-- **U I76** (Match terms: ["U I76"]) | Ongkir: 0
-- **Tohir 23** (Match terms: ["Tohir 23"]) | Ongkir: 5000
-- **Mulyosari Mas F 19 - Mulyo mas f19 - matur swn** (Match terms: ["Mulyosari Mas F 19 - Mulyo mas f19 - matur swn"]) | Ongkir: 0
-- **J 5 Endah - Blok J/5** (Match terms: ["J 5 Endah - Blok J/5"]) | Ongkir: 0
-- **Anak Bu Edi Baru - Sut teng VI gg 11** (Match terms: ["Anak Bu Edi Baru - Sut teng VI gg 11"]) | Ongkir: 0
-- **Tohir 14** (Match terms: ["Tohir 14"]) | Ongkir: 0
-- **Prof Yulfi Zetra - Asww - Blok T99** (Match terms: ["Prof Yulfi Zetra - Asww - Blok T99"]) | Ongkir: 0
-- **Alfita** (Match terms: ["Alfita"]) | Ongkir: 0
-- **U / 9 Atria** (Match terms: ["U / 9 Atria"]) | Ongkir: 0
-- **ITS N8** (Match terms: ["ITS N8"]) | Ongkir: 0
-- **ITS U 196** (Match terms: ["ITS U 196"]) | Ongkir: 0
-- **Tuwowo Rejo** (Match terms: ["Tuwowo Rejo"]) | Ongkir: 15000
-- **Bhaskara V/6** (Match terms: ["Bhaskara V/6"]) | Ongkir: 0
-- **RENA SMA** (Match terms: ["RENA SMA"]) | Ongkir: 0
-- **Susi Rohmadi** (Match terms: ["Susi Rohmadi"]) | Ongkir: 25000
-- **Alif Sutorejo Prima** (Match terms: ["Alif Sutorejo Prima"]) | Ongkir: 0
-- **ITS W20** (Match terms: ["ITS W20"]) | Ongkir: 0
-- **Mulyo utara 2/69** (Match terms: ["Mulyo utara 2/69"]) | Ongkir: 0
-- **jojoran 1 Blok B no 19 - Kiki** (Match terms: ["jojoran 1 Blok B no 19 - Kiki"]) | Ongkir: 15000
-- **ITS J 5** (Match terms: ["ITS J 5"]) | Ongkir: 5000
-- **Temen Pak Didik (IDA)** (Match terms: ["Temen Pak Didik (IDA)"]) | Ongkir: 0
-- **WISPER TENGAH KK** (Match terms: ["WISPER TENGAH KK"]) | Ongkir: 5000
-- **44 Ny. Iin Oman - Jl. Memet Sastrowiryo no 22** (Match terms: ["44 Ny. Iin Oman - Jl. Memet Sastrowiryo no 22"]) | Ongkir: 0
-- **Taman Suto Timur 48 Baru** (Match terms: ["Taman Suto Timur 48 Baru"]) | Ongkir: 0
-- **Gimo Gg 3 - Bhaskara 3/10** (Match terms: ["Gimo Gg 3 - Bhaskara 3/10"]) | Ongkir: 0
-- **Blok T/11** (Match terms: ["Blok T/11"]) | Ongkir: 0
-- **Bhaskara Utara B 14** (Match terms: ["Bhaskara Utara B 14"]) | Ongkir: 0
-- **Mulyo Utara/21** (Match terms: ["Mulyo Utara/21"]) | Ongkir: 0
-- **Sut.Tengah 12/10** (Match terms: ["Sut.Tengah 12/10"]) | Ongkir: 0
-- **WPT IX / JJ - 37** (Match terms: ["WPT IX / JJ - 37"]) | Ongkir: 0
-- **Sahabudin 26** (Match terms: ["Sahabudin 26"]) | Ongkir: 5000
-- **Sutorejo Tengah 8 / 10** (Match terms: ["Sutorejo Tengah 8 / 10"]) | Ongkir: 0
-- **N.2** (Match terms: ["N.2"]) | Ongkir: 0
-- **Blok X-16** (Match terms: ["Blok X-16"]) | Ongkir: 0
-- **N11 Tanti** (Match terms: ["N11 Tanti"]) | Ongkir: 0
-- **T73** (Match terms: ["T73"]) | Ongkir: 0
-- **U9** (Match terms: ["U9"]) | Ongkir: 0
-- **T71** (Match terms: ["T71"]) | Ongkir: 0
-- **T 93** (Match terms: ["T 93"]) | Ongkir: 0
-- **U 117** (Match terms: ["U 117"]) | Ongkir: 0
-- **U87** (Match terms: ["U87"]) | Ongkir: 0
-- **Tohir 17 Komplek AL** (Match terms: ["Tohir 17 Komplek AL"]) | Ongkir: 5000
-- **Bhaskara V/56** (Match terms: ["Bhaskara V/56"]) | Ongkir: 0
-- **ITS U 132** (Match terms: ["ITS U 132"]) | Ongkir: 5000
-- **M 4 A** (Match terms: ["M 4 A"]) | Ongkir: 0
-- **ITS T 8 LAMA** (Match terms: ["ITS T 8 LAMA"]) | Ongkir: 5000
-- **Tenggilis Mejoyo Fayzia** (Match terms: ["Tenggilis Mejoyo Fayzia"]) | Ongkir: 35000
-- **Tek Lingkungan Khusnul** (Match terms: ["Tek Lingkungan Khusnul"]) | Ongkir: 5000
-- **V / 3** (Match terms: ["V / 3"]) | Ongkir: 0
-- **Dharmahusada Emas Fendi - Dharmas bf20** (Match terms: ["Dharmahusada Emas Fendi - Dharmas bf20"]) | Ongkir: 0
-- **Wisper Tengah Blok Kk** (Match terms: ["Wisper Tengah Blok Kk"]) | Ongkir: 5000
-- **Mulyo Utara/21 - MU21 pesan** (Match terms: ["Mulyo Utara/21 - MU21 pesan"]) | Ongkir: 0
-- **U 4 / 5 A Perpus - Blok U-IV/5A** (Match terms: ["U 4 / 5 A Perpus - Blok U-IV/5A"]) | Ongkir: 0
-- **T - 49** (Match terms: ["T - 49"]) | Ongkir: 0
-- **Dina Tohir 9** (Match terms: ["Dina Tohir 9"]) | Ongkir: 5000
-- **Tohir 17** (Match terms: ["Tohir 17"]) | Ongkir: 5000
+| Customer Name | Match Terms / Aliases | Default Shipping (Ongkir) |
+| --- | --- | --- |
+| **44 Ny. Iin Oman - Jl. Memet Sastrowiryo no 22** | "44 Ny. Iin Oman - Jl. Memet Sastrowiryo no 22" | 5000 |
+| **Alif Sutorejo Prima** | "Alif Sutorejo Prima" | 0 |
+| **Anak 7/37** | "Anak 7/37" | 0 |
+| **Anak Bu Edi Baru - Sut teng VI gg 11** | "Anak Bu Edi Baru - Sut teng VI gg 11" | 0 |
+| **Anis BTH** | "Anis BTH", "ANIS BRIN" | 5000 |
+| **Araya 1 Blok B5 4A - Bu Wiwi** | "Araya 1 Blok B5 4A - Bu Wiwi", "Araya 1 Blok B5 4A" | 0 |
+| **Babatan Pantai 39** | "Babatan Pantai 39" | 10000 |
+| **BHAS 1/15** | "BHAS 1/15" | 0 |
+| **Bhas Tengah D - 37** | "Bhas Tengah D - 37", "Bhas Tengah D - 37 (bali)" | 0 |
+| **Bhas Utara B 14** | "Bhas Utara B 14", "BHAS UTARA", "BHAS UTARA D 14", "Bhaskara Utara B 14" | 0 |
+| **Bhaskara 4/5** | "Bhaskara 4/5" | 0 |
+| **Bhaskara Sari 18** | "Bhaskara Sari 18" | 0 |
+| **Bhaskara sari 38** | "Bhaskara sari 38", "Bhas Sari 38" | 0 |
+| **Bhaskara sari 60** | "Bhaskara sari 60" | 0 |
+| **Bhaskara V/56** | "Bhaskara V/56" | 0 |
+| **Bhaskara V/6** | "Bhaskara V/6" | 0 |
+| **Bhsksari 60** | "Bhsksari 60" | 0 |
+| **Blok T / 40** | "Blok T / 40" | 0 |
+| **Blok T 86.bu Ratna** | "Blok T 86.bu Ratna" | 0 |
+| **Blok T/11** | "Blok T/11" | 0 |
+| **Blok U / 177** | "Blok U / 177" | 0 |
+| **Blok U/117** | "Blok U/117" | 0 |
+| **Blok X-16** | "Blok X-16" | 5000 |
+| **BPD  B 34-35** | "BPD  B 34-35" | 0 |
+| **BPD B / 33** | "BPD B / 33" | 0 |
+| **BPD B 11** | "BPD B 11" | 0 |
+| **BPD B 14** | "BPD B 14" | 0 |
+| **BPD B 22** | "BPD B 22", "Bpd B 22 Baru" | 0 |
+| **BPD B/16** | "BPD B/16", "BPD Blok B/16" | 0 |
+| **BPD D 24/25** | "BPD D 24/25" | 0 |
+| **BU BAMBANG GG 1** | "BU BAMBANG GG 1" | 0 |
+| **Bu Nawir Mulyosari** | "Bu Nawir Mulyosari" | 0 |
+| **Bu Nawir Mulyosari - MU 6/24** | "Bu Nawir Mulyosari - MU 6/24" | 0 |
+| **Bumi Galaxy Permai M3 / 17** | "Bumi Galaxy Permai M3 / 17", "SMA 5 .. ratna juli" | 15000 |
+| **Catur SPKB** | "Catur SPKB" | 5000 |
+| **D 19 SDMO Teknik** | "D 19 SDMO Teknik" | 5000 |
+| **Dahlan Bhas Sari** | "Dahlan Bhas Sari" | 0 |
+| **Desi - Teknik Kimia** | "Desi - Teknik Kimia" | 5000 |
+| **Dharmahusada BF 20** | "Dharmahusada BF 20" | 0 |
+| **Dharmahusada Emas Fendi - Dharmas bf20** | "Dharmahusada Emas Fendi - Dharmas bf20" | 0 |
+| **Dina Tohir 9** | "Dina Tohir 9" | 5000 |
+| **DUPAK PECAH BELAH** | "DUPAK PECAH BELAH" | 35000 |
+| **Emi Bumi Marina - Teknik Fisika** | "Emi Bumi Marina - Teknik Fisika" | 5000 |
+| **Eni SMP 29** | "Eni SMP 29" | 35000 |
+| **Florence J5/23.** | "Florence J5/23." | 5000 |
+| **Florence J9 / 2** | "Florence J9 / 2" | 5000 |
+| **Gatot - Tri T 29** | "Gatot - Tri T 29" | 0 |
+| **Gimo Gg 3 - Bhaskara 3/10** | "Gimo Gg 3 - Bhaskara 3/10" | 0 |
+| **Griya Asri G2 - 28** | "Griya Asri G2 - 28" | 5000 |
+| **H - 18** | "H - 18" | 5000 |
+| **herlin T.lingkungan** | "herlin T.lingkungan" | 5000 |
+| **ITS D 20** | "ITS D 20" | 5000 |
+| **ITS D23** | "ITS D23" | 5000 |
+| **ITS F 6** | "ITS F 6" | 0 |
+| **ITS i 6** | "ITS i 6", "ITS BLK I6" | 5000 |
+| **ITS J / 3** | "ITS J / 3", "J / 3" | 5000 |
+| **ITS J 41** | "ITS J 41" | 0 |
+| **ITS J 5** | "ITS J 5" | 5000 |
+| **ITS M 3** | "ITS M 3" | 5000 |
+| **ITS N 11** | "ITS N 11" | 5000 |
+| **ITS N/2** | "ITS N/2", "N - 2" | 0 |
+| **ITS N8** | "ITS N8" | 5000 |
+| **ITS P 7** | "ITS P 7" | 5000 |
+| **ITS R - 8** | "ITS R - 8" | 5000 |
+| **ITS T 52** | "ITS T 52", "T52" | 0 |
+| **ITS T 8 LAMA** | "ITS T 8 LAMA" | 5000 |
+| **ITS T 85** | "ITS T 85" | 0 |
+| **ITS T 86** | "ITS T 86", "T86" | 0 |
+| **ITS T 9** | "ITS T 9" | 5000 |
+| **ITS T 93** | "ITS T 93", "T 93 ITS" | 0 |
+| **ITS T/4** | "ITS T/4", "ITS T 4" | 5000 |
+| **ITS T/73** | "ITS T/73", "Blok T/73" | 0 |
+| **ITS U 132** | "ITS U 132" | 5000 |
+| **ITS U 180** | "ITS U 180" | 5000 |
+| **ITS U 196** | "ITS U 196" | 5000 |
+| **ITS U 87** | "ITS U 87" | 5000 |
+| **ITS U/117** | "ITS U/117" | 0 |
+| **ITS V 10** | "ITS V 10", "ITS V10" | 0 |
+| **ITS W/6** | "ITS W/6" | 0 |
+| **ITS W20** | "ITS W20" | 5000 |
+| **ITS X 16** | "ITS X 16" | 0 |
+| **ITS X 4** | "ITS X 4" | 5000 |
+| **ITS X/22** | "ITS X/22" | 5000 |
+| **J 5 Endah** | "J 5 Endah" | 5000 |
+| **J 5 Endah - Blok J/5** | "J 5 Endah - Blok J/5" | 5000 |
+| **Jl Memet S no 22 komplek AL** | "Jl Memet S no 22 komplek AL" | 5000 |
+| **Jl. Dharmahusada Indah 42** | "Jl. Dharmahusada Indah 42" | 5000 |
+| **Jl. Suto prima indah barat blok PQ 35.** | "Jl. Suto prima indah barat blok PQ 35." | 0 |
+| **Jl.Bhaskara 2 no 12** | "Jl.Bhaskara 2 no 12" | 0 |
+| **jojoran 1 Blok B no 19 - Kiki** | "jojoran 1 Blok B no 19 - Kiki" | 15000 |
+| **Kalijudan Taruna 2/6** | "Kalijudan Taruna 2/6" | 15000 |
+| **Keputih Tgl Timur 2 / 15A** | "Keputih Tgl Timur 2 / 15A" | 15000 |
+| **Klampis Semolo Timur 7 A-1** | "Klampis Semolo Timur 7 A-1" | 0 |
+| **Leli - Wisper 5/6** | "Leli - Wisper 5/6" | 5000 |
+| **Leli Wisper - Wisma Permai V/6** | "Leli Wisper - Wisma Permai V/6" | 5000 |
+| **Lora** | "Lora" | 0 |
+| **M 4 A** | "M 4 A" | 0 |
+| **M BPD B/46** | "M BPD B/46" | 0 |
+| **Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2** | "Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2" | 5000 |
+| **Manyar Tirtoyoso 3/18** | "Manyar Tirtoyoso 3/18" | 20000 |
+| **Mbak JU KARIS - Ibu Artha suteng blok G no.11** | "Mbak JU KARIS - Ibu Artha suteng blok G no.11" | 0 |
+| **MUJI DPTSI RC Lt.4** | "MUJI DPTSI RC Lt.4" | 5000 |
+| **MULYO  UTARA 7/8** | "MULYO  UTARA 7/8" | 0 |
+| **Mulyo BPD B -1** | "Mulyo BPD B -1", "Mulyosari BPD B1" | 0 |
+| **Mulyo BPD BLOK B / 23** | "Mulyo BPD BLOK B / 23" | 0 |
+| **Mulyo Tengah 6 / 9** | "Mulyo Tengah 6 / 9" | 0 |
+| **Mulyo Tengah 6/5** | "Mulyo Tengah 6/5" | 0 |
+| **Mulyo Tng 6 / 5** | "Mulyo Tng 6 / 5" | 0 |
+| **Mulyo Utara 11/58** | "Mulyo Utara 11/58" | 5000 |
+| **Mulyo utara 2/69** | "Mulyo utara 2/69" | 0 |
+| **Mulyo Utara 6/24** | "Mulyo Utara 6/24" | 0 |
+| **Mulyo Utara 7 / 6** | "Mulyo Utara 7 / 6" | 0 |
+| **Mulyo Utara/21** | "Mulyo Utara/21", "Mulyo Utara/21 - MU21 pesan" | 0 |
+| **Mulyosari BPD 20** | "Mulyosari BPD 20", "Mulyosari BPD B-20" | 0 |
+| **Mulyosari BPD B-22** | "Mulyosari BPD B-22" | 0 |
+| **Mulyosari Mas F 19 - Mulyo mas f19 - matur swn** | "Mulyosari Mas F 19 - Mulyo mas f19 - matur swn" | 0 |
+| **Mulyosari prima 1/92 mc 19** | "Mulyosari prima 1/92 mc 19" | 5000 |
+| **Mulyosari Ut 8/5** | "Mulyosari Ut 8/5" | 0 |
+| **Mutiara C3 / 367** | "Mutiara C3 / 367" | 5000 |
+| **N11 Tanti** | "N11 Tanti" | 5000 |
+| **NGADI 5** | "NGADI 5" | 5000 |
+| **P1/40 - Puri asri** | "P1/40 - Puri asri" | 5000 |
+| **Pakuwon City San Diego M2** | "Pakuwon City San Diego M2" | 5000 |
+| **Pantai Mentari Blok SF no. 9** | "Pantai Mentari Blok SF no. 9", "Pantai Mentari Blok SF / 9" | 10000 |
+| **Pantai Mentari F / 31** | "Pantai Mentari F / 31" | 10000 |
+| **Prof Yulfi Zetra - Asww - Blok T99** | "Prof Yulfi Zetra - Asww - Blok T99" | 5000 |
+| **Pucangan 3.no.49** | "Pucangan 3.no.49" | 25000 |
+| **Puri Asri P3 no. 32 Nenet** | "Puri Asri P3 no. 32 Nenet" | 5000 |
+| **RENA SMA** | "RENA SMA" | 5000 |
+| **Retno Alazar - Sut Tengah XII/10** | "Retno Alazar - Sut Tengah XII/10" | 0 |
+| **Sadikin 11** | "Sadikin 11" | 5000 |
+| **SAHABUDIN 26** | "SAHABUDIN 26" | 5000 |
+| **Samlangyu 23** | "Samlangyu 23" | 5000 |
+| **Sandiego Blok M 12/60-62** | "Sandiego Blok M 12/60-62" | 5000 |
+| **Santi BAPKM** | "Santi BAPKM" | 0 |
+| **SPR F20** | "SPR F20", "SPR F - 20" | 15000 |
+| **SPR OKY** | "SPR OKY" | 0 |
+| **Sukodono** | "Sukodono" | 0 |
+| **Susi Rohmadi** | "Susi Rohmadi" | 25000 |
+| **Suto Sel 3/5** | "Suto Sel 3/5" | 0 |
+| **SUTO SEL 7/37** | "SUTO SEL 7/37", "Sut sel 7/37", "Sut sel 7 no 37", "Suto Sel 7 / 37" | 0 |
+| **Suto Sel 8/27** | "Suto Sel 8/27", "Sut.sel 8/27" | 0 |
+| **Suto Sel 8/40** | "Suto Sel 8/40" | 0 |
+| **Suto Teng 8 / 44** | "Suto Teng 8 / 44" | 0 |
+| **Suto Tengah 12 / 10** | "Suto Tengah 12 / 10", "Sut.Tengah 12/10" | 5000 |
+| **Suto Tengah 13 /45** | "Suto Tengah 13 /45" | 0 |
+| **Suto Tengah 13 /45 - Sut Teng XIII/45** | "Suto Tengah 13 /45 - Sut Teng XIII/45" | 0 |
+| **Suto Tengah Blok G 11** | "Suto Tengah Blok G 11" | 0 |
+| **SUTO TGH 12/10** | "SUTO TGH 12/10" | 0 |
+| **SUTO TGH VI GG 11 - ANAK BU EDI** | "SUTO TGH VI GG 11 - ANAK BU EDI" | 0 |
+| **SUTO TIMUR 3 / 33** | "SUTO TIMUR 3 / 33" | 0 |
+| **Suto Ut Gg 11 No 10** | "Suto Ut Gg 11 No 10" | 0 |
+| **Suto Utara 6 /11** | "Suto Utara 6 /11", "Suto Utara 6/11" | 0 |
+| **Suto Utara Baru 17 A** | "Suto Utara Baru 17 A" | 0 |
+| **Sutorejo Sel 1/22** | "Sutorejo Sel 1/22" | 0 |
+| **Sutorejo Selatan XI/4** | "Sutorejo Selatan XI/4" | 0 |
+| **Sutorejo Tengah 2/6** | "Sutorejo Tengah 2/6" | 0 |
+| **Sutorejo Tengah 8/10** | "Sutorejo Tengah 8/10", "Sutorejo Tengah 8 / 10" | 0 |
+| **sutorejo timur 32/H5** | "sutorejo timur 32/H5" | 0 |
+| **T - 49** | "T - 49" | 5000 |
+| **T - 65** | "T - 65" | 5000 |
+| **T - 72** | "T - 72" | 0 |
+| **T 93** | "T 93" | 0 |
+| **T71** | "T71", "Alfita", "Alfita - T71" | 0 |
+| **T73** | "T73" | 0 |
+| **Taman Mulyo Ut 7 - Telly - Taman Mulyosari Utara no 7** | "Taman Mulyo Ut 7 - Telly - Taman Mulyosari Utara no 7" | 0 |
+| **Taman Mulyo Utara 20** | "Taman Mulyo Utara 20" | 0 |
+| **Taman Suto Timur 48 Baru** | "Taman Suto Timur 48 Baru" | 0 |
+| **Tek Lingkungan Khusnul** | "Tek Lingkungan Khusnul" | 5000 |
+| **Temen Pak Didik (IDA)** | "Temen Pak Didik (IDA)", "Temen Pak Didik" | 35000 |
+| **Tenggilis Mejoyo Fayzia** | "Tenggilis Mejoyo Fayzia" | 35000 |
+| **Tohir 1** | "Tohir 1" | 5000 |
+| **Tohir 14** | "Tohir 14" | 0 |
+| **Tohir 17** | "Tohir 17" | 5000 |
+| **Tohir 17 Komplek AL** | "Tohir 17 Komplek AL" | 5000 |
+| **Tohir 23** | "Tohir 23" | 5000 |
+| **Tohir 30** | "Tohir 30" | 5000 |
+| **Tuwowo Rejo** | "Tuwowo Rejo" | 15000 |
+| **U / 9 Atria** | "U / 9 Atria" | 5000 |
+| **U 117** | "U 117" | 0 |
+| **U 180** | "U 180" | 5000 |
+| **U 4 / 5 A Perpus - Blok U-IV/5A** | "U 4 / 5 A Perpus - Blok U-IV/5A" | 5000 |
+| **U I76** | "U I76" | 0 |
+| **U87** | "U87" | 5000 |
+| **V / 3** | "V / 3" | 5000 |
+| **Vila Westwood A6-1** | "Vila Westwood A6-1", "villa westwood A6-1" | 5000 |
+| **Villa Royal C4/18** | "Villa Royal C4/18" | 5000 |
+| **W / 6** | "W / 6" | 0 |
+| **Widya Research Center lt 4** | "Widya Research Center lt 4" | 5000 |
+| **Wisper 1/49** | "Wisper 1/49", "Wisma Permai 1 no.49" | 20000 |
+| **Wisper 1/75** | "Wisper 1/75", "Jl. Wisma Permai 1 no 75" | 5000 |
+| **Wisper 11 / 17** | "Wisper 11 / 17" | 5000 |
+| **Wisper 5 / 18** | "Wisper 5 / 18", "Wisper 5/18" | 5000 |
+| **WisPer Tengah 9/JJ-37** | "WisPer Tengah 9/JJ-37", "WisPer Tengah 9/JJ -37 Sby", "WISPER TGH 9/JJ-37" | 10000 |
+| **Wisper Tengah Blok Kk** | "Wisper Tengah Blok Kk", "WISPER TENGAH KK" | 5000 |
+| **WPT IX / JJ - 37** | "WPT IX / JJ - 37" | 10000 |
+| **X 26** | "X 26" | 5000 |
+| **X 26 - Bu iis** | "X 26 - Bu iis" | 5000 |
+| **Zainal Gg. 3** | "Zainal Gg. 3" | 0 |

@@ -5401,6 +5401,38 @@ label {
 }
 
 @media (max-width: 600px) {
+  .toast-container,
+  .toast-container:popover-open,
+  .toast-container.is-dialog-mounted,
+  .toast-container.is-popover-fallback {
+    top: auto;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: min(300px, calc(100dvw - 28px));
+    gap: 6px;
+  }
+
+  .toast {
+    gap: 2px;
+    border-left-width: 4px;
+    border-radius: 12px;
+    max-height: min(108px, 22dvh);
+    overflow: auto;
+    padding: 8px 10px;
+    line-height: 1.25;
+    box-shadow: 0 12px 28px rgba(5, 16, 14, 0.22);
+  }
+
+  .toast strong {
+    font-size: 0.66rem;
+    line-height: 1.05;
+  }
+
+  .toast span {
+    font-size: 0.78rem;
+    font-weight: 760;
+    line-height: 1.2;
+  }
+
   .customer-panel {
     grid-template-rows: auto auto auto minmax(280px, 1fr) auto;
   }

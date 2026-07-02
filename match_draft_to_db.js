@@ -224,6 +224,8 @@ async function run() {
         if (override) {
           match = override;
         }
+      } else if (origName.toLowerCase().includes("alfita")) {
+        match = { name: "T71", default_shipping: 0 };
       } else if (origName.includes("Samlangyu 23")) {
         match = { name: "Samlangyu 23", default_shipping: 5000 };
       } else if (origName.includes("Anis BTH")) {
