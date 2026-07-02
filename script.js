@@ -6759,6 +6759,24 @@ function renderProducts() {
     .join("");
 }
 
+function renderCartTotals() {
+  const totals = getTotals();
+  els.subtotalText.textContent = currency.format(totals.subtotal);
+  els.shippingText.textContent = currency.format(totals.shipping);
+  if (els.checkoutDepositRow && els.depositText) {
+    if (totals.deposit > 0) {
+      els.depositText.textContent = `-${currency.format(totals.deposit)}`;
+      els.checkoutDepositRow.hidden = false;
+    } else {
+      els.checkoutDepositRow.hidden = true;
+    }
+  }
+  els.totalText.textContent = currency.format(totals.total);
+  renderCustomerProfileHint();
+  renderCheckoutValidation();
+  renderMobileMiniCart();
+}
+
 function renderCart() {
   const itemCount = getCartItemCount();
   if (els.cartItemBadge) {
@@ -6798,11 +6816,11 @@ function renderCart() {
           ? `<label class="cart-custom-price">Harga custom <input type="text" inputmode="numeric" data-cart-price="${escapeHtml(cartItem.id)}" value="${escapeHtml(formatIntegerInput(unitPrice))}"></label>`
           : "";
         return `
-          <article class="cart-row">
+          <article class="cart-row" data-cart-row="${escapeHtml(cartItem.id)}">
             <div>
               <p class="cart-title">${escapeHtml(label ? `${product.name} (${label})` : product.name)}</p>
               <p class="cart-meta">
-                <span>${cartItem.quantity} × ${currency.format(unitPrice)}</span>
+                <span class="cart-unit-price">${cartItem.quantity} × ${currency.format(unitPrice)}</span>
                 <strong class="cart-line-total">${currency.format(lineTotal)}</strong>
               </p>
               ${variantSelectHtml}
@@ -6823,21 +6841,7 @@ function renderCart() {
       .join("");
   }
 
-  const totals = getTotals();
-  els.subtotalText.textContent = currency.format(totals.subtotal);
-  els.shippingText.textContent = currency.format(totals.shipping);
-  if (els.checkoutDepositRow && els.depositText) {
-    if (totals.deposit > 0) {
-      els.depositText.textContent = `-${currency.format(totals.deposit)}`;
-      els.checkoutDepositRow.hidden = false;
-    } else {
-      els.checkoutDepositRow.hidden = true;
-    }
-  }
-  els.totalText.textContent = currency.format(totals.total);
-  renderCustomerProfileHint();
-  renderCheckoutValidation();
-  renderMobileMiniCart();
+  renderCartTotals();
 }
 
 function renderMobileMiniCart() {
@@ -8583,7 +8587,7 @@ function updateCartItemNote(cartItemId, note) {
   renderReceipt();
 }
 
-function updateCartItemPrice(cartItemId, value) {
+function updateCartItemPrice(cartItemId, value, sourceInput = null) {
   const cartItem = state.cart.find((item) => item.id === cartItemId);
   if (!cartItem) return;
   const price = parseMoney(value);
@@ -8591,7 +8595,12 @@ function updateCartItemPrice(cartItemId, value) {
   cartItem.finalPrice = price;
   cartItem.lineTotal = price * Number(cartItem.quantity || 0);
   resetCheckoutWarnings();
-  render();
+  const row = sourceInput?.closest(".cart-row");
+  row?.querySelector(".cart-unit-price")?.replaceChildren(`${cartItem.quantity} × ${currency.format(price)}`);
+  row?.querySelector(".cart-line-total")?.replaceChildren(currency.format(cartItem.lineTotal));
+  renderCartTotals();
+  renderReceipt();
+  saveState();
 }
 
 function changeCartItemVariant(cartItemId, targetVariantId) {
@@ -9575,7 +9584,7 @@ function bindEvents() {
     if (noteInput) updateCartItemNote(noteInput.dataset.note, noteInput.value);
     if (priceInput) {
       formatMoneyInput(priceInput);
-      updateCartItemPrice(priceInput.dataset.cartPrice, priceInput.value);
+      updateCartItemPrice(priceInput.dataset.cartPrice, priceInput.value, priceInput);
     }
   });
 
