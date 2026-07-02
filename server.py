@@ -639,6 +639,31 @@ def default_variant_client_id(product_client_id):
     return f"{product_client_id}::normal"
 
 
+def half_variant_client_id(product_client_id):
+    return f"{product_client_id}::half"
+
+
+def custom_variant_client_id(product_client_id):
+    return f"{product_client_id}::custom"
+
+
+def half_variant_price(price):
+    amount = rupiah_number(price)
+    return (amount + 1) // 2
+
+
+def base_variant_kind(variant, product_client_id):
+    client_id = str(variant.get("client_id") or variant.get("id") or "").strip()
+    key = re.sub(r"[\s_-]+", "", str(variant.get("name") or "").strip().lower())
+    if client_id == default_variant_client_id(product_client_id) or key == "normal":
+        return "normal"
+    if client_id == half_variant_client_id(product_client_id) or key in {"1/2", "setengah", "separuh", "halfporsi", "1/2porsi"}:
+        return "half"
+    if client_id == custom_variant_client_id(product_client_id) or key in {"custom", "custominput", "hargacustom", "manual"}:
+        return "custom"
+    return ""
+
+
 def variant_from_row(row):
     variant = dict(row)
     return {
@@ -694,15 +719,17 @@ def product_from_row(row, variants=None):
     return product_payload
 
 
-def sanitize_variant_payload(product, variant, index=0, force_default=False):
+def sanitize_variant_payload(product, variant, index=0, force_default=False, allow_zero_price=False):
     variant = variant if isinstance(variant, dict) else {}
     product_client_id = product["client_id"]
     pricing_type = normalize_pricing_type(variant.get("pricingType") or variant.get("pricing_type"))
     name = str(variant.get("name") or ("Normal" if force_default or index == 0 else f"Variasi {index + 1}")).strip() or "Normal"
     price = rupiah_number(variant.get("price"))
+    if pricing_type == "custom":
+        price = 0
     if price <= 0 and pricing_type != "custom":
         price = rupiah_number(product.get("price"))
-    if price <= 0 and pricing_type != "custom":
+    if price <= 0 and pricing_type != "custom" and not allow_zero_price:
         return None
 
     client_id = str(variant.get("id") or variant.get("client_id") or "").strip()
@@ -751,6 +778,116 @@ def sanitize_variant_payload(product, variant, index=0, force_default=False):
     }
 
 
+def ensure_base_product_variants(product, variants):
+    product_client_id = product["client_id"]
+    existing_by_kind = {}
+    other_variants = []
+
+    for variant in variants:
+        if not variant:
+            continue
+        variant = dict(variant)
+        if variant.get("pricing_type") == "custom":
+            variant["price"] = 0
+            variant["allow_price_override"] = 1
+        kind = base_variant_kind(variant, product_client_id)
+        if kind and kind not in existing_by_kind:
+            existing_by_kind[kind] = variant
+        elif not kind:
+            other_variants.append(variant)
+
+    normal_seed = existing_by_kind.get("normal")
+    if not normal_seed:
+        normal_seed = next((variant for variant in variants if variant and variant.get("is_default")), None)
+    if not normal_seed:
+        normal_seed = next((variant for variant in variants if variant), None)
+    normal_price = rupiah_number((normal_seed or {}).get("price"))
+    if normal_price <= 0:
+        normal_price = rupiah_number(product.get("price"))
+
+    base_specs = [
+        (
+            "normal",
+            {
+                **existing_by_kind.get("normal", {}),
+                "id": default_variant_client_id(product_client_id),
+                "client_id": default_variant_client_id(product_client_id),
+                "name": "Normal",
+                "pricingType": "fixed",
+                "pricing_type": "fixed",
+                "price": normal_price,
+                "unitName": "porsi",
+                "unit_name": "porsi",
+                "receiptLabel": "",
+                "receipt_label": "",
+                "isDefault": True,
+                "is_default": 1,
+                "allowPriceOverride": False,
+                "allow_price_override": 0,
+                "active": 1,
+            },
+        ),
+        (
+            "half",
+            {
+                **existing_by_kind.get("half", {}),
+                "id": half_variant_client_id(product_client_id),
+                "client_id": half_variant_client_id(product_client_id),
+                "name": "1/2",
+                "pricingType": "fixed",
+                "pricing_type": "fixed",
+                "price": half_variant_price(normal_price),
+                "unitName": "porsi",
+                "unit_name": "porsi",
+                "receiptLabel": "1/2 porsi",
+                "receipt_label": "1/2 porsi",
+                "isDefault": False,
+                "is_default": 0,
+                "allowPriceOverride": False,
+                "allow_price_override": 0,
+                "active": 1,
+            },
+        ),
+        (
+            "custom",
+            {
+                **existing_by_kind.get("custom", {}),
+                "id": custom_variant_client_id(product_client_id),
+                "client_id": custom_variant_client_id(product_client_id),
+                "name": "Custom input",
+                "pricingType": "custom",
+                "pricing_type": "custom",
+                "price": 0,
+                "unitName": "porsi",
+                "unit_name": "porsi",
+                "receiptLabel": "Harga custom",
+                "receipt_label": "Harga custom",
+                "isDefault": False,
+                "is_default": 0,
+                "allowPriceOverride": True,
+                "allow_price_override": 1,
+                "active": 1,
+            },
+        ),
+    ]
+
+    arranged = []
+    for index, (_, payload) in enumerate(base_specs):
+        sanitized = sanitize_variant_payload(product, payload, index, force_default=index == 0, allow_zero_price=True)
+        if sanitized:
+            arranged.append(sanitized)
+
+    arranged.extend(other_variants)
+    for index, variant in enumerate(arranged):
+        variant["product_client_id"] = product_client_id
+        variant["sort_order"] = index
+        variant["is_default"] = 1 if variant["client_id"] == default_variant_client_id(product_client_id) else 0
+        if variant["pricing_type"] == "custom":
+            variant["price"] = 0
+            variant["allow_price_override"] = 1
+    return arranged
+
+
 def sanitize_product_payload(product):
     if not isinstance(product, dict):
         return None
@@ -782,25 +919,7 @@ def sanitize_product_payload(product):
         for index, variant in enumerate(variants_input)
     ]
     sanitized_variants = [variant for variant in sanitized_variants if variant]
-    if not sanitized_variants:
-        default_variant = sanitize_variant_payload(
-            sanitized_product,
-            {
-                "id": default_variant_client_id(client_id),
-                "name": "Normal",
-                "pricingType": "fixed",
-                "price": price,
-                "unitName": "porsi",
-                "isDefault": True,
-                "stock": sanitized_product["stock"],
-                "stockUnlimited": bool(sanitized_product["stock_unlimited"]),
-                "receiptLabel": "",
-            },
-            0,
-            force_default=True,
-        )
-        if default_variant:
-            sanitized_variants = [default_variant]
+    sanitized_variants = ensure_base_product_variants(sanitized_product, sanitized_variants)
     if not sanitized_variants:
         return None
 
@@ -881,38 +1000,36 @@ def backfill_default_product_variants(connection):
 
     product_rows = connection.execute(
         """
-        SELECT client_id, name, price, stock, stock_unlimited, aliases
+        SELECT client_id, name, price, stock, stock_unlimited, aliases, category, sku, source
         FROM products
         ORDER BY id ASC
         """
     ).fetchall()
-    for product in product_rows:
-        has_variant = connection.execute(
-            "SELECT 1 FROM product_variants WHERE product_client_id = ? LIMIT 1",
+    for product_row in product_rows:
+        product = dict(product_row)
+        variant_rows = connection.execute(
+            """
+            SELECT client_id, product_client_id, name, pricing_type, price, unit_name,
+                   package_quantity, package_unit, receipt_label, is_default,
+                   allow_quantity_override, allow_price_override, stock, stock_unlimited,
+                   aliases, sort_order, active, updated_at
+            FROM product_variants
+            WHERE product_client_id = ?
+            ORDER BY sort_order ASC, id ASC
+            """,
             (product["client_id"],),
-        ).fetchone()
-        if has_variant:
-            has_default = connection.execute(
-                "SELECT 1 FROM product_variants WHERE product_client_id = ? AND is_default = 1 LIMIT 1",
-                (product["client_id"],),
-            ).fetchone()
-            if not has_default:
-                connection.execute(
-                    """
-                    UPDATE product_variants
-                    SET is_default = 1
-                    WHERE id = (
-                        SELECT id FROM product_variants
-                        WHERE product_client_id = ?
-                        ORDER BY sort_order ASC, id ASC
-                        LIMIT 1
-                    )
-                    """,
-                    (product["client_id"],),
-                )
-            continue
+        ).fetchall()
+        variants = ensure_base_product_variants(product, [dict(row) for row in variant_rows])
+        default_variant = next((variant for variant in variants if variant["is_default"]), variants[0] if variants else None)
+        if default_variant and default_variant["price"] > 0 and product["price"] != default_variant["price"]:
+            connection.execute(
+                "UPDATE products SET price = ?, updated_at = ? WHERE client_id = ?",
+                (default_variant["price"], now, product["client_id"]),
+            )
+            product["price"] = default_variant["price"]
 
-        connection.execute(
+        connection.execute("DELETE FROM product_variants WHERE product_client_id = ?", (product["client_id"],))
+        connection.executemany(
             """
             INSERT INTO product_variants (
                 client_id, product_client_id, name, pricing_type, price, unit_name,
@@ -922,26 +1039,29 @@ def backfill_default_product_variants(connection):
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (
-                default_variant_client_id(product["client_id"]),
-                product["client_id"],
-                "Normal",
-                "fixed",
-                product["price"],
-                "porsi",
-                1,
-                "porsi",
-                "",
-                1,
-                1,
-                0,
-                product["stock"],
-                product["stock_unlimited"],
-                "[]",
-                0,
-                1,
-                now,
-            ),
+            [
+                (
+                    variant["client_id"],
+                    variant["product_client_id"],
+                    variant["name"],
+                    variant["pricing_type"],
+                    variant["price"],
+                    variant["unit_name"],
+                    variant["package_quantity"],
+                    variant["package_unit"],
+                    variant["receipt_label"],
+                    variant["is_default"],
+                    variant["allow_quantity_override"],
+                    variant["allow_price_override"],
+                    variant["stock"],
+                    variant["stock_unlimited"],
+                    variant["aliases"],
+                    variant["sort_order"],
+                    variant["active"],
+                    now,
+                )
+                for variant in variants
+            ],
         )
 
 

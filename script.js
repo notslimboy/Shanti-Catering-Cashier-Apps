@@ -3168,6 +3168,75 @@ function getDefaultVariantId(productId) {
   return `${productId}::normal`;
 }
 
+function getHalfVariantId(productId) {
+  return `${productId}::half`;
+}
+
+function getCustomVariantId(productId) {
+  return `${productId}::custom`;
+}
+
+function getHalfVariantPrice(price) {
+  return Math.round(Number(price || 0) / 2);
+}
+
+function getBaseVariantKind(variant = {}, productId = "") {
+  const id = String(variant.id || variant.client_id || "").trim();
+  const key = normalizeKey(variant.name || "");
+  if (id === getDefaultVariantId(productId) || key === "normal") return "normal";
+  if (id === getHalfVariantId(productId) || ["1/2", "setengah", "separuh", "halfporsi", "1/2porsi"].includes(key)) return "half";
+  if (id === getCustomVariantId(productId) || ["custom", "custominput", "hargacustom", "manual"].includes(key)) return "custom";
+  return "";
+}
+
+function getBaseVariantDrafts(product = {}) {
+  const productId = String(product.id || product.client_id || "draft-menu").trim();
+  const price = parseMoney(product.price || 0);
+  const baseProduct = { ...product, id: productId, client_id: productId, price };
+  return [
+    normalizeVariantRecord(
+      {
+        id: getDefaultVariantId(productId),
+        name: "Normal",
+        pricingType: "fixed",
+        price,
+        unitName: "porsi",
+        isDefault: true,
+        receiptLabel: "",
+      },
+      baseProduct,
+      0
+    ),
+    normalizeVariantRecord(
+      {
+        id: getHalfVariantId(productId),
+        name: "1/2",
+        pricingType: "fixed",
+        price: getHalfVariantPrice(price),
+        unitName: "porsi",
+        receiptLabel: "1/2 porsi",
+        isDefault: false,
+      },
+      baseProduct,
+      1
+    ),
+    normalizeVariantRecord(
+      {
+        id: getCustomVariantId(productId),
+        name: "Custom input",
+        pricingType: "custom",
+        price: 0,
+        unitName: "porsi",
+        receiptLabel: "Harga custom",
+        isDefault: false,
+        allowPriceOverride: true,
+      },
+      baseProduct,
+      2
+    ),
+  ];
+}
+
 function normalizeVariantRecord(variant = {}, product = {}, index = 0) {
   const productId = String(product.id || product.client_id || variant.productId || variant.product_client_id || "").trim();
   const pricingType = normalizePricingType(variant.pricingType || variant.pricing_type);
@@ -3220,35 +3289,44 @@ function normalizeVariantRecord(variant = {}, product = {}, index = 0) {
 }
 
 function ensureProductVariants(product) {
+  if (!product) return [];
+  const productId = String(product.id || product.client_id || "").trim();
   const sourceVariants = Array.isArray(product?.variants) ? product.variants : [];
   const normalized = sourceVariants
     .map((variant, index) => normalizeVariantRecord(variant, product, index))
     .filter((variant) => variant.name && (variant.pricingType === "custom" || variant.price > 0));
+  const findBase = (kind) => normalized.find((variant) => getBaseVariantKind(variant, productId) === kind);
+  const normalSeed = findBase("normal") || normalized.find((variant) => variant.isDefault) || normalized[0] || null;
+  const normalPrice = parseMoney(normalSeed?.price ?? product.price ?? 0);
+  const baseVariants = getBaseVariantDrafts({ ...product, id: productId, price: normalPrice });
+  const normalBase = { ...baseVariants[0], ...(normalSeed || {}), id: getDefaultVariantId(productId), client_id: getDefaultVariantId(productId), name: "Normal", pricingType: "fixed", pricing_type: "fixed", price: normalPrice, receiptLabel: "", receipt_label: "", isDefault: true, is_default: true, active: true };
+  const halfSeed = findBase("half");
+  const halfBase = { ...baseVariants[1], ...(halfSeed || {}), id: getHalfVariantId(productId), client_id: getHalfVariantId(productId), name: "1/2", pricingType: "fixed", pricing_type: "fixed", price: getHalfVariantPrice(normalPrice), receiptLabel: "1/2 porsi", receipt_label: "1/2 porsi", isDefault: false, is_default: false, active: true };
+  const customSeed = findBase("custom");
+  const customBase = { ...baseVariants[2], ...(customSeed || {}), id: getCustomVariantId(productId), client_id: getCustomVariantId(productId), name: "Custom input", pricingType: "custom", pricing_type: "custom", price: 0, receiptLabel: "Harga custom", receipt_label: "Harga custom", allowPriceOverride: true, allow_price_override: true, isDefault: false, is_default: false, active: true };
+  const otherVariants = normalized.filter((variant) => !getBaseVariantKind(variant, productId));
 
-  if (!normalized.length && product) {
-    normalized.push(
-      normalizeVariantRecord(
-        {
-          id: getDefaultVariantId(product.id),
-          name: "Normal",
-          pricingType: "fixed",
-          price: product.price,
-          unitName: "porsi",
-          isDefault: true,
-          receiptLabel: "",
-        },
-        product,
-        0
-      )
-    );
-  }
+  const arranged = [normalBase, halfBase, customBase, ...otherVariants];
 
   let defaultSeen = false;
-  normalized.forEach((variant, index) => {
-    variant.productId = product.id;
-    variant.product_client_id = product.id;
+  arranged.forEach((variant, index) => {
+    const kind = getBaseVariantKind(variant, productId);
+    variant.productId = productId;
+    variant.product_client_id = productId;
     variant.sortOrder = index;
     variant.sort_order = index;
+    if (variant.pricingType === "custom") {
+      variant.price = 0;
+      variant.allowPriceOverride = true;
+      variant.allow_price_override = true;
+    }
+    if (kind === "half") {
+      variant.price = getHalfVariantPrice(normalPrice);
+    }
+    if (kind === "normal") {
+      variant.isDefault = true;
+      variant.is_default = true;
+    }
     if (variant.isDefault && !defaultSeen) {
       defaultSeen = true;
     } else {
@@ -3256,11 +3334,11 @@ function ensureProductVariants(product) {
       variant.is_default = false;
     }
   });
-  if (normalized.length && !defaultSeen) {
-    normalized[0].isDefault = true;
-    normalized[0].is_default = true;
+  if (arranged.length && !defaultSeen) {
+    arranged[0].isDefault = true;
+    arranged[0].is_default = true;
   }
-  return normalized;
+  return arranged.filter((variant) => variant.name && (getBaseVariantKind(variant, productId) || variant.pricingType === "custom" || variant.price > 0));
 }
 
 function normalizeProductRecord(product = {}) {
@@ -3367,9 +3445,7 @@ function normalizeProductsCollection(products = []) {
 
 function getProductVariants(product) {
   if (!product) return [];
-  if (!Array.isArray(product.variants) || !product.variants.length) {
-    product.variants = ensureProductVariants(product);
-  }
+  product.variants = ensureProductVariants(product);
   return product.variants.filter((variant) => variant.active !== false);
 }
 
@@ -8254,7 +8330,7 @@ function getBlankVariant(overrides = {}) {
 
 function ensureEditingVariants() {
   if (!Array.isArray(state.editingProductVariants) || !state.editingProductVariants.length) {
-    state.editingProductVariants = [getBlankVariant({ name: "Normal", isDefault: true })];
+    state.editingProductVariants = getBaseVariantDrafts({ id: state.editingProductId || "draft-menu", price: 0 });
   }
   let hasDefault = false;
   state.editingProductVariants = state.editingProductVariants.map((variant, index) => {
@@ -8278,6 +8354,7 @@ function renderVariantEditorList() {
   els.variantEditorList.innerHTML = state.editingProductVariants
     .map((variant, index) => {
       const type = normalizePricingType(variant.pricingType);
+      const isBaseVariant = Boolean(getBaseVariantKind(variant, state.editingProductId || "draft-menu"));
       return `
         <article class="variant-editor-card" data-variant-index="${index}">
           <div class="variant-editor-card-head">
@@ -8285,7 +8362,7 @@ function renderVariantEditorList() {
               <input type="radio" name="defaultVariant" data-variant-field="isDefault" ${variant.isDefault ? "checked" : ""}>
               <span>Default</span>
             </label>
-            <button class="ghost-button danger product-small-button" type="button" data-remove-variant="${index}" ${state.editingProductVariants.length <= 1 ? "disabled" : ""}>Hapus</button>
+            <button class="ghost-button danger product-small-button" type="button" data-remove-variant="${index}" ${isBaseVariant || state.editingProductVariants.length <= 1 ? "disabled" : ""}>Hapus</button>
           </div>
           <div class="variant-editor-grid">
             <label>
@@ -8344,13 +8421,18 @@ function updateEditingVariant(index, field, value, inputType = "text", shouldRen
   ensureEditingVariants();
   const variant = state.editingProductVariants[index];
   if (!variant) return;
+  const productId = state.editingProductId || "draft-menu";
   if (field === "isDefault") {
     state.editingProductVariants.forEach((item, itemIndex) => {
       item.isDefault = itemIndex === index;
       item.is_default = itemIndex === index;
     });
   } else if (field === "price") {
-    variant.price = parseMoney(value);
+    variant.price = variant.pricingType === "custom" ? 0 : parseMoney(value);
+    if (getBaseVariantKind(variant, productId) === "normal") {
+      const halfVariant = state.editingProductVariants.find((item) => getBaseVariantKind(item, productId) === "half");
+      if (halfVariant) halfVariant.price = getHalfVariantPrice(variant.price);
+    }
   } else if (field === "packageQuantity") {
     variant.packageQuantity = Math.max(1, parseIntegerInput(value) || 1);
     variant.package_quantity = variant.packageQuantity;
@@ -8359,7 +8441,11 @@ function updateEditingVariant(index, field, value, inputType = "text", shouldRen
   } else if (field === "pricingType") {
     variant.pricingType = normalizePricingType(value);
     variant.pricing_type = variant.pricingType;
-    if (variant.pricingType === "custom") variant.allowPriceOverride = true;
+    if (variant.pricingType === "custom") {
+      variant.price = 0;
+      variant.allowPriceOverride = true;
+      variant.allow_price_override = true;
+    }
   } else {
     variant[field] = String(value || "").trim();
   }
@@ -8375,6 +8461,7 @@ function addEditingVariant() {
 function removeEditingVariant(index) {
   ensureEditingVariants();
   if (state.editingProductVariants.length <= 1) return;
+  if (getBaseVariantKind(state.editingProductVariants[index], state.editingProductId || "draft-menu")) return;
   const removedDefault = state.editingProductVariants[index]?.isDefault;
   state.editingProductVariants.splice(index, 1);
   if (removedDefault && state.editingProductVariants[0]) state.editingProductVariants[0].isDefault = true;
@@ -8383,7 +8470,7 @@ function removeEditingVariant(index) {
 
 function resetProductForm() {
   state.editingProductId = null;
-  state.editingProductVariants = [getBlankVariant({ name: "Normal", isDefault: true })];
+  state.editingProductVariants = getBaseVariantDrafts({ id: "draft-menu", price: 0 });
   els.itemForm.reset();
   els.itemSubmitButton.textContent = "Simpan Barang";
   els.cancelEditProductButton.hidden = true;
@@ -8420,11 +8507,11 @@ function saveProductForm() {
   const sku = els.itemSkuInput.value.trim();
   const aliases = mergeAliasLists(els.itemAliasInput.value).filter((alias) => normalizeKey(alias) !== normalizeKey(name));
   ensureEditingVariants();
-  const variants = state.editingProductVariants
-    .map((variant, index) => normalizeVariantRecord(variant, { id: state.editingProductId || "draft-menu" }, index))
-    .filter((variant) => variant.name && (variant.pricingType === "custom" || Number(variant.price || 0) > 0));
-  const defaultVariant = variants.find((variant) => variant.isDefault) || variants[0];
-  const price = Number(defaultVariant?.price || 0);
+  const productId = state.editingProductId || makeId();
+  const draftVariants = state.editingProductVariants.map((variant, index) => normalizeVariantRecord(variant, { id: productId }, index));
+  const normalVariant = draftVariants.find((variant) => getBaseVariantKind(variant, productId) === "normal") || draftVariants.find((variant) => variant.isDefault) || draftVariants[0];
+  const price = Number(normalVariant?.price || 0);
+  const variants = ensureProductVariants({ id: productId, price, stock, stockUnlimited, variants: draftVariants });
 
   if (!name || !variants.length || price <= 0) return;
 
@@ -8445,9 +8532,8 @@ function saveProductForm() {
     sanitizeCart();
     setSyncStatus(`${name} sudah diupdate.`);
   } else {
-    const newId = makeId();
     const result = upsertProduct({
-      id: newId,
+      id: productId,
       name,
       price,
       stock,
@@ -8456,7 +8542,7 @@ function saveProductForm() {
       aliases,
       category,
       source: "manual",
-      variants: variants.map((variant) => ({ ...variant, productId: newId, product_client_id: newId })),
+      variants: variants.map((variant) => ({ ...variant, productId, product_client_id: productId })),
     });
     setSyncStatus(result === "updated" ? `${name} cocok dengan barang lama, data diupdate.` : `${name} sudah masuk ke daftar barang.`);
   }

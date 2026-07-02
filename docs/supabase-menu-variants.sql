@@ -39,6 +39,24 @@ alter table public.sale_items
   add column if not exists pricing_type text not null default '',
   add column if not exists receipt_label text not null default '';
 
+delete from public.product_variants product_variants
+using public.products products
+where product_variants.product_client_id = products.client_id
+  and product_variants.client_id <> products.client_id || '::normal'
+  and translate(lower(product_variants.name), ' _-', '') = 'normal';
+
+delete from public.product_variants product_variants
+using public.products products
+where product_variants.product_client_id = products.client_id
+  and product_variants.client_id <> products.client_id || '::half'
+  and translate(lower(product_variants.name), ' _-', '') in ('1/2', 'setengah', 'separuh', 'halfporsi', '1/2porsi');
+
+delete from public.product_variants product_variants
+using public.products products
+where product_variants.product_client_id = products.client_id
+  and product_variants.client_id <> products.client_id || '::custom'
+  and translate(lower(product_variants.name), ' _-', '') in ('custom', 'custominput', 'hargacustom', 'manual');
+
 insert into public.product_variants (
   client_id,
   product_client_id,
@@ -79,8 +97,144 @@ select
   1,
   now()
 from public.products
-where not exists (
-  select 1
-  from public.product_variants
-  where product_variants.product_client_id = products.client_id
-);
+on conflict (client_id) do update set
+  product_client_id = excluded.product_client_id,
+  name = excluded.name,
+  pricing_type = excluded.pricing_type,
+  price = excluded.price,
+  unit_name = excluded.unit_name,
+  package_quantity = excluded.package_quantity,
+  package_unit = excluded.package_unit,
+  receipt_label = excluded.receipt_label,
+  is_default = 1,
+  allow_quantity_override = excluded.allow_quantity_override,
+  allow_price_override = excluded.allow_price_override,
+  stock = excluded.stock,
+  stock_unlimited = excluded.stock_unlimited,
+  aliases = excluded.aliases,
+  sort_order = 0,
+  active = 1,
+  updated_at = now();
+
+insert into public.product_variants (
+  client_id,
+  product_client_id,
+  name,
+  pricing_type,
+  price,
+  unit_name,
+  package_quantity,
+  package_unit,
+  receipt_label,
+  is_default,
+  allow_quantity_override,
+  allow_price_override,
+  stock,
+  stock_unlimited,
+  aliases,
+  sort_order,
+  active,
+  updated_at
+)
+select
+  products.client_id || '::half',
+  products.client_id,
+  '1/2',
+  'fixed',
+  round(products.price / 2.0)::integer,
+  'porsi',
+  1,
+  'porsi',
+  '1/2 porsi',
+  0,
+  1,
+  0,
+  products.stock,
+  products.stock_unlimited,
+  '[]',
+  1,
+  1,
+  now()
+from public.products
+on conflict (client_id) do update set
+  product_client_id = excluded.product_client_id,
+  name = excluded.name,
+  pricing_type = excluded.pricing_type,
+  price = excluded.price,
+  unit_name = excluded.unit_name,
+  package_quantity = excluded.package_quantity,
+  package_unit = excluded.package_unit,
+  receipt_label = excluded.receipt_label,
+  is_default = 0,
+  allow_quantity_override = excluded.allow_quantity_override,
+  allow_price_override = excluded.allow_price_override,
+  stock = excluded.stock,
+  stock_unlimited = excluded.stock_unlimited,
+  aliases = excluded.aliases,
+  sort_order = 1,
+  active = 1,
+  updated_at = now();
+
+insert into public.product_variants (
+  client_id,
+  product_client_id,
+  name,
+  pricing_type,
+  price,
+  unit_name,
+  package_quantity,
+  package_unit,
+  receipt_label,
+  is_default,
+  allow_quantity_override,
+  allow_price_override,
+  stock,
+  stock_unlimited,
+  aliases,
+  sort_order,
+  active,
+  updated_at
+)
+select
+  products.client_id || '::custom',
+  products.client_id,
+  'Custom input',
+  'custom',
+  0,
+  'porsi',
+  1,
+  'porsi',
+  'Harga custom',
+  0,
+  1,
+  1,
+  products.stock,
+  products.stock_unlimited,
+  '[]',
+  2,
+  1,
+  now()
+from public.products
+on conflict (client_id) do update set
+  product_client_id = excluded.product_client_id,
+  name = excluded.name,
+  pricing_type = excluded.pricing_type,
+  price = 0,
+  unit_name = excluded.unit_name,
+  package_quantity = excluded.package_quantity,
+  package_unit = excluded.package_unit,
+  receipt_label = excluded.receipt_label,
+  is_default = 0,
+  allow_quantity_override = excluded.allow_quantity_override,
+  allow_price_override = 1,
+  stock = excluded.stock,
+  stock_unlimited = excluded.stock_unlimited,
+  aliases = excluded.aliases,
+  sort_order = 2,
+  active = 1,
+  updated_at = now();
+
+update public.product_variants
+set is_default = 0
+where client_id not like '%::normal'
+  and product_client_id in (select client_id from public.products);
