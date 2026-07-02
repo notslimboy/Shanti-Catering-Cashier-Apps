@@ -88,6 +88,29 @@ def init_database():
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS product_variants (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id TEXT NOT NULL UNIQUE,
+                product_client_id TEXT NOT NULL,
+                name TEXT NOT NULL DEFAULT 'Normal',
+                pricing_type TEXT NOT NULL DEFAULT 'fixed',
+                price INTEGER NOT NULL DEFAULT 0,
+                unit_name TEXT NOT NULL DEFAULT 'porsi',
+                package_quantity INTEGER NOT NULL DEFAULT 1,
+                package_unit TEXT NOT NULL DEFAULT '',
+                receipt_label TEXT NOT NULL DEFAULT '',
+                is_default INTEGER NOT NULL DEFAULT 0,
+                allow_quantity_override INTEGER NOT NULL DEFAULT 1,
+                allow_price_override INTEGER NOT NULL DEFAULT 0,
+                stock INTEGER NOT NULL DEFAULT 0,
+                stock_unlimited INTEGER NOT NULL DEFAULT 1,
+                aliases TEXT NOT NULL DEFAULT '[]',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                active INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (product_client_id) REFERENCES products(client_id) ON DELETE CASCADE
+            );
+
             CREATE TABLE IF NOT EXISTS sale_payments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sale_id INTEGER NOT NULL,
@@ -109,6 +132,8 @@ def init_database():
             CREATE INDEX IF NOT EXISTS idx_customer_aliases_alias_key ON customer_aliases(alias_key);
             CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
             CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+            CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants(product_client_id);
+            CREATE INDEX IF NOT EXISTS idx_product_variants_default ON product_variants(product_client_id, is_default);
             CREATE INDEX IF NOT EXISTS idx_sale_payments_sale_id ON sale_payments(sale_id);
             """
         )
@@ -118,6 +143,23 @@ def init_database():
         }
         if "note" not in item_columns:
             connection.execute("ALTER TABLE sale_items ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+        item_extra_columns = {
+            "product_client_id": "TEXT NOT NULL DEFAULT ''",
+            "variant_client_id": "TEXT NOT NULL DEFAULT ''",
+            "menu_name": "TEXT NOT NULL DEFAULT ''",
+            "variant_name": "TEXT NOT NULL DEFAULT ''",
+            "unit_name": "TEXT NOT NULL DEFAULT ''",
+            "unit_quantity": "INTEGER NOT NULL DEFAULT 0",
+            "pricing_type": "TEXT NOT NULL DEFAULT ''",
+            "receipt_label": "TEXT NOT NULL DEFAULT ''",
+        }
+        item_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(sale_items)").fetchall()
+        }
+        for column, column_type in item_extra_columns.items():
+            if column not in item_columns:
+                connection.execute(f"ALTER TABLE sale_items ADD COLUMN {column} {column_type}")
         sale_columns = {
             row["name"]
             for row in connection.execute("PRAGMA table_info(sales)").fetchall()
@@ -156,6 +198,7 @@ def init_database():
         if "created_at" not in payment_columns:
             connection.execute("ALTER TABLE sale_payments ADD COLUMN created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP")
 
+        backfill_default_product_variants(connection)
         backfill_customers_from_sales(connection)
         backfill_customer_tags(connection)
 
@@ -551,10 +594,92 @@ def normalize_aliases(value):
     return aliases
 
 
-def product_from_row(row):
-    product = dict(row)
+VARIANT_PRICING_TYPES = {"fixed", "unit", "package", "custom"}
+
+
+def bool_int(value, default=0):
+    if value is None:
+        return 1 if default else 0
+    if isinstance(value, str):
+        return 1 if value.strip().lower() in {"1", "true", "yes", "ya", "on"} else 0
+    return 1 if value else 0
+
+
+def normalize_pricing_type(value):
+    key = str(value or "").strip().lower().replace("-", "_")
+    aliases = {
+        "harga_tetap": "fixed",
+        "fixed_price": "fixed",
+        "per_satuan": "unit",
+        "per_unit": "unit",
+        "satuan": "unit",
+        "bijian": "unit",
+        "paket": "package",
+        "manual": "custom",
+        "harga_custom": "custom",
+        "custom_price": "custom",
+    }
+    key = aliases.get(key, key)
+    return key if key in VARIANT_PRICING_TYPES else "fixed"
+
+
+def normalize_variant_suffix(name):
+    text = str(name or "").strip()
+    match = re.match(r"^(.+?)\s+(1/2|setengah|separuh|jumbo)$", text, re.IGNORECASE)
+    if not match:
+        return None
+    parent_name = match.group(1).strip()
+    raw_variant = match.group(2).strip().lower()
+    variant_name = "1/2" if raw_variant in {"1/2", "setengah", "separuh"} else "Jumbo"
+    receipt_label = "1/2 porsi" if variant_name == "1/2" else "Jumbo"
+    return parent_name, variant_name, receipt_label
+
+
+def default_variant_client_id(product_client_id):
+    return f"{product_client_id}::normal"
+
+
+def variant_from_row(row):
+    variant = dict(row)
     return {
+        "id": variant["client_id"],
+        "client_id": variant["client_id"],
+        "productId": variant["product_client_id"],
+        "product_client_id": variant["product_client_id"],
+        "name": variant["name"],
+        "pricingType": variant["pricing_type"],
+        "pricing_type": variant["pricing_type"],
+        "price": variant["price"],
+        "unitName": variant["unit_name"],
+        "unit_name": variant["unit_name"],
+        "packageQuantity": variant["package_quantity"],
+        "package_quantity": variant["package_quantity"],
+        "packageUnit": variant["package_unit"],
+        "package_unit": variant["package_unit"],
+        "receiptLabel": variant["receipt_label"],
+        "receipt_label": variant["receipt_label"],
+        "isDefault": bool(variant["is_default"]),
+        "is_default": bool(variant["is_default"]),
+        "allowQuantityOverride": bool(variant["allow_quantity_override"]),
+        "allow_quantity_override": bool(variant["allow_quantity_override"]),
+        "allowPriceOverride": bool(variant["allow_price_override"]),
+        "allow_price_override": bool(variant["allow_price_override"]),
+        "stock": variant["stock"],
+        "stockUnlimited": bool(variant["stock_unlimited"]),
+        "stock_unlimited": bool(variant["stock_unlimited"]),
+        "aliases": normalize_aliases(variant["aliases"]),
+        "sortOrder": variant["sort_order"],
+        "sort_order": variant["sort_order"],
+        "active": bool(variant["active"]),
+        "updatedAt": variant["updated_at"],
+    }
+
+
+def product_from_row(row, variants=None):
+    product = dict(row)
+    product_payload = {
         "id": product["client_id"],
+        "client_id": product["client_id"],
         "sku": product["sku"],
         "name": product["name"],
         "price": product["price"],
@@ -565,6 +690,65 @@ def product_from_row(row):
         "source": product["source"],
         "updatedAt": product["updated_at"],
     }
+    product_payload["variants"] = variants or []
+    return product_payload
+
+
+def sanitize_variant_payload(product, variant, index=0, force_default=False):
+    variant = variant if isinstance(variant, dict) else {}
+    product_client_id = product["client_id"]
+    pricing_type = normalize_pricing_type(variant.get("pricingType") or variant.get("pricing_type"))
+    name = str(variant.get("name") or ("Normal" if force_default or index == 0 else f"Variasi {index + 1}")).strip() or "Normal"
+    price = rupiah_number(variant.get("price"))
+    if price <= 0 and pricing_type != "custom":
+        price = rupiah_number(product.get("price"))
+    if price <= 0 and pricing_type != "custom":
+        return None
+
+    client_id = str(variant.get("id") or variant.get("client_id") or "").strip()
+    if not client_id:
+        suffix = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or f"variant-{index + 1}"
+        client_id = default_variant_client_id(product_client_id) if force_default or index == 0 else f"{product_client_id}::{suffix}"
+
+    stock_unlimited = bool_int(
+        variant.get("stockUnlimited")
+        if variant.get("stockUnlimited") is not None
+        else variant.get("stock_unlimited", product.get("stock_unlimited", 1)),
+        default=1,
+    )
+    package_quantity = rupiah_number(variant.get("packageQuantity") if variant.get("packageQuantity") is not None else variant.get("package_quantity"))
+    unit_name = str(variant.get("unitName") or variant.get("unit_name") or ("biji" if pricing_type == "unit" else "porsi")).strip() or "porsi"
+    package_unit = str(variant.get("packageUnit") or variant.get("package_unit") or unit_name).strip()
+
+    return {
+        "client_id": client_id,
+        "product_client_id": product_client_id,
+        "name": name,
+        "pricing_type": pricing_type,
+        "price": price,
+        "unit_name": unit_name,
+        "package_quantity": max(1, package_quantity or 1),
+        "package_unit": package_unit,
+        "receipt_label": str(variant.get("receiptLabel") or variant.get("receipt_label") or ("" if name.lower() == "normal" else name)).strip(),
+        "is_default": 1 if force_default or variant.get("isDefault") or variant.get("is_default") else 0,
+        "allow_quantity_override": bool_int(
+            variant.get("allowQuantityOverride")
+            if variant.get("allowQuantityOverride") is not None
+            else variant.get("allow_quantity_override", 1),
+            default=1,
+        ),
+        "allow_price_override": bool_int(
+            variant.get("allowPriceOverride")
+            if variant.get("allowPriceOverride") is not None
+            else variant.get("allow_price_override", pricing_type == "custom"),
+            default=1 if pricing_type == "custom" else 0,
+        ),
+        "stock": 0 if stock_unlimited else rupiah_number(variant.get("stock")),
+        "stock_unlimited": stock_unlimited,
+        "aliases": json.dumps(normalize_aliases(variant.get("aliases") or variant.get("alias")), ensure_ascii=False),
+        "sort_order": rupiah_number(variant.get("sortOrder") if variant.get("sortOrder") is not None else variant.get("sort_order", index)),
+        "active": bool_int(variant.get("active", 1), default=1),
+    }
 
 
 def sanitize_product_payload(product):
@@ -572,16 +756,17 @@ def sanitize_product_payload(product):
         return None
 
     name = str(product.get("name") or "").strip()
+    variants_input = product.get("variants") if isinstance(product.get("variants"), list) else []
     price = rupiah_number(product.get("price"))
-    if not name or price <= 0:
+    if not name:
         return None
 
     client_id = str(product.get("id") or product.get("client_id") or "").strip()
     if not client_id:
-        client_id = f"sql-{re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')}-{price}"
+        client_id = f"sql-{re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')}-{price or 'menu'}"
 
     stock_unlimited = 1 if product.get("stockUnlimited") or product.get("stock_unlimited") or product.get("unlimitedStock") else 0
-    return {
+    sanitized_product = {
         "client_id": client_id,
         "sku": str(product.get("sku") or "").strip(),
         "name": name,
@@ -592,6 +777,172 @@ def sanitize_product_payload(product):
         "aliases": json.dumps(normalize_aliases(product.get("aliases") or product.get("alias")), ensure_ascii=False),
         "source": str(product.get("source") or "manual").strip() or "manual",
     }
+    sanitized_variants = [
+        sanitize_variant_payload(sanitized_product, variant, index)
+        for index, variant in enumerate(variants_input)
+    ]
+    sanitized_variants = [variant for variant in sanitized_variants if variant]
+    if not sanitized_variants:
+        default_variant = sanitize_variant_payload(
+            sanitized_product,
+            {
+                "id": default_variant_client_id(client_id),
+                "name": "Normal",
+                "pricingType": "fixed",
+                "price": price,
+                "unitName": "porsi",
+                "isDefault": True,
+                "stock": sanitized_product["stock"],
+                "stockUnlimited": bool(sanitized_product["stock_unlimited"]),
+                "receiptLabel": "",
+            },
+            0,
+            force_default=True,
+        )
+        if default_variant:
+            sanitized_variants = [default_variant]
+    if not sanitized_variants:
+        return None
+
+    default_seen = False
+    for index, variant in enumerate(sanitized_variants):
+        if variant["is_default"] and not default_seen:
+            default_seen = True
+        elif variant["is_default"]:
+            variant["is_default"] = 0
+        variant["sort_order"] = index
+    if not default_seen:
+        sanitized_variants[0]["is_default"] = 1
+
+    default_variant = next((variant for variant in sanitized_variants if variant["is_default"]), sanitized_variants[0])
+    if default_variant["price"] > 0:
+        sanitized_product["price"] = default_variant["price"]
+    return {"product": sanitized_product, "variants": sanitized_variants}
+
+
+def backfill_default_product_variants(connection):
+    rows = connection.execute(
+        """
+        SELECT id, client_id, sku, name, price, stock, stock_unlimited, category, aliases, source, updated_at
+        FROM products
+        ORDER BY id ASC
+        """
+    ).fetchall()
+    products = [dict(row) for row in rows]
+    by_name = {re.sub(r"\s+", " ", product["name"].strip()).lower(): product for product in products}
+    now = utc_now_text()
+
+    for product in products:
+        variant_parts = normalize_variant_suffix(product["name"])
+        if not variant_parts:
+            continue
+        parent_name, variant_name, receipt_label = variant_parts
+        parent = by_name.get(re.sub(r"\s+", " ", parent_name).lower())
+        if not parent or parent["client_id"] == product["client_id"]:
+            continue
+
+        exists = connection.execute(
+            "SELECT 1 FROM product_variants WHERE client_id = ?",
+            (product["client_id"],),
+        ).fetchone()
+        if not exists:
+            connection.execute(
+                """
+                INSERT INTO product_variants (
+                    client_id, product_client_id, name, pricing_type, price, unit_name,
+                    package_quantity, package_unit, receipt_label, is_default,
+                    allow_quantity_override, allow_price_override, stock, stock_unlimited,
+                    aliases, sort_order, active, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    product["client_id"],
+                    parent["client_id"],
+                    variant_name,
+                    "fixed",
+                    product["price"],
+                    "porsi",
+                    1,
+                    "porsi",
+                    receipt_label,
+                    0,
+                    1,
+                    0,
+                    product["stock"],
+                    product["stock_unlimited"],
+                    product["aliases"],
+                    10,
+                    1,
+                    now,
+                ),
+            )
+        connection.execute("DELETE FROM products WHERE client_id = ?", (product["client_id"],))
+
+    product_rows = connection.execute(
+        """
+        SELECT client_id, name, price, stock, stock_unlimited, aliases
+        FROM products
+        ORDER BY id ASC
+        """
+    ).fetchall()
+    for product in product_rows:
+        has_variant = connection.execute(
+            "SELECT 1 FROM product_variants WHERE product_client_id = ? LIMIT 1",
+            (product["client_id"],),
+        ).fetchone()
+        if has_variant:
+            has_default = connection.execute(
+                "SELECT 1 FROM product_variants WHERE product_client_id = ? AND is_default = 1 LIMIT 1",
+                (product["client_id"],),
+            ).fetchone()
+            if not has_default:
+                connection.execute(
+                    """
+                    UPDATE product_variants
+                    SET is_default = 1
+                    WHERE id = (
+                        SELECT id FROM product_variants
+                        WHERE product_client_id = ?
+                        ORDER BY sort_order ASC, id ASC
+                        LIMIT 1
+                    )
+                    """,
+                    (product["client_id"],),
+                )
+            continue
+
+        connection.execute(
+            """
+            INSERT INTO product_variants (
+                client_id, product_client_id, name, pricing_type, price, unit_name,
+                package_quantity, package_unit, receipt_label, is_default,
+                allow_quantity_override, allow_price_override, stock, stock_unlimited,
+                aliases, sort_order, active, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                default_variant_client_id(product["client_id"]),
+                product["client_id"],
+                "Normal",
+                "fixed",
+                product["price"],
+                "porsi",
+                1,
+                "porsi",
+                "",
+                1,
+                1,
+                0,
+                product["stock"],
+                product["stock_unlimited"],
+                "[]",
+                0,
+                1,
+                now,
+            ),
+        )
 
 
 class CashierHandler(SimpleHTTPRequestHandler):
@@ -713,8 +1064,23 @@ class CashierHandler(SimpleHTTPRequestHandler):
                 ORDER BY name COLLATE NOCASE ASC, price ASC, id ASC
                 """
             ).fetchall()
+            variant_rows = connection.execute(
+                """
+                SELECT client_id, product_client_id, name, pricing_type, price, unit_name,
+                       package_quantity, package_unit, receipt_label, is_default,
+                       allow_quantity_override, allow_price_override, stock, stock_unlimited,
+                       aliases, sort_order, active, updated_at
+                FROM product_variants
+                ORDER BY product_client_id ASC, sort_order ASC, id ASC
+                """
+            ).fetchall()
 
-        self.send_json({"products": [product_from_row(row) for row in rows]})
+        variants_by_product = {}
+        for row in variant_rows:
+            variant = variant_from_row(row)
+            variants_by_product.setdefault(variant["product_client_id"], []).append(variant)
+
+        self.send_json({"products": [product_from_row(row, variants_by_product.get(row["client_id"], [])) for row in rows]})
 
     def handle_save_products(self):
         try:
@@ -728,12 +1094,13 @@ class CashierHandler(SimpleHTTPRequestHandler):
             self.send_json({"error": "Payload barang harus berisi daftar products."}, status=400)
             return
 
-        sanitized = [sanitize_product_payload(product) for product in products]
-        sanitized = [product for product in sanitized if product]
+        sanitized_payloads = [sanitize_product_payload(product) for product in products]
+        sanitized_payloads = [payload for payload in sanitized_payloads if payload]
         now = utc_now_text()
 
         with get_connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            connection.execute("DELETE FROM product_variants")
             connection.execute("DELETE FROM products")
             connection.executemany(
                 """
@@ -755,14 +1122,52 @@ class CashierHandler(SimpleHTTPRequestHandler):
                         product["source"],
                         now,
                     )
-                    for product in sanitized
+                    for product in (payload["product"] for payload in sanitized_payloads)
                 ],
             )
+            variant_values = []
+            for payload in sanitized_payloads:
+                for variant in payload["variants"]:
+                    variant_values.append(
+                        (
+                            variant["client_id"],
+                            variant["product_client_id"],
+                            variant["name"],
+                            variant["pricing_type"],
+                            variant["price"],
+                            variant["unit_name"],
+                            variant["package_quantity"],
+                            variant["package_unit"],
+                            variant["receipt_label"],
+                            variant["is_default"],
+                            variant["allow_quantity_override"],
+                            variant["allow_price_override"],
+                            variant["stock"],
+                            variant["stock_unlimited"],
+                            variant["aliases"],
+                            variant["sort_order"],
+                            variant["active"],
+                            now,
+                        )
+                    )
+            connection.executemany(
+                """
+                INSERT INTO product_variants (
+                    client_id, product_client_id, name, pricing_type, price, unit_name,
+                    package_quantity, package_unit, receipt_label, is_default,
+                    allow_quantity_override, allow_price_override, stock, stock_unlimited,
+                    aliases, sort_order, active, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                variant_values,
+            )
 
-        self.send_json({"ok": True, "count": len(sanitized)})
+        self.send_json({"ok": True, "count": len(sanitized_payloads), "variantCount": len(variant_values)})
 
     def handle_clear_products(self):
         with get_connection() as connection:
+            connection.execute("DELETE FROM product_variants")
             connection.execute("DELETE FROM products")
         self.send_json({"ok": True, "count": 0})
 
@@ -829,7 +1234,9 @@ class CashierHandler(SimpleHTTPRequestHandler):
                 placeholders = ",".join("?" for _ in sale_ids)
                 item_rows = connection.execute(
                     f"""
-                    SELECT sale_id, sku, name, price, quantity, line_total, note
+                    SELECT sale_id, sku, name, price, quantity, line_total, note,
+                           product_client_id, variant_client_id, menu_name, variant_name,
+                           unit_name, unit_quantity, pricing_type, receipt_label
                     FROM sale_items
                     WHERE sale_id IN ({placeholders})
                     ORDER BY id ASC
@@ -1269,19 +1676,31 @@ class CashierHandler(SimpleHTTPRequestHandler):
                     line_total = rupiah_number(item.get("lineTotal")) or price * quantity
                     connection.execute(
                         """
-                        INSERT INTO sale_items (sale_id, sku, name, price, quantity, line_total, note)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            sale_id,
-                            str(item.get("sku") or "").strip(),
-                            str(item.get("name") or "Barang").strip(),
-                            price,
-                            quantity,
-                            line_total,
-                            str(item.get("note") or "").strip(),
-                        ),
+                    INSERT INTO sale_items (
+                        sale_id, sku, name, price, quantity, line_total, note,
+                        product_client_id, variant_client_id, menu_name, variant_name,
+                        unit_name, unit_quantity, pricing_type, receipt_label
                     )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        sale_id,
+                        str(item.get("sku") or "").strip(),
+                        str(item.get("name") or "Barang").strip(),
+                        price,
+                        quantity,
+                        line_total,
+                        str(item.get("note") or "").strip(),
+                        str(item.get("productClientId") or item.get("product_client_id") or "").strip(),
+                        str(item.get("variantId") or item.get("variantClientId") or item.get("variant_client_id") or "").strip(),
+                        str(item.get("menuName") or item.get("menu_name") or item.get("name") or "Barang").strip(),
+                        str(item.get("variantName") or item.get("variant_name") or "").strip(),
+                        str(item.get("unitName") or item.get("unit_name") or "").strip(),
+                        rupiah_number(item.get("unitQuantity") if item.get("unitQuantity") is not None else item.get("unit_quantity")),
+                        str(item.get("pricingType") or item.get("pricing_type") or "").strip(),
+                        str(item.get("receiptLabel") or item.get("receipt_label") or "").strip(),
+                    ),
+                )
                 upsert_customer(connection, customer_name, shipping, completed_at)
         except sqlite3.IntegrityError:
             self.send_json({"error": "Nomor struk sudah ada. Coba selesaikan transaksi lagi."}, status=409)
@@ -1306,7 +1725,9 @@ class CashierHandler(SimpleHTTPRequestHandler):
 
         item_rows = connection.execute(
             """
-            SELECT sale_id, sku, name, price, quantity, line_total, note
+            SELECT sale_id, sku, name, price, quantity, line_total, note,
+                   product_client_id, variant_client_id, menu_name, variant_name,
+                   unit_name, unit_quantity, pricing_type, receipt_label
             FROM sale_items
             WHERE sale_id = ?
             ORDER BY id ASC
@@ -1373,14 +1794,23 @@ class CashierHandler(SimpleHTTPRequestHandler):
                     name = str(item.get("name") or "").strip()
                     if not name or quantity <= 0 or price <= 0:
                         continue
+                    line_total = rupiah_number(item.get("lineTotal") if item.get("lineTotal") is not None else item.get("line_total")) or price * quantity
                     sanitized_items.append(
                         {
                             "sku": str(item.get("sku") or "").strip(),
                             "name": name,
                             "price": price,
                             "quantity": quantity,
-                            "line_total": price * quantity,
+                            "line_total": line_total,
                             "note": str(item.get("note") or "").strip(),
+                            "product_client_id": str(item.get("productClientId") or item.get("product_client_id") or "").strip(),
+                            "variant_client_id": str(item.get("variantId") or item.get("variantClientId") or item.get("variant_client_id") or "").strip(),
+                            "menu_name": str(item.get("menuName") or item.get("menu_name") or name).strip(),
+                            "variant_name": str(item.get("variantName") or item.get("variant_name") or "").strip(),
+                            "unit_name": str(item.get("unitName") or item.get("unit_name") or "").strip(),
+                            "unit_quantity": rupiah_number(item.get("unitQuantity") if item.get("unitQuantity") is not None else item.get("unit_quantity")),
+                            "pricing_type": str(item.get("pricingType") or item.get("pricing_type") or "").strip(),
+                            "receipt_label": str(item.get("receiptLabel") or item.get("receipt_label") or "").strip(),
                         }
                     )
 
@@ -1410,8 +1840,12 @@ class CashierHandler(SimpleHTTPRequestHandler):
                 connection.execute("DELETE FROM sale_items WHERE sale_id = ?", (sale_id,))
                 connection.executemany(
                     """
-                    INSERT INTO sale_items (sale_id, sku, name, price, quantity, line_total, note)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO sale_items (
+                        sale_id, sku, name, price, quantity, line_total, note,
+                        product_client_id, variant_client_id, menu_name, variant_name,
+                        unit_name, unit_quantity, pricing_type, receipt_label
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
                         (
@@ -1422,6 +1856,14 @@ class CashierHandler(SimpleHTTPRequestHandler):
                             item["quantity"],
                             item["line_total"],
                             item["note"],
+                            item["product_client_id"],
+                            item["variant_client_id"],
+                            item["menu_name"],
+                            item["variant_name"],
+                            item["unit_name"],
+                            item["unit_quantity"],
+                            item["pricing_type"],
+                            item["receipt_label"],
                         )
                         for item in sanitized_items
                     ],

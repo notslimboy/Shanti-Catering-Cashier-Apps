@@ -172,11 +172,13 @@ Storage notes:
 - After import, manual edits, checkout, delete/restore with stock adjustments, the app saves products back to SQL.
 - Google Sheets remain a one-way source; stock in Google Sheets is not automatically changed after sales.
 
-### Product Portion Variants (1/2 & Jumbo)
-Portion variants such as `1/2` and `Jumbo` are stored as distinct products in the database with their own specific prices and stocks. They are dynamically linked to their parent product (e.g. `Oseng Tahu Tempe`) using name prefix matching. The cashier cart renders a dropdown select box if multiple variants are available, allowing instant swapping and automatic note updates (e.g. "separuh porsi" or "porsi jumbo").
+### Menu Variants / Cara Jual
+Menus are stored as parent products, while pricing lives in `product_variants`. Each menu can have fixed-price variants, per-unit variants, package variants, or custom/manual-price variants. The legacy `products.price` column is kept as a mirror of the default variant price for imports and older fallback paths.
+
+Existing products are automatically backfilled with a default `Normal` variant. Legacy product names with suffixes such as `1/2`, `setengah`, `separuh`, or `jumbo` are migrated into variants under the matching parent menu when one exists.
 
 ### Kelola Menu Panel
-The main view of the **Kelola Barang** modal is the **Kelola Menu** panel. It displays a real-time searchable list of all parent products. Portion variants are grouped directly under their parent products as nested rows. Cashiers can click **Edit** on any item to fill the manual entry form, or click **+ Tambah Menu** to open a blank form. A **Kembali ke Daftar** button allows returning to the list.
+The main view of the menu manager is the **Kelola Menu** panel. It displays a searchable list of parent menus with category, stock status, default variant price, and nested variant rows. The edit form is split into menu identity fields and an inline variant editor, so daily edits usually happen on variants instead of renaming the parent menu.
 
 ## Order Import
 
@@ -186,7 +188,7 @@ Supported input:
 
 - Upload CSV/TSV.
 - Paste CSV generated from an AI summary.
-- Use `Salin Prompt AI` to ask AI to clean up WhatsApp chats into CSV. The prompt instructs the AI to match menus exactly (spelling, spaces, casing) to Today's Menu and separate items of the same product with different notes into individual rows.
+- Use `Salin Prompt AI` to ask AI to clean up WhatsApp chats into CSV. The prompt keeps parent menu names stable, writes custom prices to `harga`, writes per-unit mentions such as `10 biji` to `quantity` + `unit`, and separates items of the same product with different notes into individual rows.
 
 Column format:
 
@@ -325,9 +327,12 @@ SQLite tables:
 | Table | Contents |
 | --- | --- |
 | `sales` | Transaction header: receipt number, time, store, payment, subtotal, shipping/discount, tax, total, customer, chat date, and soft-delete metadata. |
-| `sale_items` | Transaction items: sale id, SKU, name, price, qty, line total, note. |
+| `sale_items` | Transaction item snapshots: sale id, SKU, display name, final price, qty, line total, note, menu id/name, variant id/name, unit, pricing type, and receipt label. |
 | `customers` | Simple customer profiles: name, default shipping fee, latest order. |
-| `products` | Product/menu mirror: client id, SKU, name, price, stock, unlimited flag, category, aliases, source. |
+| `products` | Parent menu mirror: client id, SKU, name, default variant price mirror, stock, unlimited flag, category, aliases, source. |
+| `product_variants` | Menu selling modes: parent menu id, variant name, pricing type, price, unit/package data, receipt label, default flag, override flags, stock, aliases, sort order, active flag. |
+
+For Supabase, run [`docs/supabase-menu-variants.sql`](docs/supabase-menu-variants.sql) in the SQL editor before enabling cloud sync for menu variants.
 
 Important `sales` columns:
 

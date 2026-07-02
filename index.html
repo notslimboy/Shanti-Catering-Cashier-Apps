@@ -32,10 +32,10 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=206">
+    <link rel="stylesheet" href="styles.css?v=210">
     <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script defer src="script.js?v=206"></script>
+    <script defer src="script.js?v=210"></script>
   </head>
   <body>
     <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
@@ -158,6 +158,11 @@
 
       <div class="app-content">
         <header class="topbar">
+          <button class="icon-button sidebar-menu-button" id="sidebarMenuButton" type="button" aria-label="Buka menu" aria-controls="appSidebar" aria-expanded="false">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
           <div class="brand-lockup">
             <img class="brand-logo" src="logocatering.webp" alt="Logo Shanti Catering">
             <div>
@@ -169,11 +174,6 @@
             <span class="status-dot offline" id="topbarConnectionDot"></span>
             <span class="status-text" id="topbarConnectionText">Offline</span>
           </div>
-          <button class="icon-button sidebar-menu-button" id="sidebarMenuButton" type="button" aria-label="Buka menu" aria-controls="appSidebar" aria-expanded="false">
-            <span></span>
-            <span></span>
-            <span></span>
-          </button>
         </header>
 
         <main class="bento-grid">
@@ -833,10 +833,10 @@
               Nama barang
               <input id="itemNameInput" type="text" placeholder="Es kopi" required>
             </label>
-            <label>
-              Harga
-              <input id="itemPriceInput" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="18.000" required>
-            </label>
+            <div class="form-section-label">
+              <span>Info menu</span>
+              <small>Nama induk menu tetap bersih. Harga utama diambil dari variasi default.</small>
+            </div>
             <label>
               Kategori
               <input id="itemCategoryInput" type="text" placeholder="Makanan">
@@ -857,6 +857,17 @@
               Alias menu
               <input id="itemAliasInput" type="text" placeholder="ketan duren, ketan durian">
             </label>
+            <input id="itemPriceInput" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="18.000" hidden>
+            <div class="variant-editor-section">
+              <div class="variant-editor-heading">
+                <div>
+                  <span>Variasi / cara jual</span>
+                  <small>Harga, porsi, bijian, paket, dan custom disimpan di sini.</small>
+                </div>
+                <button class="ghost-button product-small-button" id="addVariantButton" type="button">Tambah Variasi</button>
+              </div>
+              <div class="variant-editor-list" id="variantEditorList" aria-live="polite"></div>
+            </div>
             <button class="primary-button full-width" id="itemSubmitButton" type="submit">Simpan Barang</button>
             <button class="ghost-button full-width" id="cancelEditProductButton" type="button" style="margin-top: 8px;">Kembali ke Daftar</button>
           </form>
