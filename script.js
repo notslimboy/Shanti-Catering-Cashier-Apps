@@ -4986,7 +4986,7 @@ async function dbFetchSales(options = {}) {
         paidAmount: Number(sale.paid_amount || 0),
         items: items
       };
-    });
+    }).filter((sale) => !isPartialSupabaseSale(sale));
     
     return { sales };
   } else {
@@ -5110,6 +5110,27 @@ function buildSupabaseSaleItem(item, saleId, options = {}) {
   return dbItem;
 }
 
+async function cleanupSupabaseInsertedSale(supabase, saleId) {
+  const { error: deleteError } = await supabase.from("sales").delete().eq("id", saleId);
+  if (!deleteError) return;
+
+  const { error: softDeleteError } = await supabase
+    .from("sales")
+    .update({
+      deleted_at: new Date().toISOString(),
+      stock_restored_on_delete: 0,
+    })
+    .eq("id", saleId);
+
+  if (softDeleteError) {
+    console.warn("Gagal membersihkan sale Supabase yang itemnya gagal tersimpan.", { deleteError, softDeleteError });
+  }
+}
+
+function isPartialSupabaseSale(sale) {
+  return !sale.deletedAt && (!Array.isArray(sale.items) || sale.items.length === 0);
+}
+
 async function saveSaleToDatabase(payload) {
   if (state.settings.dbMode === "supabase") {
     const supabase = getSupabaseClient();
@@ -5186,11 +5207,11 @@ async function saveSaleToDatabase(payload) {
           const fallbackItems = payload.items.map(item => buildSupabaseSaleItem(item, saleData.id, { includeExtendedColumns: false }));
           const { error: fallbackItemsError } = await supabase.from("sale_items").insert(fallbackItems);
           if (fallbackItemsError) {
-            await supabase.from("sales").delete().eq("id", saleData.id);
+            await cleanupSupabaseInsertedSale(supabase, saleData.id);
             throw fallbackItemsError;
           }
         } else {
-          await supabase.from("sales").delete().eq("id", saleData.id);
+          await cleanupSupabaseInsertedSale(supabase, saleData.id);
           throw itemsError;
         }
       }
