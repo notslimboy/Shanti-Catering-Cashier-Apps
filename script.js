@@ -5075,6 +5075,41 @@ async function dbUpsertCustomer(supabase, name, defaultShipping, lastOrderAt) {
   }
 }
 
+function getSupabaseMissingSchemaColumn(error, tableName) {
+  const message = String(error?.message || error?.details || "");
+  const escapedTableName = String(tableName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = message.match(new RegExp(`Could not find the '([^']+)' column of '${escapedTableName}' in the schema cache`, "i"));
+  return match?.[1] || "";
+}
+
+function buildSupabaseSaleItem(item, saleId, options = {}) {
+  const includeExtendedColumns = options.includeExtendedColumns !== false;
+  const dbItem = {
+    sale_id: saleId,
+    sku: item.sku || "",
+    name: item.name,
+    price: item.price || 0,
+    quantity: item.quantity || 0,
+    line_total: item.lineTotal || 0,
+    note: item.note || "",
+  };
+
+  if (includeExtendedColumns) {
+    Object.assign(dbItem, {
+      product_client_id: item.productClientId || item.product_client_id || "",
+      variant_client_id: item.variantId || item.variantClientId || item.variant_client_id || "",
+      menu_name: item.menuName || item.menu_name || item.name || "",
+      variant_name: item.variantName || item.variant_name || "",
+      unit_name: item.unitName || item.unit_name || "",
+      unit_quantity: Number(item.unitQuantity || item.unit_quantity || 0),
+      pricing_type: item.pricingType || item.pricing_type || "",
+      receipt_label: item.receiptLabel || item.receipt_label || "",
+    });
+  }
+
+  return dbItem;
+}
+
 async function saveSaleToDatabase(payload) {
   if (state.settings.dbMode === "supabase") {
     const supabase = getSupabaseClient();
@@ -5139,25 +5174,26 @@ async function saveSaleToDatabase(payload) {
     if (saleError) throw saleError;
     
     if (Array.isArray(payload.items) && payload.items.length > 0) {
-      const dbItems = payload.items.map(item => ({
-        sale_id: saleData.id,
-        sku: item.sku || "",
-        name: item.name,
-        price: item.price || 0,
-        quantity: item.quantity || 0,
-        line_total: item.lineTotal || 0,
-        note: item.note || "",
-        product_client_id: item.productClientId || item.product_client_id || "",
-        variant_client_id: item.variantId || item.variantClientId || item.variant_client_id || "",
-        menu_name: item.menuName || item.menu_name || item.name || "",
-        variant_name: item.variantName || item.variant_name || "",
-        unit_name: item.unitName || item.unit_name || "",
-        unit_quantity: Number(item.unitQuantity || item.unit_quantity || 0),
-        pricing_type: item.pricingType || item.pricing_type || "",
-        receipt_label: item.receiptLabel || item.receipt_label || ""
-      }));
+      const dbItems = payload.items.map(item => buildSupabaseSaleItem(item, saleData.id));
       const { error: itemsError } = await supabase.from("sale_items").insert(dbItems);
-      if (itemsError) throw itemsError;
+      if (itemsError) {
+        const missingColumn = getSupabaseMissingSchemaColumn(itemsError, "sale_items");
+        if (missingColumn) {
+          console.warn(
+            `Supabase sale_items belum punya kolom '${missingColumn}', menyimpan item dengan kolom dasar saja.`,
+            itemsError
+          );
+          const fallbackItems = payload.items.map(item => buildSupabaseSaleItem(item, saleData.id, { includeExtendedColumns: false }));
+          const { error: fallbackItemsError } = await supabase.from("sale_items").insert(fallbackItems);
+          if (fallbackItemsError) {
+            await supabase.from("sales").delete().eq("id", saleData.id);
+            throw fallbackItemsError;
+          }
+        } else {
+          await supabase.from("sales").delete().eq("id", saleData.id);
+          throw itemsError;
+        }
+      }
     }
 
     // Upsert customer profile
