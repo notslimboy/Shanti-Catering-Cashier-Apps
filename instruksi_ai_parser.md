@@ -52,11 +52,18 @@ customer,chatDate,payment,ongkir,item,quantity,note
      - If Today's Menu contains: `Tongkol Sarden`, and the chat says "tongkol sarden" or "sarden tongkol", you must output: `Tongkol Sarden`.
      - If Today's Menu contains: `Soto`, and the chat says "soto ayam" or "soto", you must output: `Soto`.
    - **Portion & Package Menu Names (e.g. "/ 3", "/ 4", "/ 20 bj")**: 
-     - If Today's Menu lists an item name containing a package quantity suffix (e.g., `Opor Ayam / 3` or `Telur Petis / 4` or `Kebab Mini / 3`), that suffix is part of the official menu name.
-     - 1 portion (porsi) of `Opor Ayam / 3` contains 3 pieces, `Telur Petis / 4` contains 4 pieces, and `Kebab Mini / 3` contains 3 pieces by default.
-     - If a customer orders "opor ayam 2" or "kebab mini 2", this means they want **2 portions** (quantity = 2) of that menu item. Map it as:
+     - If Today's Menu lists an item name containing a package quantity suffix (pattern: `Nama Menu / angka`, `Nama Menu / angka bj`, `Nama Menu / angka pcs`, `Nama Menu / angka buah`, etc.), that suffix is part of the official menu name and MUST be copied exactly into the `item` column.
+     - The number after `/` is **NOT** the customer order quantity. It describes the package contents for **1 portion/default order**.
+     - Do **NOT** remove the suffix, do **NOT** move it to `quantity`, and do **NOT** multiply/divide the quantity by that suffix.
+     - Menu price text such as `Rp30.000`, `Rp20.000`, or `Rp10.000` is only the menu price and must NOT be included in the `item` column.
+     - Examples from Today's Menu:
+       - `Opor Ayam / 3` `Rp30.000` = 1 porsi/default contains 3 pieces. If ordered without another quantity, output item `Opor Ayam / 3`, quantity `1`.
+       - `Telur Petis / 4` `Rp20.000` = 1 porsi/default contains 4 pieces. If ordered without another quantity, output item `Telur Petis / 4`, quantity `1`.
+       - `Kebab Mini / 3` `Rp10.000` = 1 porsi/default contains 3 pieces. If ordered without another quantity, output item `Kebab Mini / 3`, quantity `1`.
+     - If a customer orders "opor ayam 2", "2 opor ayam", or "kebab mini 2", this means they want **2 portions/orders** of that package menu. Map it as:
        - item: `Opor Ayam / 3` (or `Kebab Mini / 3` respectively)
-       - quantity: `2` (representing 2 portions)
+       - quantity: `2` (representing 2 portions/orders, not 2 pieces)
+     - If the chat itself says `Opor Ayam / 3` with no separate quantity, this is still item `Opor Ayam / 3` with quantity `1`.
    - If the ordered item is NOT in Today's Menu, write it as clean as possible using proper casing (Title Case), but always prioritize fuzzy matching to Today's Menu. Do not guess items if not explicitly ordered.
 
 7. **`quantity`**:
@@ -128,6 +135,16 @@ To prevent severe errors such as order mix-ups, wrong address deliveries, or mis
 - If a message sent by the admin (e.g., `Elok`, `Shanti Catering`) contains ONLY line-like characters such as dashes (`----`, `————-`), underscores (`____`), tildes (`~~~~`), or equal signs (`====`), it is a kitchen control marker for batching.
 - You **MUST** completely ignore and skip these messages.
 - **DO NOT** parse them as orders, **DO NOT** output any rows for them in the CSV, and **DO NOT** tag them with `[PERLU REVIEW]`. Simply skip them.
+
+### 9. Strict Self-Audit and Double-Check Rule (Anti-Error Guard)
+- Before outputting the final CSV, you **MUST** run a complete manual verification loop over every extracted item line.
+- Double check:
+  1. The item name is spelled EXACTLY like in Today's Menu.
+  2. The quantity matches the customer request.
+  3. Kitchen notes (notes inside parenthesis, delivery notes like "diambil", etc.) are captured accurately.
+  4. There are NO custom pricing or small digits (like `/ 3` or `/ 4`) extracted incorrectly as a price.
+  5. The shipping fee matches the database context.
+- **DO NOT** output the CSV if there is even a single minor mismatch. Fix it first.
 
 ---
 
