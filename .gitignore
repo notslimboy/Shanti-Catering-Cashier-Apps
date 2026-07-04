@@ -16,6 +16,7 @@ __pycache__/
 orders-*.csv
 sales-*.csv
 customers-*.csv
+orderan/*.csv
 _chat*.txt
 backups/
 scratch/ui-ux-pro-max-skill/
@@ -33,4 +34,3 @@ drivers/*.zip
 scratch/
 .agents/
 orders_*.csv
-

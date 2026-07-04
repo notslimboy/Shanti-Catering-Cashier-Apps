@@ -14,6 +14,15 @@ Generate the output as a raw CSV text (without markdown formatting blocks if req
 customer,chatDate,payment,ongkir,item,quantity,note
 ```
 
+## OUTPUT FILE NAMING & FOLDER
+- Save/export generated order CSV files inside the `orderan/` folder.
+- Use this filename format: `Order-tanggal [tanggal/rentang] [Bulan] [Tahun].csv`.
+- For a single day, use: `Order-tanggal 4 Jul 2026.csv`.
+- For a date range in the same month, use: `Order-tanggal 3 - 4 Jul 2026.csv`.
+- For a date range across different months, include both months: `Order-tanggal 30 Jun - 1 Jul 2026.csv`.
+- If the file needs an extra context label, append it after the date, for example: `Order-tanggal 3 Jul 2026 - menu hari ini.csv`.
+- Do not use technical export names like `orders_2026-07-03_1815_to_2026-07-04_1200.csv` for final order CSV outputs.
+
 ## EXTRACTION & COLUMN RULES
 1. **Row Rule**: 
    - One row represents one ordered item.
