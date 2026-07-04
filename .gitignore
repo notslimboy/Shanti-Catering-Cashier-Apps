@@ -28,3 +28,9 @@ dist/
 # Local packaged drivers or vendor archives
 drivers/*.rar
 drivers/*.zip
+
+# Custom files ignored by AI agent
+scratch/
+.agents/
+orders_*.csv
+
