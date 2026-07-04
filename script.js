@@ -7964,7 +7964,7 @@ function formatReportItemList(items = []) {
   `;
 }
 
-const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 18;
+const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 24;
 const REPORT_DETAIL_PAGE_UNIT_LIMIT = 32;
 const REPORT_DETAIL_ROW_MIN_UNITS = 2;
 
@@ -8200,6 +8200,43 @@ function salesReportA4Html() {
       `;
     })
     .join("");
+  const courierSummaryPageHtml = report.shippingSummary.byTag.length
+    ? `
+      <article class="print-report-a4 print-report-page print-report-courier-page">
+        <header class="print-report-header print-report-detail-header">
+          <div>
+            <p class="print-report-eyebrow">Summary Ongkir</p>
+            <h1>Ongkir Kurir</h1>
+            <p class="print-report-period">Tanggal laporan: ${escapeHtml(reportDateText)}</p>
+            <p class="print-report-page-note">Rekap ongkir halaman terakhir</p>
+          </div>
+          <div class="print-report-meta">
+            <span>Total Ongkir</span>
+            <strong>${currency.format(report.shippingSummary.total)}</strong>
+          </div>
+        </header>
+
+        <section class="print-report-section print-report-courier-section">
+          <div class="print-report-detail-title-row">
+            <h2>Summary Ongkir Kurir</h2>
+            <span>${report.shippingSummary.transactionCount || 0} transaksi ongkir</span>
+          </div>
+          <table class="print-report-courier-table">
+            <thead>
+              <tr>
+                <th>Tag Alamat</th>
+                <th>Kurir</th>
+                <th class="number">Transaksi</th>
+                <th class="number">Total Ongkir</th>
+              </tr>
+            </thead>
+            <tbody>${courierShippingRows}</tbody>
+            ${courierShippingFooter}
+          </table>
+        </section>
+      </article>
+    `
+    : "";
 
   return `
     <article class="print-report-a4 print-report-page">
@@ -8240,28 +8277,10 @@ function salesReportA4Html() {
         <p class="print-report-page-note">${escapeHtml(getDetailPageLabel(firstDetailPage))}</p>
         ${renderDetailTable(firstDetailPage)}
       </section>
-
-      <section class="print-report-section print-report-courier-section">
-        <div class="print-report-detail-title-row">
-          <h2>Summary Ongkir Kurir</h2>
-          <span>${report.shippingSummary.transactionCount || 0} transaksi ongkir</span>
-        </div>
-        <table class="print-report-courier-table">
-          <thead>
-            <tr>
-              <th>Tag Alamat</th>
-              <th>Kurir</th>
-              <th class="number">Transaksi</th>
-              <th class="number">Total Ongkir</th>
-            </tr>
-          </thead>
-          <tbody>${courierShippingRows || `<tr><td colspan="4">Belum ada ongkir pada rentang ini.</td></tr>`}</tbody>
-          ${courierShippingFooter}
-        </table>
-      </section>
     </article>
 
     ${detailPagesHtml}
+    ${courierSummaryPageHtml}
   `;
 }
 
