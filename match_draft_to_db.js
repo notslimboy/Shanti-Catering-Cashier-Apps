@@ -226,6 +226,13 @@ async function run() {
         }
       } else if (origName.toLowerCase().includes("alfita")) {
         match = { name: "T71", default_shipping: 0 };
+      } else if (origName.toLowerCase().includes("pantai mentari f / 31")) {
+        const override = customers.find(c => c.id === 145); // Tohir 30
+        if (override) {
+          match = override;
+        } else {
+          match = { name: "Tohir 30", default_shipping: 5000 };
+        }
       } else if (origName.includes("Samlangyu 23")) {
         match = { name: "Samlangyu 23", default_shipping: 5000 };
       } else if (origName.includes("Anis BTH")) {

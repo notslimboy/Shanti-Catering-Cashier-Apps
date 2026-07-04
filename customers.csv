@@ -11,6 +11,8 @@ id,name,default_shipping,tag,aliases
 1886,BHAS 1/15,0,Bhaskara,
 1862,Bhas Tengah D - 37,0,Bhaskara,Bhas Tengah D - 37 (bali)
 36,Bhas Utara B 14,0,Bhaskara,BHAS UTARA D 14;BHAS UTARA;Bhaskara Utara B 14
+152,Bhaskara 1 / 15,0,Bhaskara,
+150,Bhaskara 1 no 21,0,Bhaskara,
 144,Bhaskara 4/5,0,Bhaskara,
 134,Bhaskara Sari 18,0,Bhaskara,
 1943,Bhaskara sari 38,0,Bhaskara,Bhas Sari 38
@@ -43,6 +45,7 @@ id,name,default_shipping,tag,aliases
 105,Dharmahusada Emas Fendi - Dharmas bf20,0,Dharmahusada,
 110,Dina Tohir 9,5000,Kenjeran,
 1892,DUPAK PECAH BELAH,35000,GOJEK,
+149,Dyah Ayu SDMO,5000,ITS,
 1899,Emi Bumi Marina - Teknik Fisika,5000,ITS,
 140,Eni SMP 29,35000,GOJEK,
 52,Florence J5/23.,5000,Pakuwon,
@@ -56,7 +59,7 @@ id,name,default_shipping,tag,aliases
 1888,ITS D23,5000,ITS,
 1906,ITS F 6,0,ITS,
 17,ITS i 6,5000,ITS,ITS BLK I6
-1,ITS J / 3,5000,ITS,J / 3
+1,ITS J / 3,0,ITS,J / 3
 1894,ITS J 41,0,ITS,
 79,ITS J 5,5000,ITS,
 49,ITS M 3,5000,ITS,
@@ -78,14 +81,16 @@ id,name,default_shipping,tag,aliases
 70,ITS U 196,5000,ITS,
 1920,ITS U 87,5000,ITS,
 1878,ITS U/117,0,ITS,
+156,ITS U/64,0,ITS,
 1907,ITS V 10,0,ITS,ITS V10
 1876,ITS W/6,0,ITS,
 76,ITS W20,5000,ITS,
 1915,ITS X 16,0,ITS,
+1877,ITS X 22,5000,ITS,
 1928,ITS X 4,5000,ITS,
-1877,ITS X/22,5000,ITS,
 42,J 5 Endah,5000,ITS,
 62,J 5 Endah - Blok J/5,5000,ITS,
+154,J41,0,ITS,
 112,Jl Memet S no 22 komplek AL,5000,Kenjeran,
 1849,Jl. Dharmahusada Indah 42,5000,Dharmahusada,
 47,Jl. Suto prima indah barat blok PQ 35.,0,Sutorejo,
@@ -122,10 +127,10 @@ id,name,default_shipping,tag,aliases
 3,Mutiara C3 / 367,5000,Pakuwon,
 92,N11 Tanti,5000,ITS,
 1872,NGADI 5,5000,Kenjeran,
+157,P1/40,0,ITS,
 1868,P1/40 - Puri asri,5000,Pakuwon,
 1851,Pakuwon City San Diego M2,5000,Pakuwon,
 9,Pantai Mentari Blok SF no. 9,10000,Kenjeran,Pantai Mentari Blok SF / 9;pantai mentari blok SF no. 9
-116,Pantai Mentari F / 31,10000,Kenjeran,
 65,Prof Yulfi Zetra - Asww - Blok T99,5000,ITS,
 13,Pucangan 3.no.49,25000,Pucang,
 1919,Puri Asri P3 no. 32 Nenet,5000,Pakuwon,
@@ -138,6 +143,7 @@ id,name,default_shipping,tag,aliases
 1922,Santi BAPKM,0,ITS,
 1917,SPR F20,15000,GOJEK,SPR F - 20
 128,SPR OKY,0,GOJEK,
+151,Sukirno 25,5000,,
 139,Sukodono,0,Sidoarjo,
 74,Susi Rohmadi,25000,,
 1905,Suto Sel 3/5,0,Sutorejo,
@@ -160,12 +166,15 @@ id,name,default_shipping,tag,aliases
 55,Sutorejo Tengah 2/6,0,Sutorejo,
 1859,Sutorejo Tengah 8/10,0,Sutorejo,Sutorejo Tengah 8 / 10
 119,sutorejo timur 32/H5,0,Sutorejo,
+158,T - 4,0,ITS,
 109,T - 49,5000,ITS,
 121,T - 65,5000,ITS,
 32,T - 72,0,ITS,
 96,T 93,0,ITS,
+155,T40,0,ITS,
 95,T71,0,ITS,
 93,T73,0,ITS,
+153,T85,0,ITS,
 122,Taman Mulyo Ut 7 - Telly - Taman Mulyosari Utara no 7,0,Mulyosari,
 146,Taman Mulyo Utara 20,0,Mulyosari,
 58,Taman Suto Timur 48 Baru,0,Sutorejo,
@@ -173,11 +182,11 @@ id,name,default_shipping,tag,aliases
 80,Temen Pak Didik (IDA),35000,Rungkut,Temen Pak Didik
 99,Tenggilis Mejoyo Fayzia,35000,Tenggilis,
 115,Tohir 1,5000,Kenjeran,
-64,Tohir 14,0,Kenjeran,
+64,Tohir 14,5000,Kenjeran,
 111,Tohir 17,5000,Kenjeran,
 100,Tohir 17 Komplek AL,5000,Kenjeran,
 56,Tohir 23,5000,Kenjeran,
-145,Tohir 30,5000,Kenjeran,
+145,Tohir 30,5000,Kenjeran,Pantai Mentari F / 31
 71,Tuwowo Rejo,15000,GOJEK,
 68,U / 9 Atria,5000,ITS,
 97,U 117,0,ITS,
@@ -188,13 +197,14 @@ id,name,default_shipping,tag,aliases
 104,V / 3,5000,ITS,
 1921,Vila Westwood A6-1,5000,Pakuwon,villa westwood A6-1
 1856,Villa Royal C4/18,5000,Pakuwon,
+159,W - 12,0,ITS,
 40,W / 6,0,ITS,
 142,Widya Research Center lt 4,5000,ITS,
 4,Wisper 1/49,20000,Wisper,Wisma Permai 1 no.49
 11,Wisper 1/75,5000,Wisper,Jl. Wisma Permai 1 no 75
 14,Wisper 11 / 17,5000,Wisper,
 1909,Wisper 5 / 18,5000,Wisper,Wisper 5/18
-1881,WisPer Tengah 9/JJ-37,10000,Wisper,WisPer Tengah 9/JJ -37 Sby;WISPER TGH 9/JJ-37
+1881,WisPer Tengah 9/JJ-37,5000,Wisper,WisPer Tengah 9/JJ -37 Sby;WISPER TGH 9/JJ-37
 106,Wisper Tengah Blok Kk,5000,Wisper,WISPER TENGAH KK
 87,WPT IX / JJ - 37,10000,ITS,
 147,X 26,5000,ITS,

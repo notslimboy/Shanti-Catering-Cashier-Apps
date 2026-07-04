@@ -288,7 +288,6 @@ Below is the list of official customer names registered in the cashier app datab
 | **P1/40 - Puri asri** | "P1/40 - Puri asri" | 5000 |
 | **Pakuwon City San Diego M2** | "Pakuwon City San Diego M2" | 5000 |
 | **Pantai Mentari Blok SF no. 9** | "Pantai Mentari Blok SF no. 9", "Pantai Mentari Blok SF / 9" | 10000 |
-| **Pantai Mentari F / 31** | "Pantai Mentari F / 31" | 10000 |
 | **Prof Yulfi Zetra - Asww - Blok T99** | "Prof Yulfi Zetra - Asww - Blok T99" | 5000 |
 | **Pucangan 3.no.49** | "Pucangan 3.no.49" | 25000 |
 | **Puri Asri P3 no. 32 Nenet** | "Puri Asri P3 no. 32 Nenet" | 5000 |
@@ -340,7 +339,7 @@ Below is the list of official customer names registered in the cashier app datab
 | **Tohir 17** | "Tohir 17" | 5000 |
 | **Tohir 17 Komplek AL** | "Tohir 17 Komplek AL" | 5000 |
 | **Tohir 23** | "Tohir 23" | 5000 |
-| **Tohir 30** | "Tohir 30" | 5000 |
+| **Tohir 30** | "Tohir 30", "Pantai Mentari F / 31" | 5000 |
 | **Tuwowo Rejo** | "Tuwowo Rejo" | 15000 |
 | **U / 9 Atria** | "U / 9 Atria" | 5000 |
 | **U 117** | "U 117" | 0 |

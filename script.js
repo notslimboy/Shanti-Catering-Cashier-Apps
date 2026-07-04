@@ -3689,8 +3689,11 @@ function parseDraftNameHints(rawName) {
   const priceMatch = name.match(/\b(?:rp\s*)?(\d+(?:[.,]\d+)?)(\s*k)\b/i) || name.match(/\b(?:rp\s*)?(\d[\d.]*)\b\s*$/i);
   if (priceMatch) {
     const numberText = priceMatch[1];
-    price = parseMoney(numberText) * (priceMatch[2] ? 1000 : 1);
-    if (price >= 1000) name = name.replace(priceMatch[0], "").trim();
+    const tempPrice = parseMoney(numberText) * (priceMatch[2] ? 1000 : 1);
+    if (tempPrice >= 1000) {
+      price = tempPrice;
+      name = name.replace(priceMatch[0], "").trim();
+    }
   }
   const unitMatch = name.match(/\b(\d+)\s*(biji|pcs|pc|buah|porsi|paket|box|bungkus)\b/i);
   if (unitMatch) {
@@ -5077,9 +5080,15 @@ async function dbUpsertCustomer(supabase, name, defaultShipping, lastOrderAt) {
 
 function getSupabaseMissingSchemaColumn(error, tableName) {
   const message = String(error?.message || error?.details || "");
-  const escapedTableName = String(tableName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = message.match(new RegExp(`Could not find the '([^']+)' column of '${escapedTableName}' in the schema cache`, "i"));
-  return match?.[1] || "";
+  // Match any quote style and optional schema prefix like public.tableName or "public"."tableName"
+  const match = message.match(/Could not find the ['"]([^'"]+)['"] column of (?:['"]?public['"]?\.)?['"]?([a-zA-Z0-9_-]+)['"]? in the schema cache/i);
+  if (match) {
+    const matchedTable = match[2];
+    if (matchedTable.toLowerCase() === String(tableName).toLowerCase()) {
+      return match[1];
+    }
+  }
+  return "";
 }
 
 function buildSupabaseSaleItem(item, saleId, options = {}) {
