@@ -7967,6 +7967,7 @@ function formatReportItemList(items = []) {
 const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 24;
 const REPORT_DETAIL_PAGE_UNIT_LIMIT = 32;
 const REPORT_DETAIL_ROW_MIN_UNITS = 2;
+const REPORT_COURIER_SUMMARY_UNIT_RESERVE = 8;
 
 function estimateReportDetailRowUnits(sale) {
   const customerName = getCustomerNameFromSale(sale) || "Customer belum diisi";
@@ -7990,6 +7991,7 @@ function chunkReportDetailSales(sales, options = {}) {
   }
 
   const firstPageUnitLimit = Number(options.firstPageUnitLimit || REPORT_DETAIL_PAGE_UNIT_LIMIT);
+  const lastPageUnitReserve = Math.max(0, Number(options.lastPageUnitReserve || 0));
   const pages = [];
   let pageSales = [];
   let pageStartIndex = 0;
@@ -8013,6 +8015,29 @@ function chunkReportDetailSales(sales, options = {}) {
 
   if (pageSales.length) {
     pages.push({ sales: pageSales, startIndex: pageStartIndex });
+  }
+
+  if (lastPageUnitReserve > 0 && pages.length) {
+    const getPageLimit = (index) => (index === 0 ? firstPageUnitLimit : REPORT_DETAIL_PAGE_UNIT_LIMIT);
+    const getPageUnits = (page) => page.sales.reduce((total, sale) => total + Math.min(estimateReportDetailRowUnits(sale), REPORT_DETAIL_PAGE_UNIT_LIMIT), 0);
+    const finalPageTarget = Math.max(REPORT_DETAIL_ROW_MIN_UNITS, getPageLimit(pages.length - 1) - lastPageUnitReserve);
+    let lastPage = pages[pages.length - 1];
+    let lastPageUnits = getPageUnits(lastPage);
+    let overflowPage = null;
+
+    while (lastPage.sales.length > 1 && lastPageUnits > finalPageTarget) {
+      const movedSale = lastPage.sales.pop();
+      const movedIndex = lastPage.startIndex + lastPage.sales.length;
+      const movedUnits = Math.min(estimateReportDetailRowUnits(movedSale), REPORT_DETAIL_PAGE_UNIT_LIMIT);
+      lastPageUnits -= movedUnits;
+      if (!overflowPage) overflowPage = { sales: [], startIndex: movedIndex };
+      overflowPage.sales.unshift(movedSale);
+      overflowPage.startIndex = movedIndex;
+    }
+
+    if (overflowPage) {
+      pages.push(overflowPage);
+    }
   }
 
   return pages;
@@ -8172,12 +8197,39 @@ function salesReportA4Html() {
       </tfoot>
     `
     : "";
-  const detailPages = chunkReportDetailSales(selectedSales, { firstPageUnitLimit: REPORT_SUMMARY_DETAIL_UNIT_LIMIT });
+  const hasCourierShippingSummary = report.shippingSummary.byTag.length > 0;
+  const courierSummarySectionHtml = hasCourierShippingSummary
+    ? `
+      <section class="print-report-section print-report-courier-section">
+        <div class="print-report-detail-title-row">
+          <h2>Summary Ongkir Kurir</h2>
+          <span>${report.shippingSummary.transactionCount || 0} transaksi ongkir</span>
+        </div>
+        <table class="print-report-courier-table">
+          <thead>
+            <tr>
+              <th>Tag Alamat</th>
+              <th>Kurir</th>
+              <th class="number">Transaksi</th>
+              <th class="number">Total Ongkir</th>
+            </tr>
+          </thead>
+          <tbody>${courierShippingRows}</tbody>
+          ${courierShippingFooter}
+        </table>
+      </section>
+    `
+    : "";
+  const detailPages = chunkReportDetailSales(selectedSales, {
+    firstPageUnitLimit: REPORT_SUMMARY_DETAIL_UNIT_LIMIT,
+    lastPageUnitReserve: hasCourierShippingSummary ? REPORT_COURIER_SUMMARY_UNIT_RESERVE : 0,
+  });
   const firstDetailPage = detailPages[0] || { sales: [], startIndex: 0 };
   const detailPagesHtml = detailPages
     .slice(1)
     .map((chunk, continuedIndex) => {
       const pageIndex = continuedIndex + 1;
+      const isLastDetailPage = pageIndex === detailPages.length - 1;
       return `
         <article class="print-report-a4 print-report-page print-report-detail-page">
           <header class="print-report-header print-report-detail-header">
@@ -8196,47 +8248,11 @@ function salesReportA4Html() {
           <section class="print-report-section print-report-detail-section">
             ${renderDetailTable(chunk)}
           </section>
+          ${isLastDetailPage ? courierSummarySectionHtml : ""}
         </article>
       `;
     })
     .join("");
-  const courierSummaryPageHtml = report.shippingSummary.byTag.length
-    ? `
-      <article class="print-report-a4 print-report-page print-report-courier-page">
-        <header class="print-report-header print-report-detail-header">
-          <div>
-            <p class="print-report-eyebrow">Summary Ongkir</p>
-            <h1>Ongkir Kurir</h1>
-            <p class="print-report-period">Tanggal laporan: ${escapeHtml(reportDateText)}</p>
-            <p class="print-report-page-note">Rekap ongkir halaman terakhir</p>
-          </div>
-          <div class="print-report-meta">
-            <span>Total Ongkir</span>
-            <strong>${currency.format(report.shippingSummary.total)}</strong>
-          </div>
-        </header>
-
-        <section class="print-report-section print-report-courier-section">
-          <div class="print-report-detail-title-row">
-            <h2>Summary Ongkir Kurir</h2>
-            <span>${report.shippingSummary.transactionCount || 0} transaksi ongkir</span>
-          </div>
-          <table class="print-report-courier-table">
-            <thead>
-              <tr>
-                <th>Tag Alamat</th>
-                <th>Kurir</th>
-                <th class="number">Transaksi</th>
-                <th class="number">Total Ongkir</th>
-              </tr>
-            </thead>
-            <tbody>${courierShippingRows}</tbody>
-            ${courierShippingFooter}
-          </table>
-        </section>
-      </article>
-    `
-    : "";
 
   return `
     <article class="print-report-a4 print-report-page">
@@ -8277,10 +8293,10 @@ function salesReportA4Html() {
         <p class="print-report-page-note">${escapeHtml(getDetailPageLabel(firstDetailPage))}</p>
         ${renderDetailTable(firstDetailPage)}
       </section>
+      ${detailPages.length === 1 ? courierSummarySectionHtml : ""}
     </article>
 
     ${detailPagesHtml}
-    ${courierSummaryPageHtml}
   `;
 }
 
