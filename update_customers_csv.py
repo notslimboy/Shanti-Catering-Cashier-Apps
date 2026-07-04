@@ -9,6 +9,7 @@ SUPABASE_URL = "https://ddfalsclevkqhiyojngx.supabase.co"
 SUPABASE_KEY = "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP"
 
 CUSTOMER_TAG_ALIASES = {
+    "gojek": "GOJEK",
     "pakuwoncity": "Pakuwon",
     "puriasri": "Pakuwon",
     "griyaasri": "Pakuwon",
@@ -21,9 +22,9 @@ CUSTOMER_TAG_ALIASES = {
     "laguna": "Pakuwon",
     "mutiara": "Pakuwon",
     "kenejeran": "Kenjeran",
-    "pantaimentari": "Kenjeran",
-    "pantaimentri": "Kenjeran",
-    "pantainmentari": "Kenjeran",
+    "pantaimentari": "Pantai Mentari",
+    "pantaimentri": "Pantai Mentari",
+    "pantainmentari": "Pantai Mentari",
     "sahabudin": "Kenjeran",
     "tuwowo": "Kenjeran",
     "tohir": "Kenjeran",
@@ -39,6 +40,7 @@ CUSTOMER_ITS_BLOCK_PATTERN = re.compile(
     r"\b(?:its\s*)?(?:perum\s*)?(?:blok\s*)?(?:(p1)\s*[/ -]?\s*\d+|([tuvwjdnxmrficahb])(?!\s*o\s*\d)\s*(?:lama\s*)?(?:[/.-]|\s)*[a-z]?\s*\d+)\b",
     re.IGNORECASE
 )
+CUSTOMER_GOJEK_PATTERN = re.compile(r"\bgo\s*jek\b|\bgojek\b", re.IGNORECASE)
 
 CUSTOMER_ITS_FALLBACK_PATTERN = re.compile(
     r"\b(?:its|dptsi|bapkm|sdmo|dpsp|spkb|ftspk|wr\s*3|teknik|tek|t\s*lingkungan|lingku(?:ngan)?|arsitek(?:tur)?|bahasa|mesin|kimia|fisika|geofisika|statistika|mipa|instrumen(?:tasi)?|hidrodinamika|brin|nasdec|riset|research\s*center|gedung\s*riset|gedung\s*rc|rc\s*(?:lt|lantai)|perpus(?:takaan)?|manajemen\s*bisnis)\b",
@@ -85,6 +87,8 @@ def infer_customer_address_tag(name, aliases_list):
     if not raw_text.strip():
         return ""
     tag_text = f"{normalize_customer_tag_text(raw_text)} {compact_customer_key(raw_text)}".strip()
+    if CUSTOMER_GOJEK_PATTERN.search(tag_text):
+        return "GOJEK"
     if CUSTOMER_ITS_FALLBACK_PATTERN.search(tag_text):
         return "ITS"
     for rule in CUSTOMER_ADDRESS_TAG_RULES:

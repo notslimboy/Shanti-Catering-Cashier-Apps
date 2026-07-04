@@ -2179,7 +2179,7 @@ label {
 
 .daily-report-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 0.85fr) minmax(320px, 1.15fr);
+  grid-template-columns: minmax(220px, 0.85fr) minmax(300px, 1fr) minmax(280px, 1fr);
   align-items: start;
   gap: 12px;
 }
@@ -2274,6 +2274,39 @@ label {
   max-height: 310px;
   overflow: auto;
   padding-right: 2px;
+}
+
+.daily-courier-card .mini-list {
+  max-height: 310px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.courier-shipping-row {
+  min-height: 46px;
+}
+
+.courier-shipping-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.courier-shipping-copy > span {
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.courier-shipping-copy small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .sales-list {
@@ -2801,6 +2834,11 @@ label {
   margin-top: 2px;
 }
 
+.print-report-courier-section {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
 .print-report-a4 table {
   width: 100%;
   border-collapse: collapse;
@@ -2858,6 +2896,31 @@ label {
 .print-report-menu-table th:nth-child(3),
 .print-report-menu-table td:nth-child(3) {
   width: 24mm;
+}
+
+.print-report-courier-table th:nth-child(2),
+.print-report-courier-table td:nth-child(2) {
+  width: 28mm;
+}
+
+.print-report-courier-table th:nth-child(3),
+.print-report-courier-table td:nth-child(3) {
+  width: 22mm;
+}
+
+.print-report-courier-table th:nth-child(4),
+.print-report-courier-table td:nth-child(4) {
+  width: 32mm;
+}
+
+.print-report-courier-table tfoot td {
+  background: #edf8f5;
+  color: #0f5f58;
+  font-weight: 900;
+}
+
+.print-report-total-label {
+  text-align: right;
 }
 
 .print-report-transactions th,
@@ -5778,6 +5841,11 @@ label {
   html.report-print-mode .print-report-a4 tbody {
     break-inside: auto;
     page-break-inside: auto;
+  }
+
+  html.report-print-mode .print-report-courier-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   html.report-print-mode .print-report-a4 tr {

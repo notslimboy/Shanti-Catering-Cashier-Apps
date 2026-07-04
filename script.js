@@ -12,10 +12,12 @@ const CUSTOMER_TAG_FILTER_ORDER = [
   "ITS",
   "Sutorejo",
   "Mulyosari",
+  "GOJEK",
   "BPD",
   "Wisper",
   "Bhaskara",
   "Kenjeran",
+  "Pantai Mentari",
   "Pakuwon",
   "Keputih",
   "Dharmahusada",
@@ -205,6 +207,7 @@ const CUSTOMER_ADDRESS_TAG_RULES = [
 ];
 
 const CUSTOMER_TAG_ALIASES = new Map([
+  ["gojek", "GOJEK"],
   ["pakuwoncity", "Pakuwon"],
   ["puriasri", "Pakuwon"],
   ["griyaasri", "Pakuwon"],
@@ -217,9 +220,9 @@ const CUSTOMER_TAG_ALIASES = new Map([
   ["laguna", "Pakuwon"],
   ["mutiara", "Pakuwon"],
   ["kenejeran", "Kenjeran"],
-  ["pantaimentari", "Kenjeran"],
-  ["pantaimentri", "Kenjeran"],
-  ["pantainmentari", "Kenjeran"],
+  ["pantaimentari", "Pantai Mentari"],
+  ["pantaimentri", "Pantai Mentari"],
+  ["pantainmentari", "Pantai Mentari"],
   ["sahabudin", "Kenjeran"],
   ["tuwowo", "Kenjeran"],
   ["tohir", "Kenjeran"],
@@ -233,6 +236,23 @@ const CUSTOMER_TAG_ALIASES = new Map([
 
 const CUSTOMER_ITS_BLOCK_PATTERN = /\b(?:its\s*)?(?:perum\s*)?(?:blok\s*)?(?:(p1)\s*[/ -]?\s*\d+|([tuvwjdnxmrficahb])(?!\s*o\s*\d)\s*(?:lama\s*)?(?:[/.-]|\s)*[a-z]?\s*\d+)\b/;
 const CUSTOMER_ITS_FALLBACK_PATTERN = /\b(?:its|dptsi|bapkm|sdmo|dpsp|spkb|ftspk|wr\s*3|teknik|tek|t\s*lingkungan|lingku(?:ngan)?|arsitek(?:tur)?|bahasa|mesin|kimia|fisika|geofisika|statistika|mipa|instrumen(?:tasi)?|hidrodinamika|brin|nasdec|riset|research\s*center|gedung\s*riset|gedung\s*rc|rc\s*(?:lt|lantai)|perpus(?:takaan)?|manajemen\s*bisnis)\b/;
+const CUSTOMER_GOJEK_PATTERN = /\bgo\s*jek\b|\bgojek\b/;
+
+const SHIPPING_TAG_UNMAPPED_LABEL = "Tanpa tag / Belum dipetakan";
+const SHIPPING_COURIER_UNMAPPED_LABEL = "Belum dipetakan";
+const SHIPPING_COURIER_GROUPS = [
+  { courier: "Hide/Vendi", tags: ["ITS"] },
+  { courier: "Yanto", tags: ["Sutorejo", "BPD", "Mulyosari", "Dharmahusada", "Wisper"] },
+  { courier: "Sudes", tags: ["Kenjeran", "Pakuwon", "Pantai Mentari", "Bhaskara"] },
+  { courier: "GOJEK", tags: ["GOJEK"] },
+];
+const SHIPPING_COURIER_BY_TAG = new Map(
+  SHIPPING_COURIER_GROUPS.flatMap((group) => group.tags.map((tag) => [tag, group.courier]))
+);
+const SHIPPING_COURIER_ORDER = [
+  ...SHIPPING_COURIER_GROUPS.map((group) => group.courier),
+  SHIPPING_COURIER_UNMAPPED_LABEL,
+];
 
 const saleSearchKeyCache = new WeakMap();
 
@@ -438,6 +458,7 @@ const els = {
   dailyAverageText: document.querySelector("#dailyAverageText"),
   dailyPaymentBreakdown: document.querySelector("#dailyPaymentBreakdown"),
   dailyItemTotals: document.querySelector("#dailyItemTotals"),
+  dailyCourierShipping: document.querySelector("#dailyCourierShipping"),
   dailyReportSection: document.querySelector("#dailyReportSection"),
   printDailyReportButton: document.querySelector("#printDailyReportButton"),
   exportDailyReportButton: document.querySelector("#exportDailyReportButton"),
@@ -1891,6 +1912,7 @@ function inferCustomerAddressTag(...values) {
   if (!rawText) return "";
 
   const tagText = `${normalizeCustomerTagText(rawText)} ${compactCustomerKey(rawText)}`.trim();
+  if (CUSTOMER_GOJEK_PATTERN.test(tagText)) return "GOJEK";
   if (CUSTOMER_ITS_FALLBACK_PATTERN.test(tagText)) return "ITS";
 
   for (const rule of CUSTOMER_ADDRESS_TAG_RULES) {
@@ -1945,13 +1967,14 @@ function getCustomerProfiles() {
   }
 
   const profiles = new Map();
-  const addProfile = (name, shipping = 0, dateValue = "", newDepositBalance) => {
+  const addProfile = (name, shipping = 0, dateValue = "", newDepositBalance, tag = "") => {
     const customerName = String(name || "").trim();
     const key = normalizeKey(customerName);
     if (!key) return;
 
     const timestamp = dateValue ? new Date(dateValue).getTime() || 0 : 0;
     const current = profiles.get(key);
+    const resolvedTag = normalizeCustomerTag(tag);
     
     // Preserve existing deposit balance if newDepositBalance is not provided
     const resolvedDeposit = newDepositBalance !== undefined 
@@ -1968,12 +1991,14 @@ function getCustomerProfiles() {
         searchKey: key,
         shipping: Number(shipping || 0),
         depositBalance: maxDeposit,
+        tag: resolvedTag || current?.tag || "",
         timestamp,
       });
     } else if (maxDeposit > current.depositBalance) {
       // If we don't update the timestamp/shipping, at least ensure deposit balance isn't lost
       current.depositBalance = maxDeposit;
     }
+    if (current && resolvedTag && !current.tag) current.tag = resolvedTag;
   };
 
   state.customers.forEach((customer) => {
@@ -1982,9 +2007,10 @@ function getCustomerProfiles() {
       normalized.name,
       normalized.shipping,
       normalized.lastOrderAt,
-      normalized.depositBalance
+      normalized.depositBalance,
+      normalized.tag
     );
-    normalized.aliases.forEach((alias) => addProfile(alias, normalized.shipping, normalized.lastOrderAt, normalized.depositBalance));
+    normalized.aliases.forEach((alias) => addProfile(alias, normalized.shipping, normalized.lastOrderAt, normalized.depositBalance, normalized.tag));
   });
   getActiveSales().forEach((sale) => addProfile(getCustomerNameFromSale(sale), getSaleShipping(sale), sale.completed_at));
   state.importDrafts.forEach((draft) => addProfile(draft.customerName, draft.shipping, draft.importedAt));
@@ -2725,6 +2751,120 @@ function getSaleShipping(sale) {
   return Number(sale.shipping || sale.discount || 0);
 }
 
+function getShippingCourierForTag(tag) {
+  const normalizedTag = normalizeCustomerTag(tag);
+  return SHIPPING_COURIER_BY_TAG.get(normalizedTag) || "";
+}
+
+function getShippingTagSortIndex(tag) {
+  const normalizedTag = normalizeCustomerTag(tag);
+  const index = CUSTOMER_TAG_FILTER_ORDER.indexOf(normalizedTag);
+  return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
+}
+
+function getShippingCourierSortIndex(courier) {
+  const index = SHIPPING_COURIER_ORDER.indexOf(courier);
+  return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
+}
+
+function resolveSaleShippingTag(sale) {
+  const possibleNames = [
+    sale?.customer_name,
+    sale?.customerName,
+    sale?.customer_address,
+    sale?.customerAddress,
+    getCustomerNameFromSale(sale),
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  const seenKeys = new Set();
+
+  for (const name of possibleNames) {
+    const key = normalizeKey(name);
+    if (!key || seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    const profile = getCustomerProfile(name);
+    const profileTag = normalizeCustomerTag(profile?.tag || "");
+    if (profileTag) return profileTag;
+  }
+
+  return normalizeCustomerTag(
+    inferCustomerAddressTag(
+      sale?.customer_name,
+      sale?.customerName,
+      sale?.customer_address,
+      sale?.customerAddress,
+      sale?.order_note,
+      sale?.orderNote
+    )
+  );
+}
+
+function buildCourierShippingSummary(sales = []) {
+  const tagMap = new Map();
+  const courierMap = new Map();
+  let total = 0;
+  let transactionCount = 0;
+
+  sales.forEach((sale) => {
+    const shipping = getSaleShipping(sale);
+    if (shipping <= 0) return;
+
+    const tag = resolveSaleShippingTag(sale);
+    const tagLabel = tag || SHIPPING_TAG_UNMAPPED_LABEL;
+    const courier = getShippingCourierForTag(tag) || SHIPPING_COURIER_UNMAPPED_LABEL;
+    const tagKey = `${courier}|${tagLabel}`;
+    const tagEntry = tagMap.get(tagKey) || { tag: tagLabel, courier, count: 0, total: 0 };
+    const courierEntry = courierMap.get(courier) || {
+      courier,
+      name: courier,
+      count: 0,
+      total: 0,
+      tags: new Map(),
+    };
+    const courierTagEntry = courierEntry.tags.get(tagLabel) || { tag: tagLabel, count: 0, total: 0 };
+
+    total += shipping;
+    transactionCount += 1;
+    tagEntry.count += 1;
+    tagEntry.total += shipping;
+    courierEntry.count += 1;
+    courierEntry.total += shipping;
+    courierTagEntry.count += 1;
+    courierTagEntry.total += shipping;
+
+    tagMap.set(tagKey, tagEntry);
+    courierEntry.tags.set(tagLabel, courierTagEntry);
+    courierMap.set(courier, courierEntry);
+  });
+
+  const sortTags = (left, right) => {
+    const courierDiff = getShippingCourierSortIndex(left.courier) - getShippingCourierSortIndex(right.courier);
+    if (courierDiff) return courierDiff;
+    const tagDiff = getShippingTagSortIndex(left.tag) - getShippingTagSortIndex(right.tag);
+    if (tagDiff) return tagDiff;
+    return left.tag.localeCompare(right.tag, "id-ID");
+  };
+
+  const byTag = [...tagMap.values()].sort(sortTags);
+  const byCourier = [...courierMap.values()]
+    .map((entry) => ({
+      ...entry,
+      tags: [...entry.tags.values()].sort((left, right) => {
+        const tagDiff = getShippingTagSortIndex(left.tag) - getShippingTagSortIndex(right.tag);
+        if (tagDiff) return tagDiff;
+        return left.tag.localeCompare(right.tag, "id-ID");
+      }),
+    }))
+    .sort((left, right) => {
+      const courierDiff = getShippingCourierSortIndex(left.courier) - getShippingCourierSortIndex(right.courier);
+      if (courierDiff) return courierDiff;
+      return left.courier.localeCompare(right.courier, "id-ID");
+    });
+
+  return { total, transactionCount, byTag, byCourier };
+}
+
 function getSaleItemCount(sale) {
   return (Array.isArray(sale.items) ? sale.items : []).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 }
@@ -2938,6 +3078,7 @@ function buildDailyReport(sales = getSelectedSales()) {
     revenue,
     subtotal,
     shippingTotal,
+    shippingSummary: buildCourierShippingSummary(sales),
     itemCount,
     average: sales.length ? Math.round(revenue / sales.length) : 0,
     payments: [...paymentMap.values()]
@@ -6071,6 +6212,51 @@ function renderMiniList(element, items, emptyText, options = {}) {
     .join("");
 }
 
+function getCourierBadgeText(courier) {
+  if (courier === "Hide/Vendi") return "HV";
+  if (courier === SHIPPING_COURIER_UNMAPPED_LABEL) return "?";
+  return String(courier || "")
+    .split(/[\/\s]+/)
+    .map((part) => part[0] || "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function renderCourierShippingList(element, summary) {
+  if (!element) return;
+  const items = Array.isArray(summary?.byCourier) ? summary.byCourier : [];
+  if (!items.length) {
+    element.innerHTML = `<p class="mini-list-empty">Belum ada ongkir.</p>`;
+    return;
+  }
+
+  const maxValue = Math.max(...items.map((item) => Number(item.total || 0)), 1);
+  const graphColors = ["#0f766e", "#2563eb", "#b45309", "#7c3aed", "#be123c", "#15803d", "#0891b2", "#a16207"];
+  element.innerHTML = items
+    .map((item, index) => {
+      const value = Number(item.total || 0);
+      const fill = Math.max(8, Math.round((value / maxValue) * 100));
+      const color = graphColors[index % graphColors.length];
+      const tagText = item.tags.map((tag) => `${tag.tag} ${currency.format(tag.total)}`).join(" / ");
+      const metaText = `${item.count || 0} transaksi${tagText ? ` - ${tagText}` : ""}`;
+      return `
+        <div class="mini-list-row courier-shipping-row" style="--mini-fill: ${fill}%; --mini-color: ${color}">
+          <span class="mini-list-fill" aria-hidden="true"></span>
+          <span class="mini-list-name">
+            <span class="mini-list-icon" aria-hidden="true">${escapeHtml(getCourierBadgeText(item.courier))}</span>
+            <span class="courier-shipping-copy">
+              <span>${escapeHtml(item.courier)}</span>
+              <small>${escapeHtml(metaText)}</small>
+            </span>
+          </span>
+          <strong>${currency.format(item.total)}</strong>
+        </div>
+      `;
+    })
+    .join("");
+}
+
 function renderDailyReport(selectedSales) {
   const report = buildDailyReport(selectedSales);
   els.dailyAverageText.textContent = currency.format(report.average);
@@ -6080,6 +6266,7 @@ function renderDailyReport(selectedSales) {
     report.itemTotals.map((item) => ({ name: item.name, quantity: item.quantity })),
     "Belum ada item terjual."
   );
+  renderCourierShippingList(els.dailyCourierShipping, report.shippingSummary);
 }
 
 function renderSaleCardItems(items = []) {
@@ -7777,7 +7964,7 @@ function formatReportItemList(items = []) {
   `;
 }
 
-const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 24;
+const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 18;
 const REPORT_DETAIL_PAGE_UNIT_LIMIT = 32;
 const REPORT_DETAIL_ROW_MIN_UNITS = 2;
 
@@ -7963,6 +8150,28 @@ function salesReportA4Html() {
       `
     )
     .join("");
+  const courierShippingRows = report.shippingSummary.byTag
+    .map(
+      (item) => `
+        <tr>
+          <td>${escapeHtml(item.tag)}</td>
+          <td>${escapeHtml(item.courier)}</td>
+          <td class="number">${item.count || 0}</td>
+          <td class="number">${currency.format(item.total)}</td>
+        </tr>
+      `
+    )
+    .join("");
+  const courierShippingFooter = courierShippingRows
+    ? `
+      <tfoot>
+        <tr>
+          <td colspan="3" class="print-report-total-label">Total Ongkir</td>
+          <td class="number">${currency.format(report.shippingSummary.total)}</td>
+        </tr>
+      </tfoot>
+    `
+    : "";
   const detailPages = chunkReportDetailSales(selectedSales, { firstPageUnitLimit: REPORT_SUMMARY_DETAIL_UNIT_LIMIT });
   const firstDetailPage = detailPages[0] || { sales: [], startIndex: 0 };
   const detailPagesHtml = detailPages
@@ -8030,6 +8239,25 @@ function salesReportA4Html() {
         </div>
         <p class="print-report-page-note">${escapeHtml(getDetailPageLabel(firstDetailPage))}</p>
         ${renderDetailTable(firstDetailPage)}
+      </section>
+
+      <section class="print-report-section print-report-courier-section">
+        <div class="print-report-detail-title-row">
+          <h2>Summary Ongkir Kurir</h2>
+          <span>${report.shippingSummary.transactionCount || 0} transaksi ongkir</span>
+        </div>
+        <table class="print-report-courier-table">
+          <thead>
+            <tr>
+              <th>Tag Alamat</th>
+              <th>Kurir</th>
+              <th class="number">Transaksi</th>
+              <th class="number">Total Ongkir</th>
+            </tr>
+          </thead>
+          <tbody>${courierShippingRows || `<tr><td colspan="4">Belum ada ongkir pada rentang ini.</td></tr>`}</tbody>
+          ${courierShippingFooter}
+        </table>
       </section>
     </article>
 
