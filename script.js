@@ -1111,6 +1111,10 @@ function boundedEditDistance(left, right, limit = 2) {
   return previous[right.length];
 }
 
+function getLooseWordKey(value) {
+  return normalizeKey(value).replace(/[aiueo]/g, "");
+}
+
 function getSearchWordScore(queryWord, index) {
   if (!queryWord) return 0;
   if (index.fullKey.includes(queryWord)) return 12;
@@ -1128,6 +1132,14 @@ function getSearchWordScore(queryWord, index) {
       const typoLimit = Math.max(queryWord.length, word.length) <= 5 ? 1 : 2;
       const distance = boundedEditDistance(queryWord, word, typoLimit);
       if (distance <= typoLimit) bestScore = Math.max(bestScore, 7 - distance);
+    } else if (queryWord.length >= 3 && word.length >= 4) {
+      const queryLoose = getLooseWordKey(queryWord);
+      const wordLoose = getLooseWordKey(word);
+      if (queryLoose.length >= 3 && wordLoose.length >= 3) {
+        if (wordLoose.includes(queryLoose) || boundedEditDistance(queryLoose, wordLoose, 1) <= 1) {
+          bestScore = Math.max(bestScore, 6);
+        }
+      }
     }
   });
 
@@ -3627,6 +3639,37 @@ function getStringSimilarity(str1, str2) {
   return (2.0 * intersection) / (b1.length + b2.length);
 }
 
+function getDraftProductMatchQuery(rawName) {
+  const hints = parseDraftNameHints(rawName);
+  return hints.name || String(rawName || "").trim();
+}
+
+function getDraftProductCandidateScore(product, rawName) {
+  const query = getDraftProductMatchQuery(rawName);
+  if (!query) return 0;
+  const terms = [
+    product?.name || "",
+    product?.sku || "",
+    ...getProductAliases(product),
+  ].filter(Boolean);
+  const similarityScore = Math.max(0, ...terms.map((term) => getStringSimilarity(query, term))) * 30;
+  return Math.max(getProductSearchScore(product, query), similarityScore);
+}
+
+function getRankedDraftProductCandidates(products, rawName, threshold = 11) {
+  return products
+    .map((product) => ({ product, score: getDraftProductCandidateScore(product, rawName) }))
+    .filter((candidate) => candidate.score >= threshold)
+    .sort((a, b) => b.score - a.score);
+}
+
+function isClearDraftProductCandidate(best, runnerUp) {
+  if (!best) return false;
+  if (!runnerUp) return true;
+  if (best.score >= runnerUp.score + 6) return true;
+  return best.score >= 30 && best.score >= runnerUp.score * 1.25;
+}
+
 
 function findUniqueProductMatch(products, rawName, sku = "", price = 0, options = {}) {
   const normalizedSku = normalizeKey(sku);
@@ -3637,6 +3680,7 @@ function findUniqueProductMatch(products, rawName, sku = "", price = 0, options 
 
   const normalizedName = normalizeKey(rawName);
   if (!normalizedName) return null;
+  const rawTokens = getProductTokens(rawName);
 
   const exactMatches = products.filter((product) => productMatchesName(product, normalizedName));
   const exactPriceMatches = Number(price || 0) > 0 ? exactMatches.filter((product) => productPriceMatches(product, price)) : [];
@@ -3644,28 +3688,37 @@ function findUniqueProductMatch(products, rawName, sku = "", price = 0, options 
   if (exactMatches.length === 1) return exactMatches[0];
   if (exactMatches.length > 1) return null;
 
+  const allowContainedMatch = normalizedName.length >= 5 || rawTokens.length >= 2 || Number(price || 0) > 0;
   const containedMatches = products.filter((product) => productContainsName(product, normalizedName));
   const containedPriceMatches = Number(price || 0) > 0 ? containedMatches.filter((product) => productPriceMatches(product, price)) : [];
   if (containedPriceMatches.length === 1) return containedPriceMatches[0];
   if (options.allowFuzzy === false) return null;
-  if (containedMatches.length === 1) return containedMatches[0];
+  if (allowContainedMatch && containedMatches.length === 1) return containedMatches[0];
 
-  const rawTokens = getProductTokens(rawName);
-  if (rawTokens.length < 2) return null;
+  if (rawTokens.length >= 2) {
+    let bestMatch = null;
+    let bestScore = 0;
+    products.forEach((product) => {
+      const productTokens = new Set(getProductTokens(`${product.name} ${product.sku} ${getProductAliases(product).join(" ")}`));
+      const overlap = rawTokens.filter((token) => productTokens.has(token)).length;
+      const score = overlap / rawTokens.length;
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = product;
+      }
+    });
+    if (bestScore >= 0.75) return bestMatch;
+  }
 
-  let bestMatch = null;
-  let bestScore = 0;
-  products.forEach((product) => {
-    const productTokens = new Set(getProductTokens(`${product.name} ${product.sku} ${getProductAliases(product).join(" ")}`));
-    const overlap = rawTokens.filter((token) => productTokens.has(token)).length;
-    const score = overlap / rawTokens.length;
-    if (score > bestScore) {
-      bestScore = score;
-      bestMatch = product;
-    }
-  });
+  if (rawTokens.length === 1 && normalizedName.length < 5) return null;
 
-  return bestScore >= 0.75 ? bestMatch : null;
+  const rankedMatches = getRankedDraftProductCandidates(products, rawName);
+  const autoMatches = rankedMatches.filter((candidate) => candidate.score >= 18);
+  const priceMatches = Number(price || 0) > 0 ? autoMatches.filter(({ product }) => productPriceMatches(product, price)) : [];
+  const candidates = priceMatches.length ? priceMatches : autoMatches;
+  const [bestCandidate, runnerUp] = candidates;
+  const nearestRunnerUp = priceMatches.length ? runnerUp : rankedMatches.find((candidate) => candidate.product.id !== bestCandidate?.product.id);
+  return isClearDraftProductCandidate(bestCandidate, nearestRunnerUp) ? bestCandidate.product : null;
 }
 
 function getPreferredProductsForMatching() {
@@ -3782,6 +3835,44 @@ function normalizeDraftItem(source) {
     quantity,
     note,
   };
+}
+
+function refreshImportDraftMatches(options = {}) {
+  if (!state.importDrafts.length) return false;
+  let changed = false;
+
+  state.importDrafts.forEach((draft) => {
+    if (String(draft.customerName || "").trim() && Number(draft.shipping || 0) === 0) {
+      changed = applyCustomerDefaults(draft.customerName, draft) || changed;
+    }
+
+    draft.items = draft.items.map((item) => {
+      if (item.productId && getProduct(item.productId)) return item;
+      const refreshed = normalizeDraftItem({
+        ...item,
+        name: item.rawName || item.name || "",
+        price: item.unitPrice || item.price || 0,
+      });
+      if (!refreshed.productId) return item;
+      changed = true;
+      return {
+        ...item,
+        productId: refreshed.productId,
+        variantId: refreshed.variantId,
+        unitPrice: refreshed.unitPrice,
+        unitName: refreshed.unitName,
+        unitQuantity: refreshed.unitQuantity || item.unitQuantity,
+        receiptLabel: refreshed.receiptLabel,
+        needsReview: refreshed.needsReview,
+      };
+    });
+  });
+
+  if (changed) {
+    if (options.save !== false) saveState();
+    if (options.render !== false) renderBulkDrafts();
+  }
+  return changed;
 }
 
 function normalizeDraftContact(draft) {
@@ -4062,26 +4153,10 @@ function renderBulkImportReview(drafts = state.importDrafts) {
 }
 
 function getProductSelectOptions(selectedProductId, rawName = "") {
-  const recommendations = [];
   const cleanRawName = String(rawName || "").trim();
-  
-  if (cleanRawName) {
-    state.products.forEach((product) => {
-      const aliases = Array.isArray(product.aliases) ? product.aliases : [];
-      const score = Math.max(
-        getStringSimilarity(cleanRawName, product.name),
-        product.sku ? getStringSimilarity(cleanRawName, product.sku) : 0,
-        ...aliases.map((alias) => getStringSimilarity(cleanRawName, alias))
-      );
-      if (score >= 0.35) {
-        recommendations.push({ product, score });
-      }
-    });
-    
-    recommendations.sort((a, b) => b.score - a.score);
-  }
-
-  const topRecommendations = recommendations.slice(0, 3).map((r) => r.product);
+  const topRecommendations = cleanRawName
+    ? getRankedDraftProductCandidates(state.products, cleanRawName).slice(0, 3).map((r) => r.product)
+    : [];
   const options = [`<option value="">Pilih barang</option>`];
 
   if (topRecommendations.length > 0) {
@@ -5832,11 +5907,13 @@ async function loadProductsFromDatabase(options = {}) {
 	        Array.isArray(data)
 	          ? data.map((product) => normalizeProductFromDatabase({ ...product, variants: variantsByProduct[String(product.client_id || product.id)] || [] }))
 	          : []
-	      );
+      );
       if (sqlProducts.length) {
         state.products = sqlProducts;
+        const draftsChanged = refreshImportDraftMatches({ save: false, render: false });
         sanitizeCart();
         render();
+        if (draftsChanged) saveState();
         if (options.toast) setSyncStatus(`${sqlProducts.length} barang dibaca dari Supabase Cloud.`, { toast: true });
         return sqlProducts;
       }
@@ -5847,8 +5924,10 @@ async function loadProductsFromDatabase(options = {}) {
 
       if (sqlProducts.length) {
         state.products = sqlProducts;
+        const draftsChanged = refreshImportDraftMatches({ save: false, render: false });
         sanitizeCart();
         render();
+        if (draftsChanged) saveState();
         if (options.toast) setSyncStatus(`${sqlProducts.length} barang dibaca dari database SQL.`, { toast: true });
         return sqlProducts;
       }
@@ -5889,17 +5968,27 @@ async function loadCustomers(options = {}) {
 
       state.customers = customers;
       invalidateCustomerProfilesCache();
+      const draftsChanged = refreshImportDraftMatches({ save: false, render: false });
       renderCustomerSuggestions();
       renderCustomerProfileHint();
       renderCustomerDataList();
+      if (draftsChanged) {
+        renderBulkDrafts();
+        saveState();
+      }
       return state.customers;
     } else {
       const data = await requestJson("/api/customers?limit=500");
       state.customers = Array.isArray(data.customers) ? data.customers : [];
       invalidateCustomerProfilesCache();
+      const draftsChanged = refreshImportDraftMatches({ save: false, render: false });
       renderCustomerSuggestions();
       renderCustomerProfileHint();
       renderCustomerDataList();
+      if (draftsChanged) {
+        renderBulkDrafts();
+        saveState();
+      }
       return state.customers;
     }
   } catch (error) {
