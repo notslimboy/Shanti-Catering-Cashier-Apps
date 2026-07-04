@@ -51,6 +51,12 @@ customer,chatDate,payment,ongkir,item,quantity,note
      - If Today's Menu contains: `Bubur Ktn hitam k ijo`, and the chat says "bubur ketan hitam ijo" or "bubur ktn hitam k ijo", you must output: `Bubur Ktn hitam k ijo`.
      - If Today's Menu contains: `Tongkol Sarden`, and the chat says "tongkol sarden" or "sarden tongkol", you must output: `Tongkol Sarden`.
      - If Today's Menu contains: `Soto`, and the chat says "soto ayam" or "soto", you must output: `Soto`.
+   - **Portion & Package Menu Names (e.g. "/ 3", "/ 4", "/ 20 bj")**: 
+     - If Today's Menu lists an item name containing a package quantity suffix (e.g., `Opor Ayam / 3` or `Telur Petis / 4` or `Kebab Mini / 3`), that suffix is part of the official menu name.
+     - 1 portion (porsi) of `Opor Ayam / 3` contains 3 pieces, `Telur Petis / 4` contains 4 pieces, and `Kebab Mini / 3` contains 3 pieces by default.
+     - If a customer orders "opor ayam 2" or "kebab mini 2", this means they want **2 portions** (quantity = 2) of that menu item. Map it as:
+       - item: `Opor Ayam / 3` (or `Kebab Mini / 3` respectively)
+       - quantity: `2` (representing 2 portions)
    - If the ordered item is NOT in Today's Menu, write it as clean as possible using proper casing (Title Case), but always prioritize fuzzy matching to Today's Menu. Do not guess items if not explicitly ordered.
 
 7. **`quantity`**:
