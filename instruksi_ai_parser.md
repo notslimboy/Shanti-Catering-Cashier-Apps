@@ -53,6 +53,8 @@ customer,chatDate,payment,ongkir,item,quantity,note
      - If Today's Menu contains: `Soto`, and the chat says "soto ayam" or "soto", you must output: `Soto`.
    - **Portion & Package Menu Names (e.g. "/ 3", "/ 4", "/ 20 bj")**: 
      - If Today's Menu lists an item name containing a package quantity suffix (pattern: `Nama Menu / angka`, `Nama Menu / angka bj`, `Nama Menu / angka pcs`, `Nama Menu / angka buah`, etc.), that suffix is part of the official menu name and MUST be copied exactly into the `item` column.
+     - This rule applies to any future menu with the same style, even when the food name, suffix number, package unit, or price is different from the examples below.
+     - Always decide whether `/ angka` is part of the menu name by checking **Today's Menu first**. If Today's Menu contains the slash-number version, prefer that exact official item name over a similar name without the suffix.
      - The number after `/` is **NOT** the customer order quantity. It describes the package contents for **1 portion/default order**.
      - Do **NOT** remove the suffix, do **NOT** move it to `quantity`, and do **NOT** multiply/divide the quantity by that suffix.
      - Menu price text such as `Rp30.000`, `Rp20.000`, or `Rp10.000` is only the menu price and must NOT be included in the `item` column.
