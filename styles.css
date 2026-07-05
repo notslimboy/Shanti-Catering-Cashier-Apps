@@ -9445,10 +9445,12 @@ label {
     overflow-y: hidden;
     overscroll-behavior-inline: contain;
     -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x proximity;
+    scroll-behavior: smooth;
+    scroll-snap-type: none;
     scrollbar-width: none;
     cursor: grab;
     padding: 0 18px 2px 0;
+    touch-action: pan-x;
   }
 
   #customerDataModal .customer-tag-filter-chips.is-drag-scrolling {
@@ -9463,7 +9465,7 @@ label {
   #customerDataModal .customer-filter-chip {
     flex: 0 0 auto;
     min-width: max-content;
-    scroll-snap-align: start;
+    scroll-snap-align: none;
   }
 }
 

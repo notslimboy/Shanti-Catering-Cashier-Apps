@@ -1415,6 +1415,7 @@ function bindHorizontalDragScroll(root, selector) {
 
   root.addEventListener("pointerdown", (event) => {
     const strip = findStrip(event.target);
+    if (event.pointerType === "touch") return;
     if (!strip || strip.scrollWidth <= strip.clientWidth || (event.button !== undefined && event.button !== 0)) return;
     dragState = {
       pointerId: event.pointerId,
