@@ -147,11 +147,13 @@ async function run() {
     for (const row of rows) {
       const origName = row["customer"];
       if (!origName) continue;
+      const cacheKey = `${origName}|||${row["note"] || ""}`;
 
       // Cek cache dulu
-      if (matchCache[origName]) {
-        row["customer"] = matchCache[origName].name;
-        row["ongkir"] = matchCache[origName].shipping;
+      if (matchCache[cacheKey]) {
+        row["customer"] = matchCache[cacheKey].name;
+        row["ongkir"] = matchCache[cacheKey].shipping;
+        if (matchCache[cacheKey].note !== undefined) row["note"] = matchCache[cacheKey].note;
         continue;
       }
 
@@ -216,7 +218,8 @@ async function run() {
 
       // Overrides manual sebelum pencocokan DB
       if (origName.includes("Catur SPKB")) {
-        match = { name: "Catur SPKB", default_shipping: 5000 };
+        const override = customers.find(c => c.name === "ITS W 20");
+        match = override || { name: "ITS W 20", default_shipping: 5000 };
       } else if (origName.trim() === "Tohir 1") {
         match = { name: "Tohir 1", default_shipping: 0 };
       } else if (origName.trim().toLowerCase() === "j41") {
@@ -224,8 +227,8 @@ async function run() {
         if (override) {
           match = override;
         }
-      } else if (origName.toLowerCase().includes("alfita")) {
-        match = { name: "T71", default_shipping: 0 };
+      } else if (origName.toLowerCase().includes("alfita") || origName.toLowerCase().includes("alftita")) {
+        match = { name: "ITS T 71", default_shipping: 0 };
       } else if (origName.toLowerCase().includes("pantai mentari f / 31")) {
         const override = customers.find(c => c.id === 145); // Tohir 30
         if (override) {
@@ -235,8 +238,8 @@ async function run() {
         }
       } else if (origName.includes("Samlangyu 23")) {
         match = { name: "Samlangyu 23", default_shipping: 5000 };
-      } else if (origName.includes("Anis BTH")) {
-        match = { name: "Anis BTH", default_shipping: 5000 };
+      } else if (origName.includes("Anis BTH") || origName.includes("Anish BTH")) {
+        match = { name: "Anish BTH", default_shipping: 5000 };
       }
 
       // Overrides manual untuk query khusus yang kurang pas jika menggunakan token matching saja
@@ -264,18 +267,14 @@ async function run() {
           match = null;
           finalName = "Blok V No 9";
           finalShipping = "0";
-        } else if (origName.includes("Blok U / 177")) {
-          match = null;
-          finalName = "Blok U / 177";
-          finalShipping = "0";
         } else if (origName.includes("sutorejo timur 32/H5")) {
           match = null;
           finalName = "sutorejo timur 32/H5";
           finalShipping = "0";
-        } else if (origName.includes("X 26")) {
-          match = null;
-          finalName = "X 26 - Bu iis";
-          finalShipping = "0";
+        } else if (origName.includes("X 26 - Bu iis")) {
+          const override = customers.find(c => c.name === "ITS X 26");
+          finalName = override ? override.name : "ITS X 26";
+          finalShipping = override ? (override.default_shipping || 0) : "5000";
         } else if (origName.includes("Florence J9 / 2")) {
           match = null;
           finalName = "Florence J9 / 2";
@@ -288,9 +287,9 @@ async function run() {
           match = null;
           finalName = "Samlangyu 23";
           finalShipping = "5000";
-        } else if (origName.includes("Anis BTH")) {
+        } else if (origName.includes("Anis BTH") || origName.includes("Anish BTH")) {
           match = null;
-          finalName = "Anis BTH";
+          finalName = "Anish BTH";
           finalShipping = "5000";
         } else if (origName.includes("Klampis Semolo Timur 7 A-1")) {
           match = null;
@@ -317,17 +316,30 @@ async function run() {
         } else if (
           origName.includes("Sutorejo Tengah 2/6") ||
           origName.includes("Suto Utara Baru 17 A") ||
-          origName.includes("U I76") ||
           origName.includes("Taman Suto Timur 48 Baru") ||
           origName.includes("Sut Sel X/11") ||
           origName.includes("Suto Ut Gg 11 No 10") ||
-          origName.includes("T - 65") ||
-          origName.includes("T - 72") ||
           origName.includes("Taman Mulyo Ut 7")
         ) {
           match = null;
           finalName = origName;
           finalShipping = "0";
+        }
+
+        if (normalizeKey(finalName) === normalizeKey("Emi Bumi Marina")) {
+          const noteText = String(row["note"] || "").toLowerCase();
+          if (/bumi\s*marina/.test(noteText)) {
+            finalShipping = "15000";
+          } else if (/teknik\s*fisika|fisika/.test(noteText)) {
+            finalShipping = "5000";
+          }
+        }
+
+        if (normalizeKey(finalName) === normalizeKey("ITS D 19")) {
+          const rawText = `${origName} ${row["note"] || ""}`;
+          if (/sdmo/i.test(rawText) && !/sdmo/i.test(String(row["note"] || ""))) {
+            row["note"] = row["note"] ? `${row["note"]}; SDMO` : "SDMO";
+          }
         }
 
         console.log(`[OK] "${origName}" -> dipetakan ke "${finalName}" | Ongkir: ${finalShipping}`);
@@ -341,9 +353,10 @@ async function run() {
       row["ongkir"] = String(finalShipping);
 
       // Simpan ke cache
-      matchCache[origName] = {
+      matchCache[cacheKey] = {
         name: finalName,
-        shipping: finalShipping
+        shipping: finalShipping,
+        note: row["note"]
       };
     }
 

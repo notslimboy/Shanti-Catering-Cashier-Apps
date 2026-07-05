@@ -32,10 +32,10 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=240">
+    <link rel="stylesheet" href="styles.css?v=241">
     <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script defer src="script.js?v=240"></script>
+    <script defer src="script.js?v=241"></script>
   </head>
   <body>
     <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
@@ -444,13 +444,18 @@
               <input id="salesSearchInput" type="search" placeholder="Struk, item, customer, catatan">
             </span>
           </label>
-          <label class="sales-sort-label">
-            Urut waktu
-            <select id="salesSortInput">
-              <option value="newest">Terbaru dulu</option>
-              <option value="oldest">Paling awal dulu</option>
-            </select>
-          </label>
+          <div class="sales-sort-label">
+            <span id="salesSortLabel">Urut waktu</span>
+            <div class="sales-sort-control" id="salesSortControl">
+              <button class="sales-sort-button" id="salesSortButton" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="salesSortMenu" aria-labelledby="salesSortLabel salesSortText" data-sales-sort="newest">
+                <span id="salesSortText">Terbaru dulu</span>
+              </button>
+              <div class="sales-sort-menu" id="salesSortMenu" role="listbox" aria-label="Urut waktu" hidden>
+                <button type="button" role="option" data-sales-sort-option="newest" aria-selected="true">Terbaru dulu</button>
+                <button type="button" role="option" data-sales-sort-option="oldest" aria-selected="false">Paling awal dulu</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="sales-list" id="salesList" aria-live="polite"></div>
@@ -696,8 +701,14 @@
             <h2 id="saleDetailTitle">Detail transaksi</h2>
           </div>
           <div class="sale-detail-actions">
-            <button class="ghost-button" id="editSaleDetailButton" type="button">Edit Data</button>
-            <button class="secondary-button" id="printSaleDetailButton" type="button">Cetak Ulang</button>
+            <button class="ghost-button sale-detail-action-button" id="editSaleDetailButton" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+              <span>Edit Data</span>
+            </button>
+            <button class="secondary-button sale-detail-action-button" id="printSaleDetailButton" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-printer-setup"></use></svg>
+              <span>Cetak Ulang</span>
+            </button>
           </div>
         </div>
         <div class="sale-detail-body" id="saleDetailBody"></div>
@@ -762,14 +773,12 @@
             <p class="eyebrow">Inventory</p>
             <h2 id="inventoryModalTitle">Kelola Barang</h2>
           </div>
-          <a class="text-link" href="sample-items.csv" download>Contoh CSV</a>
         </div>
 
         <div class="modal-tabs" role="tablist" aria-label="Pilihan kelola barang">
           <button class="tab-button active" id="menuListTabButton" type="button" role="tab" aria-selected="true" aria-controls="menuListTabPanel" data-inventory-tab="list">Kelola Menu</button>
           <button class="tab-button" id="syncTabButton" type="button" role="tab" aria-selected="false" aria-controls="syncTabPanel" data-inventory-tab="sync">Sync Google</button>
           <button class="tab-button" id="dailyMenuTabButton" type="button" role="tab" aria-selected="false" aria-controls="dailyMenuTabPanel" data-inventory-tab="daily">Menu Hari Ini</button>
-          <button class="tab-button" id="manualTabButton" type="button" role="tab" aria-selected="false" aria-controls="manualTabPanel" data-inventory-tab="manual" style="display: none;">Add Manual</button>
         </div>
 
         <div class="review-panel inventory-review" id="inventoryReviewPanel" hidden>
@@ -781,106 +790,68 @@
         </div>
 
         <section class="tab-panel" id="syncTabPanel" role="tabpanel" aria-labelledby="syncTabButton" data-inventory-panel="sync" hidden>
-          <div class="connection-card" id="connectionCard">
-            <span class="connection-dot" id="connectionDot" aria-hidden="true"></span>
-            <div>
-              <strong id="connectionText">Memeriksa koneksi</strong>
+          <div class="sync-compact-panel">
+            <div class="sync-compact-heading">
+              <div>
+                <p class="eyebrow">Google Sheet</p>
+                <h3>Sinkron menu</h3>
+              </div>
+              <span class="sync-state-pill" id="connectionCard">
+                <span class="connection-dot" id="connectionDot" aria-hidden="true"></span>
+                <span id="connectionText">Memeriksa koneksi</span>
+              </span>
+            </div>
+
+            <label class="sync-sheet-field">
+              Link Google Sheet
+              <input id="sheetUrlInput" type="url" placeholder="https://docs.google.com/spreadsheets/d/...">
+            </label>
+
+            <div class="sync-compact-actions">
+              <button class="secondary-button" id="syncSheetButton" type="button">Sinkron Sekarang</button>
               <p id="lastSyncText">Data barang disimpan di perangkat untuk dipakai saat tidak ada internet.</p>
             </div>
           </div>
 
-          <div class="sheet-grid">
-            <label>
-              Link Google Sheet
-              <input id="sheetUrlInput" type="url" placeholder="https://docs.google.com/spreadsheets/d/...">
-            </label>
+          <div class="sync-hidden-defaults" hidden>
             <label>
               Nama tab sheet
               <input id="sheetNameInput" type="text" placeholder="Produk">
             </label>
-          </div>
 
-          <label class="drop-zone" for="spreadsheetInput">
-            <input id="spreadsheetInput" type="file" accept=".csv,.tsv,.txt,.xlsx,.xls">
-            <span class="drop-zone-title">Impor file cadangan</span>
-            <span class="drop-zone-copy">Pakai CSV/XLSX kalau Google Sheet belum terhubung.</span>
-          </label>
+            <label class="drop-zone" for="spreadsheetInput">
+              <input id="spreadsheetInput" type="file" accept=".csv,.tsv,.txt,.xlsx,.xls">
+              <span class="drop-zone-title">Impor file cadangan</span>
+              <span class="drop-zone-copy">Pakai CSV/XLSX kalau Google Sheet belum terhubung.</span>
+            </label>
 
-          <div class="mapping-grid">
-            <label>
-              Kolom nama
-              <input id="nameColumnInput" type="text" value="nama" autocomplete="off">
-            </label>
-            <label>
-              Kolom harga
-              <input id="priceColumnInput" type="text" value="harga" autocomplete="off">
-            </label>
-            <label>
-              Kolom stok
-              <input id="stockColumnInput" type="text" value="stok" autocomplete="off">
-            </label>
-            <label>
-              Kolom SKU
-              <input id="skuColumnInput" type="text" value="sku" autocomplete="off">
-            </label>
-          </div>
+            <div class="mapping-grid">
+              <label>
+                Kolom nama
+                <input id="nameColumnInput" type="text" value="nama" autocomplete="off">
+              </label>
+              <label>
+                Kolom harga
+                <input id="priceColumnInput" type="text" value="harga" autocomplete="off">
+              </label>
+              <label>
+                Kolom stok
+                <input id="stockColumnInput" type="text" value="stok" autocomplete="off">
+              </label>
+              <label>
+                Kolom SKU
+                <input id="skuColumnInput" type="text" value="sku" autocomplete="off">
+              </label>
+            </div>
 
-          <div class="inline-actions">
-            <button class="secondary-button" id="syncSheetButton" type="button">Sinkron Sekarang</button>
             <button class="ghost-button" id="saveSheetButton" type="button">Simpan Sheet</button>
             <button class="secondary-button" id="importButton" type="button" disabled>Impor File</button>
             <button class="ghost-button danger" id="clearInventoryButton" type="button">Hapus Barang</button>
+            <label class="check-row">
+              <input id="autoSyncInput" type="checkbox" checked>
+              <span>Sinkron otomatis saat online</span>
+            </label>
           </div>
-          <label class="check-row">
-            <input id="autoSyncInput" type="checkbox" checked>
-            <span>Sinkron otomatis saat online</span>
-          </label>
-        </section>
-
-        <section class="tab-panel" id="manualTabPanel" role="tabpanel" aria-labelledby="manualTabButton" data-inventory-panel="manual" hidden>
-          <form id="itemForm" class="item-form">
-            <label>
-              Nama barang
-              <input id="itemNameInput" type="text" placeholder="Es kopi" required>
-            </label>
-            <div class="form-section-label">
-              <span>Info menu</span>
-              <small>Nama induk menu tetap bersih. Harga utama diambil dari variasi default.</small>
-            </div>
-            <label>
-              Kategori
-              <input id="itemCategoryInput" type="text" placeholder="Makanan">
-            </label>
-            <label>
-              Stok
-              <input id="itemStockInput" type="number" min="0" step="1" placeholder="24" required>
-            </label>
-            <label class="check-row stock-unlimited-row">
-              <input id="itemUnlimitedInput" type="checkbox">
-              <span>Stok unlimited</span>
-            </label>
-            <label>
-              SKU
-              <input id="itemSkuInput" type="text" placeholder="COF-001">
-            </label>
-            <label class="item-alias-field">
-              Alias menu
-              <input id="itemAliasInput" type="text" placeholder="ketan duren, ketan durian">
-            </label>
-            <input id="itemPriceInput" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="18.000" hidden>
-            <div class="variant-editor-section">
-              <div class="variant-editor-heading">
-                <div>
-                  <span>Variasi / cara jual</span>
-                  <small>Harga, porsi, bijian, paket, dan custom disimpan di sini.</small>
-                </div>
-                <button class="ghost-button product-small-button" id="addVariantButton" type="button">Tambah Variasi</button>
-              </div>
-              <div class="variant-editor-list" id="variantEditorList" aria-live="polite"></div>
-            </div>
-            <button class="primary-button full-width" id="itemSubmitButton" type="submit">Simpan Barang</button>
-            <button class="ghost-button full-width" id="cancelEditProductButton" type="button" style="margin-top: 8px;">Kembali ke Daftar</button>
-          </form>
         </section>
 
         <section class="tab-panel" id="dailyMenuTabPanel" role="tabpanel" aria-labelledby="dailyMenuTabButton" data-inventory-panel="daily" hidden>
@@ -921,19 +892,43 @@
             </div>
 
             <div class="daily-menu-inputs">
-              <div class="daily-menu-input-group">
-                <span>Upload file CSV</span>
-                <label class="drop-zone" for="dailyMenuFileInput">
-                  <input id="dailyMenuFileInput" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values">
-                  <span class="drop-zone-title">Pilih file CSV</span>
-                  <span class="drop-zone-copy">Format: nama,harga. Contoh: Pepes Tongkol,20000.</span>
-                </label>
+              <div class="daily-menu-input-group daily-menu-sync-advice">
+                <span>Saran menu harian</span>
+                <div class="daily-menu-advice-card" id="dailyMenuSuggestionCard">
+                  <div class="daily-menu-suggestion-head">
+                    <div>
+                      <strong>Saran Google Sheet</strong>
+                      <p id="dailyMenuSuggestionStatus">Ambil 6-9 row valid terakhir dari sheet.</p>
+                    </div>
+                    <div class="daily-menu-suggestion-tools">
+                      <div class="daily-menu-suggestion-limit" id="dailyMenuSuggestionLimitControl">
+                        <span>Menu</span>
+                        <button class="daily-menu-suggestion-limit-button" id="dailyMenuSuggestionLimitButton" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="dailyMenuSuggestionLimitMenu" data-limit="9">
+                          <strong id="dailyMenuSuggestionLimitText">9</strong>
+                          <small>menu</small>
+                        </button>
+                        <div class="daily-menu-suggestion-limit-menu" id="dailyMenuSuggestionLimitMenu" role="listbox" aria-label="Jumlah saran menu" hidden>
+                          <button type="button" role="option" data-daily-menu-limit="6" aria-selected="false">6 menu</button>
+                          <button type="button" role="option" data-daily-menu-limit="7" aria-selected="false">7 menu</button>
+                          <button type="button" role="option" data-daily-menu-limit="8" aria-selected="false">8 menu</button>
+                          <button type="button" role="option" data-daily-menu-limit="9" aria-selected="true">9 menu</button>
+                        </div>
+                      </div>
+                      <button class="ghost-button daily-menu-suggestion-refresh" id="refreshDailyMenuSuggestionsButton" type="button">Cek</button>
+                    </div>
+                  </div>
+                  <div class="daily-menu-suggestion-chips" id="dailyMenuSuggestionChips" aria-live="polite"></div>
+                  <div class="daily-menu-suggestion-actions">
+                    <button class="secondary-button" id="applyDailyMenuSuggestionsButton" type="button" disabled>Set Menu Harian</button>
+                    <button class="ghost-button" type="button" data-open-inventory-tab="sync">Sync Google</button>
+                  </div>
+                </div>
               </div>
 
               <div class="daily-menu-input-group">
-                <span>Paste teks menu harian</span>
+                <span>Paste menu terbaru</span>
                 <label class="daily-menu-textarea-label">
-                  <textarea id="dailyMenuCsvInput" rows="7" placeholder="nama,harga&#10;Pepes Tongkol,20000&#10;Dadar Jagung,10000&#10;atau: Pepes Tongkol - 20000"></textarea>
+                  <textarea id="dailyMenuCsvInput" rows="7" placeholder="Pepes Tongkol - 20000&#10;Dadar Jagung - 10000&#10;Sayur Asem - 15000"></textarea>
                 </label>
               </div>
             </div>
@@ -950,7 +945,10 @@
         <section class="tab-panel active" id="menuListTabPanel" role="tabpanel" aria-labelledby="menuListTabButton" data-inventory-panel="list">
           <div class="inventory-search-container">
             <input id="inventorySearchInput" type="text" placeholder="Cari menu atau varian..." class="inventory-search-input">
-            <button class="primary-button" id="addNewMenuButton" type="button" style="white-space: nowrap;">+ Tambah Menu</button>
+            <button class="primary-button inventory-add-button" id="addNewMenuButton" type="button" aria-label="Tambah menu">
+              <span aria-hidden="true">+</span>
+              <span>Tambah</span>
+            </button>
           </div>
           <div id="inventoryProductsList" class="inventory-products-list">
             <!-- Diisi secara dinamis lewat javascript -->
@@ -958,6 +956,135 @@
         </section>
 
         <p class="status modal-status" id="syncModalStatus" role="status">Tempel link Google Sheet yang bisa dilihat publik untuk sinkron barang.</p>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal product-editor-modal" id="productEditorModal" aria-labelledby="productEditorTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" id="closeProductEditorButton" type="submit" aria-label="Tutup edit produk">×</button>
+      </form>
+      <section class="modal-panel product-editor-panel">
+        <div class="product-editor-heading">
+          <div>
+            <p class="eyebrow">Produk</p>
+            <h2 id="productEditorTitle">Edit barang</h2>
+          </div>
+          <p class="product-editor-note">Simpan produk setelah perubahan varian selesai.</p>
+        </div>
+
+        <form id="itemForm" class="item-form product-editor-form">
+          <div class="product-editor-grid">
+            <label>
+              Nama barang
+              <input id="itemNameInput" type="text" placeholder="Es kopi" required>
+            </label>
+            <label>
+              Kategori
+              <input id="itemCategoryInput" type="text" placeholder="Makanan">
+            </label>
+            <label>
+              Stok
+              <input id="itemStockInput" type="number" min="0" step="1" placeholder="24" required>
+            </label>
+            <label class="check-row stock-unlimited-row">
+              <input id="itemUnlimitedInput" type="checkbox">
+              <span>Stok unlimited</span>
+            </label>
+            <label>
+              SKU
+              <input id="itemSkuInput" type="text" placeholder="COF-001">
+            </label>
+            <label class="item-alias-field">
+              Alias menu
+              <input id="itemAliasInput" type="text" placeholder="ketan duren, ketan durian">
+            </label>
+          </div>
+          <input id="itemPriceInput" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="18.000" hidden>
+          <div class="variant-editor-section">
+            <div class="variant-editor-heading">
+              <div>
+                <span>Variasi / cara jual</span>
+                <small>Ringkas di sini. Detailnya dibuka per variasi.</small>
+              </div>
+              <button class="ghost-button product-small-button" id="addVariantButton" type="button">Tambah</button>
+            </div>
+            <div class="variant-editor-list" id="variantEditorList" aria-live="polite"></div>
+          </div>
+          <div class="product-editor-actions">
+            <button class="ghost-button" id="cancelEditProductButton" type="button">Batal</button>
+            <button class="primary-button" id="itemSubmitButton" type="submit">Simpan Barang</button>
+          </div>
+        </form>
+      </section>
+    </dialog>
+
+    <dialog class="settings-modal variant-editor-modal" id="variantEditorModal" aria-labelledby="variantEditorTitle">
+      <form method="dialog" class="modal-close-form">
+        <button class="icon-button modal-close-button" id="closeVariantEditorButton" type="submit" aria-label="Tutup edit variasi">×</button>
+      </form>
+      <section class="modal-panel variant-editor-panel">
+        <div class="product-editor-heading">
+          <div>
+            <p class="eyebrow">Variasi</p>
+            <h2 id="variantEditorTitle">Edit variasi</h2>
+          </div>
+        </div>
+
+        <form id="variantEditorForm" class="variant-modal-form">
+          <label class="variant-default-toggle variant-modal-default">
+            <input type="checkbox" id="variantDefaultInput">
+            <span>Jadikan default</span>
+          </label>
+          <div class="variant-modal-grid">
+            <label>
+              Nama variasi
+              <input id="variantNameInput" type="text" placeholder="Normal">
+            </label>
+            <label>
+              Tipe harga
+              <select id="variantPricingTypeInput">
+                <option value="fixed">Harga tetap</option>
+                <option value="unit">Per satuan</option>
+                <option value="package">Paket</option>
+                <option value="custom">Custom/manual</option>
+              </select>
+            </label>
+            <label>
+              Harga
+              <input id="variantPriceInput" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="35.000">
+            </label>
+            <label>
+              Satuan
+              <input id="variantUnitNameInput" type="text" placeholder="porsi, biji, box">
+            </label>
+            <label class="variant-package-field">
+              Isi paket
+              <input id="variantPackageQuantityInput" type="number" min="1" step="1">
+            </label>
+            <label class="variant-package-field">
+              Satuan isi
+              <input id="variantPackageUnitInput" type="text" placeholder="biji">
+            </label>
+            <label class="variant-receipt-label-field">
+              Label struk
+              <input id="variantReceiptLabelInput" type="text" placeholder="Porsi khusus, 10 biji">
+            </label>
+          </div>
+          <div class="variant-editor-options">
+            <label class="check-row">
+              <input id="variantQuantityOverrideInput" type="checkbox">
+              <span>Jumlah bisa diubah</span>
+            </label>
+            <label class="check-row">
+              <input id="variantPriceOverrideInput" type="checkbox">
+              <span>Harga bisa custom</span>
+            </label>
+          </div>
+          <div class="product-editor-actions">
+            <button class="ghost-button" id="cancelVariantEditButton" type="button">Batal</button>
+            <button class="primary-button" id="applyVariantEditButton" type="submit">Terapkan</button>
+          </div>
+        </form>
       </section>
     </dialog>
 

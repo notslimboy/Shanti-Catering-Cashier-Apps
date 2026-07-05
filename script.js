@@ -200,6 +200,9 @@ const state = {
   },
   editingProductId: null,
   editingProductVariants: [],
+  editingVariantIndex: null,
+  editingVariantDraft: null,
+  editingVariantIsNew: false,
   pendingDeleteProductId: null,
   pendingDeleteSale: null,
   pendingAppConfirm: null,
@@ -302,6 +305,15 @@ let productSyncQueued = false;
 let bulkBatchInFlight = false;
 let renderedTodayDateKey = getLocalDateKey();
 let dailyMenuLastReview = [];
+let dailyMenuSuggestionState = {
+  loading: false,
+  limit: 9,
+  sourceRows: [],
+  entries: [],
+  reviewRows: [],
+  message: "",
+  lastCheckedAt: "",
+};
 const modalScrollLock = {
   active: false,
   scrollY: 0,
@@ -362,6 +374,15 @@ const els = {
   dailyMenuOnlyInput: document.querySelector("#dailyMenuOnlyInput"),
   dailyMenuFileInput: document.querySelector("#dailyMenuFileInput"),
   dailyMenuCsvInput: document.querySelector("#dailyMenuCsvInput"),
+  dailyMenuSuggestionCard: document.querySelector("#dailyMenuSuggestionCard"),
+  dailyMenuSuggestionStatus: document.querySelector("#dailyMenuSuggestionStatus"),
+  dailyMenuSuggestionChips: document.querySelector("#dailyMenuSuggestionChips"),
+  dailyMenuSuggestionLimitControl: document.querySelector("#dailyMenuSuggestionLimitControl"),
+  dailyMenuSuggestionLimitButton: document.querySelector("#dailyMenuSuggestionLimitButton"),
+  dailyMenuSuggestionLimitText: document.querySelector("#dailyMenuSuggestionLimitText"),
+  dailyMenuSuggestionLimitMenu: document.querySelector("#dailyMenuSuggestionLimitMenu"),
+  refreshDailyMenuSuggestionsButton: document.querySelector("#refreshDailyMenuSuggestionsButton"),
+  applyDailyMenuSuggestionsButton: document.querySelector("#applyDailyMenuSuggestionsButton"),
   applyDailyMenuButton: document.querySelector("#applyDailyMenuButton"),
   clearDailyMenuButton: document.querySelector("#clearDailyMenuButton"),
   dailyMenuReview: document.querySelector("#dailyMenuReview"),
@@ -417,10 +438,29 @@ const els = {
   printerSetupTestPrintButton: document.querySelector("#printerSetupTestPrintButton"),
   openInventoryModalButton: document.querySelector("#openInventoryModalButton"),
   inventoryModal: document.querySelector("#inventoryModal"),
+  productEditorModal: document.querySelector("#productEditorModal"),
+  productEditorTitle: document.querySelector("#productEditorTitle"),
+  variantEditorModal: document.querySelector("#variantEditorModal"),
+  variantEditorTitle: document.querySelector("#variantEditorTitle"),
+  variantEditorForm: document.querySelector("#variantEditorForm"),
+  variantDefaultInput: document.querySelector("#variantDefaultInput"),
+  variantNameInput: document.querySelector("#variantNameInput"),
+  variantPricingTypeInput: document.querySelector("#variantPricingTypeInput"),
+  variantPriceInput: document.querySelector("#variantPriceInput"),
+  variantUnitNameInput: document.querySelector("#variantUnitNameInput"),
+  variantPackageQuantityInput: document.querySelector("#variantPackageQuantityInput"),
+  variantPackageUnitInput: document.querySelector("#variantPackageUnitInput"),
+  variantReceiptLabelInput: document.querySelector("#variantReceiptLabelInput"),
+  variantQuantityOverrideInput: document.querySelector("#variantQuantityOverrideInput"),
+  variantPriceOverrideInput: document.querySelector("#variantPriceOverrideInput"),
+  cancelVariantEditButton: document.querySelector("#cancelVariantEditButton"),
+  applyVariantEditButton: document.querySelector("#applyVariantEditButton"),
   inventoryTabButtons: document.querySelectorAll("[data-inventory-tab]"),
   inventoryTabPanels: document.querySelectorAll("[data-inventory-panel]"),
   menuListTabButton: document.querySelector("#menuListTabButton"),
   menuListTabPanel: document.querySelector("#menuListTabPanel"),
+  syncTabPanel: document.querySelector("#syncTabPanel"),
+  dailyMenuTabPanel: document.querySelector("#dailyMenuTabPanel"),
   inventorySearchInput: document.querySelector("#inventorySearchInput"),
   inventoryProductsList: document.querySelector("#inventoryProductsList"),
   addNewMenuButton: document.querySelector("#addNewMenuButton"),
@@ -484,7 +524,10 @@ const els = {
   salesRangeButtons: document.querySelectorAll("[data-sales-range]"),
   salesStatusButtons: document.querySelectorAll("[data-sales-status]"),
   salesSearchInput: document.querySelector("#salesSearchInput"),
-  salesSortInput: document.querySelector("#salesSortInput"),
+  salesSortControl: document.querySelector("#salesSortControl"),
+  salesSortButton: document.querySelector("#salesSortButton"),
+  salesSortText: document.querySelector("#salesSortText"),
+  salesSortMenu: document.querySelector("#salesSortMenu"),
   salesDateLabel: document.querySelector("#salesDateLabel"),
   salesList: document.querySelector("#salesList"),
   salesPagination: document.querySelector("#salesPagination"),
@@ -874,6 +917,10 @@ function setupModalScrollLock() {
 
 function openModal(dialog, focusTarget) {
   if (!dialog) return;
+  if (dialog.open) {
+    if (focusTarget) requestAnimationFrame(() => focusTarget.focus());
+    return;
+  }
   lockPageScroll();
   dialog.showModal();
   updateModalScrollLock();
@@ -1233,25 +1280,30 @@ function productPriceMatches(product, price) {
 
 function getColumnSettings() {
   return {
-    name: normalizeKey(els.nameColumnInput.value || state.columns.name || "nama"),
-    price: normalizeKey(els.priceColumnInput.value || state.columns.price || "harga"),
-    stock: normalizeKey(els.stockColumnInput.value || state.columns.stock || "stok"),
-    sku: normalizeKey(els.skuColumnInput.value || state.columns.sku || "sku"),
+    name: normalizeKey(els.nameColumnInput?.value || state.columns.name || "nama"),
+    price: normalizeKey(els.priceColumnInput?.value || state.columns.price || "harga"),
+    stock: normalizeKey(els.stockColumnInput?.value || state.columns.stock || "stok"),
+    sku: normalizeKey(els.skuColumnInput?.value || state.columns.sku || "sku"),
   };
 }
 
 function saveColumnSettings() {
   state.columns = {
-    name: els.nameColumnInput.value.trim() || "nama",
-    price: els.priceColumnInput.value.trim() || "harga",
-    stock: els.stockColumnInput.value.trim() || "stok",
-    sku: els.skuColumnInput.value.trim() || "sku",
+    name: els.nameColumnInput?.value.trim() || state.columns.name || "nama",
+    price: els.priceColumnInput?.value.trim() || state.columns.price || "harga",
+    stock: els.stockColumnInput?.value.trim() || state.columns.stock || "stok",
+    sku: els.skuColumnInput?.value.trim() || state.columns.sku || "sku",
   };
 }
 
 function formatSyncTime(value) {
   if (!value) return "Belum pernah sinkron";
   return `Terakhir sinkron ${new Date(value).toLocaleString("id-ID")}`;
+}
+
+function formatClockTime(value) {
+  if (!value) return "";
+  return new Date(value).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 }
 
 function getToastVariant(message, fallback = "info") {
@@ -1396,7 +1448,16 @@ function showToast(message, options = {}) {
   const toast = document.createElement("div");
   toast.className = `toast ${variant}`;
   toast.dataset.toastSignature = signature;
-  toast.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(text)}</span>`;
+  toast.setAttribute("role", variant === "error" ? "alert" : "status");
+  toast.innerHTML = `
+    <span class="toast-accent" aria-hidden="true"></span>
+    <span class="toast-body">
+      <strong>${escapeHtml(title)}</strong>
+      <span>${escapeHtml(text)}</span>
+    </span>
+    <button class="toast-close" type="button" aria-label="Tutup notifikasi">×</button>
+  `;
+  toast.querySelector(".toast-close")?.addEventListener("click", () => dismissToast(toast));
   activeToastBySignature.set(signature, toast);
   els.toastContainer.append(toast);
   refreshToastLayer({ toFront: true });
@@ -1446,6 +1507,7 @@ function bindHorizontalDragScroll(root, selector) {
   root.addEventListener("pointerdown", (event) => {
     const strip = findStrip(event.target);
     if (!strip || strip.scrollWidth <= strip.clientWidth || (event.button !== undefined && event.button !== 0)) return;
+    if (event.pointerType === "touch") return;
     dragState = {
       pointerId: event.pointerId,
       pointerType: event.pointerType || "mouse",
@@ -1944,6 +2006,229 @@ function renderDailyMenuReview(reviewRows = dailyMenuLastReview) {
   els.dailyMenuReview.innerHTML = `${selectedHtml}${issueHtml}`;
 }
 
+function sheetRowToDailyMenuEntry(row) {
+  const columns = getColumnSettings();
+  const name = String(readObjectValue(row, [columns.name, "nama", "name", "menu", "item", "barang", "produk", "product"], "")).trim();
+  const sku = String(readObjectValue(row, [columns.sku, "sku", "kode", "code"], "")).trim();
+  const price = parseMoney(readObjectValue(row, [columns.price, "harga", "price", "harga_jual", "harga jual"], 0));
+  return { name, sku, price };
+}
+
+function isDailyMenuSuggestionEntryValid(entry) {
+  const normalizedName = normalizeKey(entry?.name);
+  const normalizedSku = normalizeKey(entry?.sku);
+  const headerNames = new Set(["nama", "name", "menu", "item", "barang", "produk", "product"]);
+  if (!normalizedName && !normalizedSku) return false;
+  if (headerNames.has(normalizedName) && !entry.price && !normalizedSku) return false;
+  return true;
+}
+
+function getLatestDailyMenuSuggestionEntries(rows, limit = 9) {
+  const latest = [];
+  for (let index = rows.length - 1; index >= 0 && latest.length < limit; index -= 1) {
+    const entry = sheetRowToDailyMenuEntry(rows[index]);
+    if (!isDailyMenuSuggestionEntryValid(entry)) continue;
+    latest.unshift(entry);
+  }
+  return latest;
+}
+
+function getDailyMenuSuggestionLimit() {
+  const rawValue = Number(dailyMenuSuggestionState.limit || els.dailyMenuSuggestionLimitButton?.dataset.limit || 9);
+  return Math.min(9, Math.max(6, Number.isFinite(rawValue) ? rawValue : 9));
+}
+
+function setDailyMenuSuggestionLimitMenuOpen(open = false) {
+  if (!els.dailyMenuSuggestionLimitButton || !els.dailyMenuSuggestionLimitMenu) return;
+  const shouldOpen = Boolean(open) && !dailyMenuSuggestionState.loading;
+  els.dailyMenuSuggestionLimitMenu.hidden = !shouldOpen;
+  els.dailyMenuSuggestionLimitButton.setAttribute("aria-expanded", String(shouldOpen));
+  els.dailyMenuSuggestionLimitControl?.classList.toggle("is-open", shouldOpen);
+}
+
+function renderDailyMenuSuggestionLimit() {
+  const limit = getDailyMenuSuggestionLimit();
+  const loading = dailyMenuSuggestionState.loading;
+  if (els.dailyMenuSuggestionLimitButton) {
+    els.dailyMenuSuggestionLimitButton.dataset.limit = String(limit);
+    els.dailyMenuSuggestionLimitButton.disabled = loading;
+  }
+  if (els.dailyMenuSuggestionLimitText) {
+    els.dailyMenuSuggestionLimitText.textContent = String(limit);
+  }
+  els.dailyMenuSuggestionLimitMenu?.querySelectorAll("[data-daily-menu-limit]").forEach((button) => {
+    const active = Number(button.dataset.dailyMenuLimit) === limit;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  if (loading) setDailyMenuSuggestionLimitMenuOpen(false);
+}
+
+function changeDailyMenuSuggestionLimit(limitValue) {
+  const nextLimit = Math.min(9, Math.max(6, Number(limitValue) || 9));
+  dailyMenuSuggestionState.limit = nextLimit;
+  renderDailyMenuSuggestionLimit();
+  if (dailyMenuSuggestionState.sourceRows.length) {
+    updateDailyMenuSuggestionsFromRows();
+    renderDailyMenuSuggestions();
+  } else {
+    refreshDailyMenuSuggestions({ toast: false });
+  }
+}
+
+function updateDailyMenuSuggestionsFromRows(rows = dailyMenuSuggestionState.sourceRows) {
+  const limit = getDailyMenuSuggestionLimit();
+  const entries = getLatestDailyMenuSuggestionEntries(rows, limit);
+  dailyMenuSuggestionState = {
+    ...dailyMenuSuggestionState,
+    limit,
+    sourceRows: rows,
+    entries,
+    reviewRows: entries.map(findDailyMenuProduct),
+    message: entries.length ? "" : "Tidak ada row menu valid di bagian akhir sheet.",
+  };
+}
+
+function getDailyMenuSuggestionLine(entry) {
+  const name = entry.name || entry.sku || "";
+  return entry.price ? `${name} - ${entry.price}` : name;
+}
+
+function renderDailyMenuSuggestions() {
+  if (!els.dailyMenuSuggestionCard || !els.dailyMenuSuggestionStatus || !els.dailyMenuSuggestionChips) return;
+
+  const { entries, loading, limit } = dailyMenuSuggestionState;
+  const reviewRows = entries.map(findDailyMenuProduct);
+  dailyMenuSuggestionState.reviewRows = reviewRows;
+  const matchedCount = reviewRows.filter((row) => row.status === "matched").length;
+  const issueCount = reviewRows.length - matchedCount;
+  renderDailyMenuSuggestionLimit();
+
+  els.dailyMenuSuggestionCard.classList.toggle("is-loading", loading);
+  els.dailyMenuSuggestionCard.classList.toggle("has-suggestions", Boolean(entries.length));
+
+  if (loading) {
+    els.dailyMenuSuggestionStatus.textContent = "Mengecek row terbaru dari Google Sheet...";
+    els.dailyMenuSuggestionChips.innerHTML = `
+      <span class="daily-menu-suggestion-skeleton"></span>
+      <span class="daily-menu-suggestion-skeleton short"></span>
+      <span class="daily-menu-suggestion-skeleton"></span>
+    `;
+  } else if (entries.length) {
+    const issueText = issueCount ? ` ${issueCount} perlu dicek.` : "";
+    const checkedText = dailyMenuSuggestionState.lastCheckedAt ? ` Dicek ${formatClockTime(dailyMenuSuggestionState.lastCheckedAt)}.` : "";
+    els.dailyMenuSuggestionStatus.textContent = `${matchedCount}/${entries.length} cocok dari ${limit} row terakhir.${issueText}${checkedText}`;
+    els.dailyMenuSuggestionChips.innerHTML = reviewRows
+      .map((row) => {
+        const name = row.entry.name || row.entry.sku || "Menu tanpa nama";
+        const price = row.entry.price ? currency.format(row.entry.price) : "";
+        const statusLabel = row.status === "matched" ? "" : row.status === "ambiguous" ? "Cek harga" : "Belum ada";
+        return `
+          <span class="daily-menu-suggestion-chip ${row.status}">
+            <strong>${escapeHtml(name)}</strong>
+            ${price ? `<small>${escapeHtml(price)}</small>` : ""}
+            ${statusLabel ? `<em>${escapeHtml(statusLabel)}</em>` : ""}
+          </span>
+        `;
+      })
+      .join("");
+  } else {
+    els.dailyMenuSuggestionStatus.textContent = dailyMenuSuggestionState.message || "Cek row terbaru dari Sync Google.";
+    els.dailyMenuSuggestionChips.innerHTML = `
+      <span class="daily-menu-suggestion-empty">Belum ada saran. Cek terbaru dari Google Sheet.</span>
+    `;
+  }
+
+  if (els.refreshDailyMenuSuggestionsButton) {
+    els.refreshDailyMenuSuggestionsButton.disabled = loading;
+    els.refreshDailyMenuSuggestionsButton.textContent = loading ? "Cek..." : "Cek";
+  }
+  if (els.applyDailyMenuSuggestionsButton) {
+    els.applyDailyMenuSuggestionsButton.disabled = loading || !entries.length || !matchedCount;
+    els.applyDailyMenuSuggestionsButton.textContent = matchedCount ? "Set Menu Harian" : "Belum Cocok";
+  }
+}
+
+async function refreshDailyMenuSuggestions(options = {}) {
+  if (dailyMenuSuggestionState.loading) return;
+  saveSheetSettings();
+
+  if (!state.sync.sheetUrl) {
+    dailyMenuSuggestionState = {
+      loading: false,
+      limit: getDailyMenuSuggestionLimit(),
+      sourceRows: [],
+      entries: [],
+      reviewRows: [],
+      message: "Link Google Sheet belum disimpan.",
+      lastCheckedAt: "",
+    };
+    renderDailyMenuSuggestions();
+    if (options.toast) showToast("Link Google Sheet belum disimpan.", { title: "Menu Harian", variant: "error" });
+    return;
+  }
+
+  dailyMenuSuggestionState = {
+    ...dailyMenuSuggestionState,
+    loading: true,
+    message: "",
+  };
+  renderDailyMenuSuggestions();
+
+  try {
+    const rows = await fetchGoogleSheetRows();
+    dailyMenuSuggestionState = {
+      loading: false,
+      limit: getDailyMenuSuggestionLimit(),
+      sourceRows: rows,
+      entries: [],
+      reviewRows: [],
+      message: "",
+      lastCheckedAt: new Date().toISOString(),
+    };
+    updateDailyMenuSuggestionsFromRows(rows);
+    renderDailyMenuSuggestions();
+    if (options.toast) {
+      const matched = dailyMenuSuggestionState.reviewRows.filter((row) => row.status === "matched").length;
+      showToast(`${matched}/${dailyMenuSuggestionState.entries.length} saran menu cocok.`, { title: "Menu Harian" });
+    }
+  } catch (error) {
+    dailyMenuSuggestionState = {
+      loading: false,
+      limit: getDailyMenuSuggestionLimit(),
+      sourceRows: [],
+      entries: [],
+      reviewRows: [],
+      message: error.message || "Saran menu belum bisa dibaca.",
+      lastCheckedAt: "",
+    };
+    renderDailyMenuSuggestions();
+    if (options.toast) showToast(dailyMenuSuggestionState.message, { title: "Menu Harian", variant: "error" });
+  }
+}
+
+function maybeRefreshDailyMenuSuggestions() {
+  if (!els.dailyMenuTabPanel || els.dailyMenuTabPanel.hidden) return;
+  if (dailyMenuSuggestionState.loading || dailyMenuSuggestionState.entries.length || dailyMenuSuggestionState.message) {
+    renderDailyMenuSuggestions();
+    return;
+  }
+  refreshDailyMenuSuggestions({ toast: false });
+}
+
+function applyDailyMenuSuggestions() {
+  const entries = dailyMenuSuggestionState.entries;
+  if (!entries.length) {
+    refreshDailyMenuSuggestions({ toast: true });
+    return;
+  }
+
+  if (els.dailyMenuCsvInput) {
+    els.dailyMenuCsvInput.value = entries.map(getDailyMenuSuggestionLine).join("\n");
+  }
+  applyDailyMenuRows(entries);
+}
+
 function applyDailyMenuRows(rows) {
   const reviewRows = rows.map(findDailyMenuProduct);
   const seen = new Set();
@@ -1972,7 +2257,7 @@ function applyDailyMenuRows(rows) {
 function applyDailyMenuFromInput() {
   const rows = parseDailyMenuTextRows(els.dailyMenuCsvInput?.value || "");
   if (!rows.length) {
-    setSyncStatus("Isi atau upload CSV menu harian dulu.");
+    setSyncStatus("Paste teks menu harian dulu, atau cek data terbaru dari Sync Google.");
     return;
   }
   applyDailyMenuRows(rows);
@@ -2002,6 +2287,7 @@ function openDailyMenuEditor() {
   renderDailyMenuControls();
   if (!state.dailyMenu.productIds.length && els.dailyMenuOnlyInput) els.dailyMenuOnlyInput.checked = true;
   renderDailyMenuReview();
+  maybeRefreshDailyMenuSuggestions();
   openModal(els.inventoryModal, els.dailyMenuCsvInput);
 }
 
@@ -3320,6 +3606,38 @@ function renderSalesDateControls(range = getSalesRangeDates()) {
   if (els.nextSalesDateButton) els.nextSalesDateButton.disabled = allMode;
 }
 
+function getSalesSortLabel(sortKey = state.salesSort) {
+  return sortKey === "oldest" ? "Paling awal dulu" : "Terbaru dulu";
+}
+
+function setSalesSortMenuOpen(open = false) {
+  if (!els.salesSortButton || !els.salesSortMenu) return;
+  const shouldOpen = Boolean(open);
+  els.salesSortMenu.hidden = !shouldOpen;
+  els.salesSortButton.setAttribute("aria-expanded", String(shouldOpen));
+  els.salesSortControl?.classList.toggle("is-open", shouldOpen);
+}
+
+function renderSalesSortControl() {
+  const sort = state.salesSort === "oldest" ? "oldest" : "newest";
+  if (els.salesSortButton) els.salesSortButton.dataset.salesSort = sort;
+  if (els.salesSortText) els.salesSortText.textContent = getSalesSortLabel(sort);
+  els.salesSortMenu?.querySelectorAll("[data-sales-sort-option]").forEach((button) => {
+    const active = button.dataset.salesSortOption === sort;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+}
+
+function changeSalesSort(sortKey) {
+  const nextSort = sortKey === "oldest" ? "oldest" : "newest";
+  state.salesSort = nextSort;
+  resetSalesPage();
+  setSalesSortMenuOpen(false);
+  renderSalesDashboard();
+  saveState();
+}
+
 function updateSalesCalendarInfo(dateKey = "") {
   if (!els.salesCalendarInfo) return;
   const targetDate = dateKey || state.salesCalendar.hoverDate || (state.salesCalendar.field === "end" ? state.salesEndDate : state.salesStartDate) || state.salesDate;
@@ -3693,6 +4011,8 @@ function readObjectValue(source, keys, fallback = "") {
 }
 
 const VARIANT_PRICING_TYPES = new Set(["fixed", "unit", "package", "custom"]);
+const HALF_VARIANT_NAME = "Separuh";
+const HALF_VARIANT_RECEIPT_LABEL = "Separuh porsi";
 
 function normalizePricingType(value) {
   const key = normalizeKey(value || "fixed");
@@ -3727,11 +4047,21 @@ function getHalfVariantPrice(price) {
   return Math.round(Number(price || 0) / 2);
 }
 
+function isHalfVariantName(value) {
+  return ["1/2", "setengah", "separuh", "halfporsi", "1/2porsi", "separuhporsi"].includes(normalizeKey(value));
+}
+
+function formatHalfVariantDisplayText(value) {
+  return String(value ?? "")
+    .trim()
+    .replace(/(^|[\s([{/\\-])(?:1\/2|setengah)(?=$|[\s)\]}.,/\\-])/gi, `$1${HALF_VARIANT_NAME}`);
+}
+
 function getBaseVariantKind(variant = {}, productId = "") {
   const id = String(variant.id || variant.client_id || "").trim();
   const key = normalizeKey(variant.name || "");
   if (id === getDefaultVariantId(productId) || key === "normal") return "normal";
-  if (id === getHalfVariantId(productId) || ["1/2", "setengah", "separuh", "halfporsi", "1/2porsi"].includes(key)) return "half";
+  if (id === getHalfVariantId(productId) || isHalfVariantName(variant.name)) return "half";
   if (id === getCustomVariantId(productId) || ["custom", "custominput", "hargacustom", "manual"].includes(key)) return "custom";
   return "";
 }
@@ -3757,11 +4087,11 @@ function getBaseVariantDrafts(product = {}) {
     normalizeVariantRecord(
       {
         id: getHalfVariantId(productId),
-        name: "1/2",
+        name: HALF_VARIANT_NAME,
         pricingType: "fixed",
         price: getHalfVariantPrice(price),
         unitName: "porsi",
-        receiptLabel: "1/2 porsi",
+        receiptLabel: HALF_VARIANT_RECEIPT_LABEL,
         isDefault: false,
       },
       baseProduct,
@@ -3787,7 +4117,8 @@ function getBaseVariantDrafts(product = {}) {
 function normalizeVariantRecord(variant = {}, product = {}, index = 0) {
   const productId = String(product.id || product.client_id || variant.productId || variant.product_client_id || "").trim();
   const pricingType = normalizePricingType(variant.pricingType || variant.pricing_type);
-  const name = String(variant.name || (index === 0 ? "Normal" : `Variasi ${index + 1}`)).trim() || "Normal";
+  const rawName = String(variant.name || (index === 0 ? "Normal" : `Variasi ${index + 1}`)).trim() || "Normal";
+  const name = isHalfVariantName(rawName) ? HALF_VARIANT_NAME : rawName;
   const id = String(variant.id || variant.client_id || (index === 0 ? getDefaultVariantId(productId) : `${productId}::${makeId("variant")}`)).trim();
   const stockUnlimited = Boolean(
     variant.stockUnlimited ??
@@ -3816,8 +4147,8 @@ function normalizeVariantRecord(variant = {}, product = {}, index = 0) {
     package_quantity: packageQuantity,
     packageUnit,
     package_unit: packageUnit,
-    receiptLabel: String(variant.receiptLabel || variant.receipt_label || (normalizeKey(name) === "normal" ? "" : name)).trim(),
-    receipt_label: String(variant.receiptLabel || variant.receipt_label || (normalizeKey(name) === "normal" ? "" : name)).trim(),
+    receiptLabel: isHalfVariantName(name) ? HALF_VARIANT_RECEIPT_LABEL : String(variant.receiptLabel || variant.receipt_label || (normalizeKey(name) === "normal" ? "" : name)).trim(),
+    receipt_label: isHalfVariantName(name) ? HALF_VARIANT_RECEIPT_LABEL : String(variant.receiptLabel || variant.receipt_label || (normalizeKey(name) === "normal" ? "" : name)).trim(),
     isDefault: Boolean(variant.isDefault ?? variant.is_default ?? index === 0),
     is_default: Boolean(variant.isDefault ?? variant.is_default ?? index === 0),
     allowQuantityOverride: Boolean(variant.allowQuantityOverride ?? variant.allow_quantity_override ?? true),
@@ -3848,7 +4179,7 @@ function ensureProductVariants(product) {
   const baseVariants = getBaseVariantDrafts({ ...product, id: productId, price: normalPrice });
   const normalBase = { ...baseVariants[0], ...(normalSeed || {}), id: getDefaultVariantId(productId), client_id: getDefaultVariantId(productId), name: "Normal", pricingType: "fixed", pricing_type: "fixed", price: normalPrice, receiptLabel: "", receipt_label: "", isDefault: true, is_default: true, active: true };
   const halfSeed = findBase("half");
-  const halfBase = { ...baseVariants[1], ...(halfSeed || {}), id: getHalfVariantId(productId), client_id: getHalfVariantId(productId), name: "1/2", pricingType: "fixed", pricing_type: "fixed", price: getHalfVariantPrice(normalPrice), receiptLabel: "1/2 porsi", receipt_label: "1/2 porsi", isDefault: false, is_default: false, active: true };
+  const halfBase = { ...baseVariants[1], ...(halfSeed || {}), id: getHalfVariantId(productId), client_id: getHalfVariantId(productId), name: HALF_VARIANT_NAME, pricingType: "fixed", pricing_type: "fixed", price: getHalfVariantPrice(normalPrice), receiptLabel: HALF_VARIANT_RECEIPT_LABEL, receipt_label: HALF_VARIANT_RECEIPT_LABEL, isDefault: false, is_default: false, active: true };
   const customSeed = findBase("custom");
   const customBase = { ...baseVariants[2], ...(customSeed || {}), id: getCustomVariantId(productId), client_id: getCustomVariantId(productId), name: "Custom input", pricingType: "custom", pricing_type: "custom", price: 0, receiptLabel: "Harga custom", receipt_label: "Harga custom", allowPriceOverride: true, allow_price_override: true, isDefault: false, is_default: false, active: true };
   const otherVariants = normalized.filter((variant) => !getBaseVariantKind(variant, productId));
@@ -3868,6 +4199,9 @@ function ensureProductVariants(product) {
       variant.allow_price_override = true;
     }
     if (kind === "half") {
+      variant.name = HALF_VARIANT_NAME;
+      variant.receiptLabel = HALF_VARIANT_RECEIPT_LABEL;
+      variant.receipt_label = HALF_VARIANT_RECEIPT_LABEL;
       variant.price = getHalfVariantPrice(normalPrice);
     }
     if (kind === "normal") {
@@ -3890,17 +4224,19 @@ function ensureProductVariants(product) {
 
 function normalizeProductRecord(product = {}) {
   const id = String(product.id || product.client_id || makeId("product")).trim();
+  const rawName = String(product.name || "").trim();
+  const productName = formatHalfVariantDisplayText(rawName);
   const base = {
     ...product,
     id,
     client_id: id,
     sku: String(product.sku || "").trim(),
-    name: String(product.name || "").trim(),
+    name: productName,
     price: parseMoney(product.price),
     stock: parseStock(product.stock),
     stockUnlimited: Boolean(product.stockUnlimited || product.stock_unlimited || product.unlimitedStock),
     category: String(product.category || "").trim() || DEFAULT_CATEGORY,
-    aliases: mergeAliasLists(product.aliases || product.alias || []),
+    aliases: mergeAliasLists(product.aliases || product.alias || [], productName && productName !== rawName ? [rawName] : []),
     source: String(product.source || "manual").trim() || "manual",
   };
   base.variants = ensureProductVariants(base);
@@ -3961,8 +4297,8 @@ function normalizeProductsCollection(products = []) {
     const parent = byName.get(normalizeKey(match[1]));
     if (!parent || parent.id === product.id) return;
     const rawVariant = match[2].toLowerCase();
-    const variantName = rawVariant === "jumbo" ? "Jumbo" : "1/2";
-    const receiptLabel = rawVariant === "jumbo" ? "Jumbo" : "1/2 porsi";
+    const variantName = rawVariant === "jumbo" ? "Jumbo" : HALF_VARIANT_NAME;
+    const receiptLabel = rawVariant === "jumbo" ? "Jumbo" : HALF_VARIANT_RECEIPT_LABEL;
     const alreadyExists = parent.variants.some((variant) => normalizeKey(variant.name) === normalizeKey(variantName) || variant.id === product.id);
     if (!alreadyExists) {
       parent.variants.push(
@@ -4290,7 +4626,7 @@ function parseDraftNameHints(rawName) {
     name = name.replace(unitMatch[0], "").trim();
   }
   const variantMatch = name.match(/^(.+?)\s+(1\/2|setengah|separuh|jumbo)$/i);
-  const variantName = variantMatch ? (variantMatch[2].toLowerCase() === "jumbo" ? "Jumbo" : "1/2") : "";
+  const variantName = variantMatch ? (variantMatch[2].toLowerCase() === "jumbo" ? "Jumbo" : HALF_VARIANT_NAME) : "";
   if (variantMatch) name = variantMatch[1].trim();
   return { name, price, unitQuantity, unitName, variantName };
 }
@@ -6802,7 +7138,7 @@ function renderSalesDashboard() {
   renderSalesDateControls(range);
   renderSalesCalendar();
   els.salesSearchInput.value = state.salesSearch;
-  if (els.salesSortInput) els.salesSortInput.value = state.salesSort;
+  renderSalesSortControl();
   els.salesDateLabel.textContent = formatSalesDateLabel();
   els.salesRangeButtons.forEach((button) => {
     const active = button.dataset.salesRange === state.salesRange;
@@ -7136,7 +7472,9 @@ function renderSaleDetail(sale) {
 
   const receiptNo = payload.receiptNo || "Tanpa nomor struk";
   els.saleDetailTitle.textContent = isEditing ? "Edit struk" : "Detail struk";
-  els.editSaleDetailButton.textContent = isEditing ? "Batal Edit" : "Edit Data";
+  const editSaleDetailLabel = els.editSaleDetailButton?.querySelector("span");
+  if (editSaleDetailLabel) editSaleDetailLabel.textContent = isEditing ? "Batal Edit" : "Edit Data";
+  else els.editSaleDetailButton.textContent = isEditing ? "Batal Edit" : "Edit Data";
   els.editSaleDetailButton.setAttribute("aria-pressed", String(isEditing));
   els.editSaleDetailButton.disabled = isSaleDeleted(sale);
   els.printSaleDetailButton.disabled = isEditing;
@@ -7605,6 +7943,7 @@ function renderProducts() {
       const stockBadge = getStockBadge(product, available);
       const addDisabled = !isStockUnlimited(product) && available <= 0;
       const aliases = getProductAliases(product);
+      const displayAliases = aliases.map(formatHalfVariantDisplayText);
       const variants = getProductVariants(product);
       const defaultVariant = getDefaultVariant(product);
       const variantButtons = variants
@@ -7637,7 +7976,7 @@ function renderProducts() {
             <div class="product-info">
               <p class="product-title" title="${escapeHtml(product.name)}">${escapeHtml(product.name)}</p>
               ${metaHtml ? `<p class="product-meta">${metaHtml}</p>` : ""}
-              ${aliases.length ? `<p class="product-aliases">Alias: ${escapeHtml(aliases.join(", "))}</p>` : ""}
+              ${displayAliases.length ? `<p class="product-aliases">Alias: ${escapeHtml(displayAliases.join(", "))}</p>` : ""}
             </div>
             <div class="product-actions">
               <div class="product-price-stack">
@@ -9035,71 +9374,56 @@ function renderInventoryProductsList() {
   if (!els.inventoryProductsList) return;
 
   const query = (els.inventorySearchInput.value || "").trim().toLowerCase();
-  
   const parentProducts = state.products.filter((product) => product.source !== "virtual");
 
-  // 2. Filter parent products based on search query
   const filteredParents = parentProducts.filter((parent) => {
     if (!query) return true;
-    
-    // Check if parent name, category or SKU matches query
+
     const nameMatch = (parent.name || "").toLowerCase().includes(query);
     const categoryMatch = (parent.category || "").toLowerCase().includes(query);
     const skuMatch = (parent.sku || "").toLowerCase().includes(query);
     if (nameMatch || categoryMatch || skuMatch) return true;
-    
-    // Check if any of its variants matches the query
-      const variants = getProductVariants(parent);
-      const variantMatch = variants.some((v) => {
-        const vName = (v.name || "").toLowerCase();
-        const vLabel = (v.receiptLabel || "").toLowerCase();
-        return vName.includes(query) || vLabel.includes(query);
+
+    const variants = getProductVariants(parent);
+    return variants.some((variant) => {
+      const variantName = (variant.name || "").toLowerCase();
+      const variantLabel = (variant.receiptLabel || "").toLowerCase();
+      return variantName.includes(query) || variantLabel.includes(query);
     });
-    return variantMatch;
   });
 
-  // 3. Sort parent products alphabetically by name
   filteredParents.sort((a, b) => (a.name || "").localeCompare(b.name || "", "id-ID"));
 
   if (filteredParents.length === 0) {
-    els.inventoryProductsList.innerHTML = `<div class="empty-state" style="padding: 24px; text-align: center; color: var(--muted);">Menu tidak ditemukan.</div>`;
+    els.inventoryProductsList.innerHTML = `<div class="empty-state inventory-empty-state">Menu tidak ditemukan.</div>`;
     return;
   }
 
-  // 4. Render
   els.inventoryProductsList.innerHTML = filteredParents
     .map((parent) => {
       const variants = getProductVariants(parent);
-      
-      let variantsHtml = "";
-      if (variants.length > 0) {
-        variantsHtml = `
-          <div class="menu-item-variants-container">
-            <p class="menu-item-variant-header-text">${variants.length} variasi/cara jual</p>
-            ${variants
-              .map((v) => {
+      const parentSku = parent.sku ? `<span class="menu-item-sku-pill">${escapeHtml(parent.sku)}</span>` : "";
+      const visibleVariants = variants.slice(0, 4);
+      const remainingVariants = Math.max(0, variants.length - visibleVariants.length);
+      const variantsHtml = variants.length
+        ? `
+          <div class="menu-item-variant-chips" aria-label="Variasi ${escapeHtml(parent.name)}">
+            ${visibleVariants
+              .map((variant) => {
+                const label = variant.receiptLabel ? `${variant.name} · ${variant.receiptLabel}` : variant.name;
                 return `
-                  <div class="menu-item-variant-row">
-                    <span class="menu-item-variant-name">
-                      ${escapeHtml(v.name)}
-                      ${v.isDefault ? '<span class="menu-item-variant-name-label">Default</span>' : ""}
-                      <small>${escapeHtml(getVariantTypeLabel(v.pricingType))}${v.receiptLabel ? ` · ${escapeHtml(v.receiptLabel)}` : ""}</small>
-                    </span>
-                    <span class="menu-item-variant-stock">${escapeHtml(v.unitName || "porsi")}</span>
-                    <strong class="menu-item-variant-price">${currency.format(v.price)}</strong>
-                    <div class="menu-item-buttons">
-                      <button class="ghost-button product-small-button" type="button" data-edit-inventory-product="${escapeHtml(parent.id)}" title="Edit Variasi">Edit</button>
-                    </div>
-                  </div>
+                  <button class="menu-item-variant-chip${variant.isDefault ? " default" : ""}" type="button" data-edit-inventory-variant="${escapeHtml(parent.id)}" data-variant-id="${escapeHtml(variant.id)}" title="Edit ${escapeHtml(label)}">
+                    <span>${escapeHtml(variant.name)}</span>
+                    <strong>${currency.format(variant.price)}</strong>
+                  </button>
                 `;
               })
               .join("")}
+            ${remainingVariants ? `<button class="menu-item-variant-chip more" type="button" data-edit-inventory-product="${escapeHtml(parent.id)}">+${remainingVariants} varian</button>` : ""}
           </div>
-        `;
-      }
+        `
+        : "";
 
-      const parentSku = parent.sku ? `<span class="menu-item-sku-pill">${escapeHtml(parent.sku)}</span>` : "";
-      
       return `
         <article class="menu-item-group-card">
           <div class="menu-item-parent-row">
@@ -9108,16 +9432,20 @@ function renderInventoryProductsList() {
               <div class="menu-item-meta">
                 <span class="menu-item-category-pill">${escapeHtml(parent.category || "Lauk")}</span>
                 ${parentSku}
+                <span class="menu-item-variant-count">${variants.length} varian</span>
               </div>
             </div>
-            
+
             <div class="menu-item-actions-wrapper">
               <div class="menu-item-price-stock">
                 <span class="menu-item-price">${currency.format(parent.price)}</span>
                 <span class="menu-item-stock">Stok: <span class="menu-item-stock-qty">${parent.stockUnlimited ? "∞" : parent.stock}</span></span>
               </div>
               <div class="menu-item-buttons">
-                <button class="ghost-button product-small-button" type="button" data-edit-inventory-product="${escapeHtml(parent.id)}" title="Edit Menu">Edit</button>
+                <button class="ghost-button product-small-button product-icon-action" type="button" data-edit-inventory-product="${escapeHtml(parent.id)}" title="Edit Menu" aria-label="Edit ${escapeHtml(parent.name)}">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+                  <span>Edit</span>
+                </button>
                 <button class="ghost-button danger product-small-button product-delete-button" type="button" data-delete-inventory-product="${escapeHtml(parent.id)}" title="Hapus Menu">
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
                 </button>
@@ -9143,6 +9471,7 @@ function render() {
   }
   renderBulkDrafts();
   renderDailyMenuReview();
+  renderDailyMenuSuggestions();
   if (els.heldCartsModal?.open) renderHeldCarts();
   renderInventoryProductsList();
   saveState();
@@ -9264,61 +9593,25 @@ function renderVariantEditorList() {
     .map((variant, index) => {
       const type = normalizePricingType(variant.pricingType);
       const isBaseVariant = Boolean(getBaseVariantKind(variant, state.editingProductId || "draft-menu"));
+      const meta = [getVariantTypeLabel(type), variant.unitName || "porsi", variant.receiptLabel].filter(Boolean).join(" · ");
       return `
-        <article class="variant-editor-card" data-variant-index="${index}">
-          <div class="variant-editor-card-head">
-            <label class="variant-default-toggle">
-              <input type="radio" name="defaultVariant" data-variant-field="isDefault" ${variant.isDefault ? "checked" : ""}>
-              <span>Default</span>
-            </label>
-            <button class="ghost-button danger product-small-button" type="button" data-remove-variant="${index}" ${isBaseVariant || state.editingProductVariants.length <= 1 ? "disabled" : ""}>Hapus</button>
-          </div>
-          <div class="variant-editor-grid">
-            <label>
-              Nama variasi
-              <input type="text" data-variant-field="name" value="${escapeHtml(variant.name)}" placeholder="Normal">
-            </label>
-            <label>
-              Tipe harga
-              <select data-variant-field="pricingType">
-                ${[
-                  ["fixed", "Harga tetap"],
-                  ["unit", "Per satuan"],
-                  ["package", "Paket"],
-                  ["custom", "Custom/manual"],
-                ].map(([value, label]) => `<option value="${value}" ${type === value ? "selected" : ""}>${label}</option>`).join("")}
-              </select>
-            </label>
-            <label>
-              Harga
-              <input type="text" inputmode="numeric" pattern="[0-9.]*" data-variant-field="price" value="${escapeHtml(formatIntegerInput(variant.price))}" placeholder="35.000">
-            </label>
-            <label>
-              Satuan
-              <input type="text" data-variant-field="unitName" value="${escapeHtml(variant.unitName || "porsi")}" placeholder="porsi, biji, box">
-            </label>
-            <label class="${type === "package" ? "" : "variant-package-only"}">
-              Isi paket
-              <input type="number" min="1" step="1" data-variant-field="packageQuantity" value="${escapeHtml(variant.packageQuantity || 1)}">
-            </label>
-            <label class="${type === "package" ? "" : "variant-package-only"}">
-              Satuan isi
-              <input type="text" data-variant-field="packageUnit" value="${escapeHtml(variant.packageUnit || variant.unitName || "porsi")}" placeholder="biji">
-            </label>
-            <label class="variant-receipt-label-field">
-              Label struk
-              <input type="text" data-variant-field="receiptLabel" value="${escapeHtml(variant.receiptLabel || "")}" placeholder="Porsi khusus, 10 biji">
-            </label>
-          </div>
-          <div class="variant-editor-options">
-            <label class="check-row">
-              <input type="checkbox" data-variant-field="allowQuantityOverride" ${variant.allowQuantityOverride ? "checked" : ""}>
-              <span>Jumlah bisa diubah</span>
-            </label>
-            <label class="check-row">
-              <input type="checkbox" data-variant-field="allowPriceOverride" ${variant.allowPriceOverride ? "checked" : ""}>
-              <span>Harga bisa custom</span>
-            </label>
+        <article class="variant-editor-card compact" data-variant-index="${index}">
+          <button class="variant-editor-summary" type="button" data-edit-variant-index="${index}">
+            <span>
+              <strong>${escapeHtml(variant.name)}</strong>
+              ${variant.isDefault ? '<em>Default</em>' : ""}
+              <small>${escapeHtml(meta)}</small>
+            </span>
+            <b>${currency.format(variant.price)}</b>
+          </button>
+          <div class="variant-editor-card-actions">
+            <button class="ghost-button product-small-button product-icon-action" type="button" data-edit-variant-index="${index}" aria-label="Edit ${escapeHtml(variant.name)}">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+              <span>Edit</span>
+            </button>
+            <button class="ghost-button danger product-small-button product-delete-button" type="button" data-remove-variant="${index}" ${isBaseVariant || state.editingProductVariants.length <= 1 ? "disabled" : ""} aria-label="Hapus ${escapeHtml(variant.name)}">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
+            </button>
           </div>
         </article>
       `;
@@ -9361,10 +9654,182 @@ function updateEditingVariant(index, field, value, inputType = "text", shouldRen
   if (shouldRender) renderVariantEditorList();
 }
 
+function cloneVariantDraft(variant) {
+  return variant ? { ...variant } : null;
+}
+
+function getEditingProductDraftId() {
+  return state.editingProductId || "draft-menu";
+}
+
+function findEditingVariantIndex(variantId) {
+  const targetId = String(variantId || "").trim();
+  if (!targetId) return -1;
+  ensureEditingVariants();
+  return state.editingProductVariants.findIndex((variant) => String(variant.id || variant.client_id || "") === targetId);
+}
+
+function syncVariantModalFields() {
+  if (!els.variantEditorModal || !state.editingVariantDraft) return;
+  const draft = state.editingVariantDraft;
+  const productId = getEditingProductDraftId();
+  const type = normalizePricingType(draft.pricingType);
+  const kind = getBaseVariantKind(draft, productId);
+  const isPackage = type === "package";
+  const isCustom = type === "custom" || kind === "custom";
+  const isHalf = kind === "half";
+  const isNormal = kind === "normal";
+
+  els.variantEditorModal.classList.toggle("show-package-fields", isPackage);
+  if (els.variantEditorTitle) els.variantEditorTitle.textContent = state.editingVariantIsNew ? "Tambah variasi" : `Edit ${draft.name || "variasi"}`;
+  if (els.variantDefaultInput) {
+    els.variantDefaultInput.checked = Boolean(draft.isDefault);
+    els.variantDefaultInput.disabled = true;
+  }
+  if (els.variantNameInput) {
+    els.variantNameInput.value = draft.name || "";
+    els.variantNameInput.disabled = Boolean(kind);
+  }
+  if (els.variantPricingTypeInput) {
+    els.variantPricingTypeInput.value = type;
+    els.variantPricingTypeInput.disabled = Boolean(kind);
+  }
+  if (els.variantPriceInput) {
+    els.variantPriceInput.value = formatIntegerInput(draft.price || 0);
+    els.variantPriceInput.disabled = isHalf || isCustom;
+  }
+  if (els.variantUnitNameInput) els.variantUnitNameInput.value = draft.unitName || "porsi";
+  if (els.variantPackageQuantityInput) els.variantPackageQuantityInput.value = draft.packageQuantity || 1;
+  if (els.variantPackageUnitInput) els.variantPackageUnitInput.value = draft.packageUnit || draft.unitName || "porsi";
+  if (els.variantReceiptLabelInput) els.variantReceiptLabelInput.value = draft.receiptLabel || "";
+  if (els.variantQuantityOverrideInput) els.variantQuantityOverrideInput.checked = Boolean(draft.allowQuantityOverride);
+  if (els.variantPriceOverrideInput) {
+    els.variantPriceOverrideInput.checked = Boolean(draft.allowPriceOverride);
+    els.variantPriceOverrideInput.disabled = isCustom;
+  }
+}
+
+function getVariantDraftFromModal() {
+  const original = state.editingVariantDraft;
+  if (!original) return null;
+  const productId = getEditingProductDraftId();
+  const index = Math.max(0, Number(state.editingVariantIndex || 0));
+  const kind = getBaseVariantKind(original, productId);
+  let pricingType = normalizePricingType(els.variantPricingTypeInput?.value || original.pricingType);
+  let name = (els.variantNameInput?.value || original.name || "").trim();
+  let receiptLabel = (els.variantReceiptLabelInput?.value || "").trim();
+  let price = parseMoney(els.variantPriceInput?.value || original.price || 0);
+
+  if (kind === "normal") {
+    name = "Normal";
+    pricingType = "fixed";
+    receiptLabel = "";
+  } else if (kind === "half") {
+    const normalVariant = state.editingProductVariants.find((variant) => getBaseVariantKind(variant, productId) === "normal");
+    name = HALF_VARIANT_NAME;
+    pricingType = "fixed";
+    price = getHalfVariantPrice(normalVariant?.price || original.price || 0);
+    receiptLabel = HALF_VARIANT_RECEIPT_LABEL;
+  } else if (kind === "custom") {
+    name = "Custom input";
+    pricingType = "custom";
+    price = 0;
+    receiptLabel = "Harga custom";
+  } else if (pricingType === "custom") {
+    price = 0;
+  }
+
+  const draft = normalizeVariantRecord(
+    {
+      ...original,
+      name,
+      pricingType,
+      pricing_type: pricingType,
+      price,
+      unitName: els.variantUnitNameInput?.value || original.unitName || "porsi",
+      unit_name: els.variantUnitNameInput?.value || original.unitName || "porsi",
+      packageQuantity: els.variantPackageQuantityInput?.value || original.packageQuantity || 1,
+      package_quantity: els.variantPackageQuantityInput?.value || original.packageQuantity || 1,
+      packageUnit: els.variantPackageUnitInput?.value || original.packageUnit || original.unitName || "porsi",
+      package_unit: els.variantPackageUnitInput?.value || original.packageUnit || original.unitName || "porsi",
+      receiptLabel,
+      receipt_label: receiptLabel,
+      isDefault: kind === "normal" ? true : Boolean(els.variantDefaultInput?.checked && !kind),
+      is_default: kind === "normal" ? true : Boolean(els.variantDefaultInput?.checked && !kind),
+      allowQuantityOverride: Boolean(els.variantQuantityOverrideInput?.checked),
+      allow_quantity_override: Boolean(els.variantQuantityOverrideInput?.checked),
+      allowPriceOverride: pricingType === "custom" || Boolean(els.variantPriceOverrideInput?.checked),
+      allow_price_override: pricingType === "custom" || Boolean(els.variantPriceOverrideInput?.checked),
+    },
+    { id: productId, price },
+    index
+  );
+
+  if (draft.pricingType === "custom") {
+    draft.price = 0;
+    draft.allowPriceOverride = true;
+    draft.allow_price_override = true;
+  }
+  return draft;
+}
+
+function openVariantEditor(index, options = {}) {
+  ensureEditingVariants();
+  const variant = state.editingProductVariants[index];
+  if (!variant) return;
+  state.editingVariantIndex = index;
+  state.editingVariantDraft = cloneVariantDraft(variant);
+  state.editingVariantIsNew = Boolean(options.isNew);
+  syncVariantModalFields();
+  openModal(els.variantEditorModal, els.variantNameInput);
+}
+
+function cleanupVariantEditor(options = {}) {
+  if (options.revertNew && state.editingVariantIsNew && Number.isInteger(state.editingVariantIndex)) {
+    state.editingProductVariants.splice(state.editingVariantIndex, 1);
+    ensureEditingVariants();
+    renderVariantEditorList();
+  }
+  state.editingVariantIndex = null;
+  state.editingVariantDraft = null;
+  state.editingVariantIsNew = false;
+}
+
+function cancelVariantEdit() {
+  cleanupVariantEditor({ revertNew: true });
+  if (els.variantEditorModal?.open) els.variantEditorModal.close();
+}
+
+function applyVariantEdit() {
+  const index = Number(state.editingVariantIndex);
+  const draft = getVariantDraftFromModal();
+  if (!draft || !Number.isInteger(index) || !state.editingProductVariants[index]) return;
+  if (!draft.name || (draft.pricingType !== "custom" && Number(draft.price || 0) <= 0)) return;
+
+  state.editingProductVariants[index] = draft;
+  const productId = getEditingProductDraftId();
+  if (getBaseVariantKind(draft, productId) === "normal") {
+    const halfVariant = state.editingProductVariants.find((variant) => getBaseVariantKind(variant, productId) === "half");
+    if (halfVariant) halfVariant.price = getHalfVariantPrice(draft.price);
+  }
+  if (draft.isDefault) {
+    state.editingProductVariants.forEach((variant, variantIndex) => {
+      variant.isDefault = variantIndex === index;
+      variant.is_default = variantIndex === index;
+    });
+  }
+  ensureEditingVariants();
+  renderVariantEditorList();
+  cleanupVariantEditor({ revertNew: false });
+  if (els.variantEditorModal?.open) els.variantEditorModal.close();
+}
+
 function addEditingVariant() {
   ensureEditingVariants();
-  state.editingProductVariants.push(getBlankVariant({ name: `Variasi ${state.editingProductVariants.length + 1}`, price: getDefaultVariant({ id: "draft", variants: state.editingProductVariants })?.price || 0 }));
+  const defaultPrice = getDefaultVariant({ id: "draft", variants: state.editingProductVariants })?.price || 0;
+  state.editingProductVariants.push(getBlankVariant({ name: `Variasi ${state.editingProductVariants.length + 1}`, price: defaultPrice }));
   renderVariantEditorList();
+  openVariantEditor(state.editingProductVariants.length - 1, { isNew: true });
 }
 
 function removeEditingVariant(index) {
@@ -9379,20 +9844,27 @@ function removeEditingVariant(index) {
 
 function resetProductForm() {
   state.editingProductId = null;
+  cleanupVariantEditor({ revertNew: false });
   state.editingProductVariants = getBaseVariantDrafts({ id: "draft-menu", price: 0 });
   els.itemForm.reset();
   els.itemSubmitButton.textContent = "Simpan Barang";
-  els.cancelEditProductButton.hidden = true;
+  if (els.productEditorTitle) els.productEditorTitle.textContent = "Tambah barang";
   syncManualStockInputState();
   renderVariantEditorList();
 }
 
-function startEditProduct(productId) {
+function startCreateProduct() {
+  resetProductForm();
+  if (els.productEditorTitle) els.productEditorTitle.textContent = "Tambah barang";
+  els.itemSubmitButton.textContent = "Simpan Barang";
+  openModal(els.productEditorModal, els.itemNameInput);
+}
+
+function startEditProduct(productId, options = {}) {
   const product = getProduct(productId);
   if (!product) return;
 
   state.editingProductId = productId;
-  setInventoryTab("manual");
   els.itemNameInput.value = product.name || "";
   els.itemPriceInput.value = formatIntegerInput(product.price || 0);
   els.itemCategoryInput.value = getProductCategory(product);
@@ -9404,8 +9876,19 @@ function startEditProduct(productId) {
   renderVariantEditorList();
   syncManualStockInputState();
   els.itemSubmitButton.textContent = "Update Barang";
-  els.cancelEditProductButton.hidden = false;
-  openModal(els.inventoryModal, els.itemNameInput);
+  if (els.productEditorTitle) els.productEditorTitle.textContent = `Edit ${product.name || "barang"}`;
+  openModal(els.productEditorModal, els.itemNameInput);
+
+  if (options.variantId) {
+    const variantIndex = findEditingVariantIndex(options.variantId);
+    if (variantIndex >= 0) openVariantEditor(variantIndex);
+  }
+}
+
+function cancelProductEdit() {
+  resetProductForm();
+  if (els.variantEditorModal?.open) els.variantEditorModal.close();
+  if (els.productEditorModal?.open) els.productEditorModal.close();
 }
 
 function saveProductForm() {
@@ -9422,7 +9905,17 @@ function saveProductForm() {
   const price = Number(normalVariant?.price || 0);
   const variants = ensureProductVariants({ id: productId, price, stock, stockUnlimited, variants: draftVariants });
 
-  if (!name || !variants.length || price <= 0) return;
+  if (!name) {
+    setSyncStatus("Nama barang wajib diisi.");
+    els.itemNameInput.focus();
+    return;
+  }
+  if (!variants.length || price <= 0) {
+    setSyncStatus("Harga Normal wajib diisi.");
+    const normalIndex = state.editingProductVariants.findIndex((variant) => getBaseVariantKind(variant, productId) === "normal");
+    if (normalIndex >= 0) openVariantEditor(normalIndex);
+    return;
+  }
 
   if (state.editingProductId) {
     const product = getProduct(state.editingProductId);
@@ -9458,6 +9951,7 @@ function saveProductForm() {
 
   resetProductForm();
   setInventoryTab("list");
+  if (els.productEditorModal?.open) els.productEditorModal.close();
   render();
   saveProductsToDatabase({ toast: false });
 }
@@ -9476,7 +9970,11 @@ function deleteProduct(productId) {
     .filter((heldCart) => heldCart.cart.length);
   state.dailyMenu.productIds = state.dailyMenu.productIds.filter((id) => id !== productId);
 
-  if (state.editingProductId === productId) resetProductForm();
+  if (state.editingProductId === productId) {
+    resetProductForm();
+    if (els.variantEditorModal?.open) els.variantEditorModal.close();
+    if (els.productEditorModal?.open) els.productEditorModal.close();
+  }
   setSyncStatus(`${product.name} sudah dihapus.`);
   render();
   deleteProductsFromSupabase(productId);
@@ -9928,9 +10426,9 @@ async function fetchGoogleSheetRows() {
 }
 
 function saveSheetSettings() {
-  state.sync.sheetUrl = els.sheetUrlInput.value.trim();
-  state.sync.sheetName = els.sheetNameInput.value.trim();
-  state.sync.autoSync = els.autoSyncInput.checked;
+  state.sync.sheetUrl = els.sheetUrlInput?.value.trim() || "";
+  state.sync.sheetName = els.sheetNameInput?.value.trim() || state.sync.sheetName || "Menu";
+  state.sync.autoSync = els.autoSyncInput ? els.autoSyncInput.checked : Boolean(state.sync.autoSync);
   saveColumnSettings();
   saveState();
   updateConnectionUI();
@@ -10112,11 +10610,33 @@ function bindEvents() {
     state.dailyMenu.onlyToday = Boolean(els.dailyMenuOnlyInput.checked);
     render();
   });
-  els.dailyMenuFileInput.addEventListener("change", (event) => {
+  els.dailyMenuFileInput?.addEventListener("change", (event) => {
     const [file] = event.target.files;
     readDailyMenuFile(file);
     event.target.value = "";
   });
+  els.refreshDailyMenuSuggestionsButton?.addEventListener("click", () => {
+    refreshDailyMenuSuggestions({ toast: true });
+  });
+  els.dailyMenuSuggestionLimitButton?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setDailyMenuSuggestionLimitMenuOpen(els.dailyMenuSuggestionLimitMenu?.hidden !== false);
+  });
+  els.dailyMenuSuggestionLimitMenu?.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-daily-menu-limit]");
+    if (!option) return;
+    setDailyMenuSuggestionLimitMenuOpen(false);
+    changeDailyMenuSuggestionLimit(option.dataset.dailyMenuLimit);
+  });
+  document.addEventListener("click", (event) => {
+    if (!els.dailyMenuSuggestionLimitControl?.contains(event.target)) {
+      setDailyMenuSuggestionLimitMenuOpen(false);
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setDailyMenuSuggestionLimitMenuOpen(false);
+  });
+  els.applyDailyMenuSuggestionsButton?.addEventListener("click", applyDailyMenuSuggestions);
   els.applyDailyMenuButton.addEventListener("click", applyDailyMenuFromInput);
   els.clearDailyMenuButton.addEventListener("click", clearDailyMenu);
   els.dailyMenuReview.addEventListener("click", (event) => {
@@ -10387,11 +10907,22 @@ function bindEvents() {
     state.salesSearch = els.salesSearchInput.value;
     scheduleSalesSearchRender();
   });
-  els.salesSortInput?.addEventListener("change", () => {
-    state.salesSort = ["newest", "oldest"].includes(els.salesSortInput.value) ? els.salesSortInput.value : "newest";
-    resetSalesPage();
-    renderSalesDashboard();
-    saveState();
+  els.salesSortButton?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setSalesSortMenuOpen(els.salesSortMenu?.hidden !== false);
+  });
+  els.salesSortMenu?.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-sales-sort-option]");
+    if (!option) return;
+    changeSalesSort(option.dataset.salesSortOption);
+  });
+  document.addEventListener("click", (event) => {
+    if (!els.salesSortControl?.contains(event.target)) {
+      setSalesSortMenuOpen(false);
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setSalesSortMenuOpen(false);
   });
   els.dailyReportSection?.addEventListener("click", (event) => {
     const toggleButton = event.target.closest("[data-mini-list-toggle]");
@@ -10573,13 +11104,43 @@ function bindEvents() {
     updateEditingVariant(index, field.dataset.variantField, field.type === "checkbox" ? field.checked : field.value, field.type);
   });
   els.variantEditorList?.addEventListener("click", (event) => {
+    const editButton = event.target.closest("[data-edit-variant-index]");
     const removeButton = event.target.closest("[data-remove-variant]");
+    if (editButton) {
+      openVariantEditor(Number(editButton.dataset.editVariantIndex || 0));
+      return;
+    }
     if (removeButton) removeEditingVariant(Number(removeButton.dataset.removeVariant || 0));
   });
   els.itemUnlimitedInput.addEventListener("change", syncManualStockInputState);
-  els.cancelEditProductButton.addEventListener("click", () => {
-    resetProductForm();
-    setInventoryTab("list");
+  els.cancelEditProductButton.addEventListener("click", cancelProductEdit);
+  els.productEditorModal?.addEventListener("click", (event) => {
+    if (event.target === els.productEditorModal) {
+      els.productEditorModal.close();
+    }
+  });
+  els.variantPricingTypeInput?.addEventListener("change", () => {
+    if (!state.editingVariantDraft) return;
+    state.editingVariantDraft.pricingType = normalizePricingType(els.variantPricingTypeInput.value);
+    state.editingVariantDraft.pricing_type = state.editingVariantDraft.pricingType;
+    if (state.editingVariantDraft.pricingType === "custom") {
+      state.editingVariantDraft.price = 0;
+      state.editingVariantDraft.allowPriceOverride = true;
+      state.editingVariantDraft.allow_price_override = true;
+    }
+    syncVariantModalFields();
+  });
+  els.variantPriceInput?.addEventListener("input", () => formatMoneyInput(els.variantPriceInput));
+  els.cancelVariantEditButton?.addEventListener("click", cancelVariantEdit);
+  els.variantEditorModal?.addEventListener("click", (event) => {
+    if (event.target === els.variantEditorModal) cancelVariantEdit();
+  });
+  els.variantEditorModal?.addEventListener("close", () => {
+    if (state.editingVariantDraft) cleanupVariantEditor({ revertNew: true });
+  });
+  els.variantEditorForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    applyVariantEdit();
   });
   els.mergeDuplicateProductsButton.addEventListener("click", mergeDuplicateProducts);
 
@@ -10681,13 +11242,24 @@ function bindEvents() {
   });
   els.openInventoryModalButton.addEventListener("click", () => {
     const activePanel = document.querySelector(".tab-panel.active");
-    const focusTarget = activePanel?.dataset.inventoryPanel === "manual" ? els.itemNameInput : 
-                        activePanel?.dataset.inventoryPanel === "daily" ? els.dailyMenuCsvInput : 
-                        activePanel?.dataset.inventoryPanel === "list" ? els.inventorySearchInput : 
+    const focusTarget = activePanel?.dataset.inventoryPanel === "daily" ? els.dailyMenuCsvInput :
+                        activePanel?.dataset.inventoryPanel === "list" ? els.inventorySearchInput :
                         els.sheetUrlInput;
     openModal(els.inventoryModal, focusTarget);
+    if (activePanel?.dataset.inventoryPanel === "daily") maybeRefreshDailyMenuSuggestions();
   });
   els.inventoryModal.addEventListener("click", (event) => {
+    const tabShortcut = event.target.closest("[data-open-inventory-tab]");
+    if (tabShortcut) {
+      const tabName = tabShortcut.dataset.openInventoryTab;
+      setInventoryTab(tabName);
+      if (tabName === "daily") maybeRefreshDailyMenuSuggestions();
+      const focusTarget = tabName === "daily" ? els.dailyMenuCsvInput :
+                          tabName === "list" ? els.inventorySearchInput :
+                          els.sheetUrlInput;
+      if (focusTarget) focusTarget.focus();
+      return;
+    }
     if (event.target === els.inventoryModal) {
       els.inventoryModal.close();
     }
@@ -10695,18 +11267,16 @@ function bindEvents() {
   els.inventoryTabButtons.forEach((button) => {
     button.addEventListener("click", () => {
       setInventoryTab(button.dataset.inventoryTab);
-      const focusTarget = button.dataset.inventoryTab === "manual" ? els.itemNameInput : 
-                          button.dataset.inventoryTab === "daily" ? els.dailyMenuCsvInput : 
-                          button.dataset.inventoryTab === "list" ? els.inventorySearchInput : 
+      if (button.dataset.inventoryTab === "daily") maybeRefreshDailyMenuSuggestions();
+      const focusTarget = button.dataset.inventoryTab === "daily" ? els.dailyMenuCsvInput :
+                          button.dataset.inventoryTab === "list" ? els.inventorySearchInput :
                           els.sheetUrlInput;
       if (focusTarget) focusTarget.focus();
     });
   });
   // Kelola Menu tab listeners
   els.addNewMenuButton.addEventListener("click", () => {
-    resetProductForm();
-    setInventoryTab("manual");
-    els.itemNameInput.focus();
+    startCreateProduct();
   });
 
   els.inventorySearchInput.addEventListener("input", () => {
@@ -10715,8 +11285,11 @@ function bindEvents() {
 
   els.inventoryProductsList.addEventListener("click", (event) => {
     const editBtn = event.target.closest("[data-edit-inventory-product]");
+    const editVariantBtn = event.target.closest("[data-edit-inventory-variant]");
     const deleteBtn = event.target.closest("[data-delete-inventory-product]");
-    if (editBtn) {
+    if (editVariantBtn) {
+      startEditProduct(editVariantBtn.dataset.editInventoryVariant, { variantId: editVariantBtn.dataset.variantId });
+    } else if (editBtn) {
       startEditProduct(editBtn.dataset.editInventoryProduct);
     } else if (deleteBtn) {
       openDeleteProductModal(deleteBtn.dataset.deleteInventoryProduct);

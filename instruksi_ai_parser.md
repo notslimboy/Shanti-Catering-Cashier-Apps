@@ -32,7 +32,8 @@ customer,chatDate,payment,ongkir,item,quantity,note
    - Contains the **WhatsApp contact name/customer name along with their delivery address, block number, or location landmark** mentioned in the chat.
    - **DATABASE MATCHING & DEDUPLICATION RULE**: You **MUST MATCH** the customer identity from the chat to the official database name or aliases listed in the **DATABASE CONTEXT** section.
      - **CRITICAL**: You must strictly adhere to the **## SAFEGUARDS & MATCHING PROTECTION** rules. Never match if the street/block/house numbers do not match exactly.
-     - If a safe match is found, output the **Official Bold Customer Name** (e.g. `SPR F20`, `Kalijudan Taruna 2/6`, `ITS N/2`, `ITS i 6`).
+     - If a safe match is found, output the **Official Bold Customer Name** (e.g. `SPR F20`, `Kalijudan Taruna 2/6`, `ITS N 2`, `ITS I 6`).
+     - **ITS ADDRESS FORMAT RULE**: For customers tagged/addressed as ITS with a block letter and number, always output the canonical format **`ITS <BLOCK> <NUMBER>`**. Normalize WhatsApp variants like `ITS x/22`, `ITS X22`, `X/22`, `x 22`, `blok X-22`, `T - 65`, or `W20` to the matching official customer name such as `ITS X 22`, `ITS T 65`, or `ITS W 20`.
      - If the name in the chat is redundant with the contact name, deduplicate them and output only the official database name.
      - If no match is found, output the clean customer name/address from the chat.
    - **IMPORTANT**: All customer identity details and address information must be merged and placed in this column. Do not split them into the note column (unless it's an alternative dropship address, see Safeguard #3).
@@ -112,6 +113,18 @@ To prevent severe errors such as order mix-ups, wrong address deliveries, or mis
   - *Example 1*: `sutorejo timur 32/H5` has the number `32`. **DO NOT** match it to `Puri Asri P3 no. 32 Nenet`! (Output a new customer: `sutorejo timur 32/H5` instead).
   - *Example 2*: `H - 18` has the number `18`. **DO NOT** match it to `Villa Royal C4/18`! (Output a new customer: `H - 18` instead).
   - *Example 3*: `Tohir 23` has the number `23`. **DO NOT** match it to `Mulyo BPD BLOK B / 23`! (Match to the official database entry `Tohir 23` instead, or output `Tohir 23` as a new customer if it's not in the database).
+
+### 1A. ITS Block Canonicalization Guard
+- If the sender/contact/message clearly refers to an ITS block address with one block letter and one house/unit number, normalize it to **`ITS <BLOCK> <NUMBER>`** before writing the `customer` column.
+- Treat separators and spacing as equivalent for ITS block addresses: `/`, `-`, extra spaces, missing spaces, and the word `Blok` may all point to the same customer. Examples: `ITS x/22`, `ITS X22`, `X/22`, `blok X-22`, and `x 22` all match `ITS X 22`; `ITS W20` and `W20` match `ITS W 20`.
+- Keep the **Default Shipping/Ongkir** from the matched database customer exactly as listed. Do **not** change ongkir just because the written customer name was normalized.
+- Do not invent an ITS block format for ITS-tagged person/department names without a clear block letter + number (for example `MUJI DPTSI RC Lt.4`, `Desi - Teknik Kimia`, or `Santi BAPKM`); if the block is unclear and there is no explicit database mapping below, use `[PERLU REVIEW]`.
+- Known ITS alias remaps must use the official database name even when WhatsApp uses a person/department label: `Alfita`/`Alftita` -> `ITS T 71`, `Catur SPKB` -> `ITS W 20`, `Gatot` -> `ITS T 29`, `J5 Endah` -> `ITS J 5`, `N11 Tanti` -> `ITS N 11`, `Yulfi` -> `ITS T 99`, and `X 26 - Bu iis` -> `ITS X 26`.
+
+### 1B. Special ITS Delivery Destination Rules
+- `ITS D 19`: map `D 19 SDMO Teknik`, `D19`, or `SDMO Teknik` to `ITS D 19`. If the chat says the delivery destination is `SDMO`, write `SDMO` in the `note` column for all rows in that order; if it mentions another delivery point, copy that delivery point into the note.
+- `Emi Bumi Marina`: keep the `customer` as `Emi Bumi Marina`, but inspect the chat for the requested delivery destination. If the destination is `Teknik Fisika`, use ongkir `5000` and note `Teknik Fisika`. If the destination is `Bumi Marina`, use ongkir `15000` and note `Bumi Marina`. If both or neither are clear from the chat, keep the database default ongkir and prefix the note with `[PERLU REVIEW] tujuan kirim Emi`.
+- `WPT IX / JJ - 37` belongs to the `Wisper` delivery tag, not ITS, even if it appears near ITS entries.
 
 ### 2. Duplicated Words/Tokens Protection
 - Do not let repeated words or numbers in a chat message skew the matching score. Evaluate the similarity based on unique tokens, not the frequency of a word appearing multiple times.
@@ -202,7 +215,7 @@ Below is the list of official customer names registered in the cashier app datab
 | **Alif Sutorejo Prima** | "Alif Sutorejo Prima" | 0 |
 | **Anak 7/37** | "Anak 7/37" | 0 |
 | **Anak Bu Edi Baru - Sut teng VI gg 11** | "Anak Bu Edi Baru - Sut teng VI gg 11" | 0 |
-| **Anis BTH** | "Anis BTH", "ANIS BRIN" | 5000 |
+| **Anish BTH** | "Anish BTH", "Anis BTH", "ANIS BRIN", "Anish BRIN" | 5000 |
 | **Araya 1 Blok B5 4A - Bu Wiwi** | "Araya 1 Blok B5 4A - Bu Wiwi", "Araya 1 Blok B5 4A" | 0 |
 | **Babatan Pantai 39** | "Babatan Pantai 39" | 10000 |
 | **BHAS 1/15** | "BHAS 1/15" | 0 |
@@ -215,10 +228,9 @@ Below is the list of official customer names registered in the cashier app datab
 | **Bhaskara V/56** | "Bhaskara V/56" | 0 |
 | **Bhaskara V/6** | "Bhaskara V/6" | 0 |
 | **Bhsksari 60** | "Bhsksari 60" | 0 |
-| **Blok T / 40** | "Blok T / 40" | 0 |
-| **Blok T 86.bu Ratna** | "Blok T 86.bu Ratna" | 0 |
-| **Blok T/11** | "Blok T/11" | 0 |
-| **Blok U / 177** | "Blok U / 177" | 0 |
+| **ITS T 40** | "ITS T 40", "Blok T / 40", "Blok T 40", "T40", "T 40", "T/40", "ITS T40", "ITS T/40", "Blok T40" | 0 |
+| **ITS T 11** | "ITS T 11", "Blok T/11", "T 11", "T11", "T/11", "ITS T/11", "Blok T 11" | 0 |
+| **ITS U 177** | "ITS U 177", "Blok U / 177", "U 177", "U177", "U/177", "ITS U/177", "Blok U 177" | 0 |
 | **Blok U/117** | "Blok U/117" | 0 |
 | **Blok X-16** | "Blok X-16" | 0 |
 | **BPD  B 34-35** | "BPD  B 34-35" | 0 |
@@ -232,57 +244,57 @@ Below is the list of official customer names registered in the cashier app datab
 | **Bu Nawir Mulyosari** | "Bu Nawir Mulyosari" | 0 |
 | **Bu Nawir Mulyosari - MU 6/24** | "Bu Nawir Mulyosari - MU 6/24" | 0 |
 | **Bumi Galaxy Permai M3 / 17** | "Bumi Galaxy Permai M3 / 17", "SMA 5 .. ratna juli" | 15000 |
-| **Catur SPKB** | "Catur SPKB" | 5000 |
-| **D 19 SDMO Teknik** | "D 19 SDMO Teknik" | 5000 |
+| **ITS D 19** | "ITS D 19", "D 19 SDMO Teknik", "D 19", "D19", "ITS D19", "ITS D/19", "SDMO", "SDMO Teknik", "Teknik D 19" | 5000 |
 | **Dahlan Bhas Sari** | "Dahlan Bhas Sari" | 0 |
 | **Desi - Teknik Kimia** | "Desi - Teknik Kimia" | 5000 |
 | **Dharmahusada BF 20** | "Dharmahusada BF 20" | 0 |
 | **Dharmahusada Emas Fendi - Dharmas bf20** | "Dharmahusada Emas Fendi - Dharmas bf20" | 0 |
 | **Dina Tohir 9** | "Dina Tohir 9" | 5000 |
+| **Dyah Ayu SDMO** | "Dyah Ayu SDMO", "Dyah Ayu" | 5000 |
 | **DUPAK PECAH BELAH** | "DUPAK PECAH BELAH" | 35000 |
-| **Emi Bumi Marina - Teknik Fisika** | "Emi Bumi Marina - Teknik Fisika" | 5000 |
+| **Emi Bumi Marina** | "Emi Bumi Marina", "Emi Bumi Marina - Teknik Fisika", "Teknik Fisika Emi", "Emi Teknik Fisika" | 5000 |
 | **Eni SMP 29** | "Eni SMP 29" | 35000 |
 | **Florence J5/23.** | "Florence J5/23." | 5000 |
 | **Florence J9 / 2** | "Florence J9 / 2" | 5000 |
-| **Gatot - Tri T 29** | "Gatot - Tri T 29" | 0 |
+| **ITS T 29** | "ITS T 29", "Gatot - Tri T 29", "Gatot", "Tri T 29", "T 29", "T29", "ITS T29", "ITS T/29", "Blok T29" | 0 |
 | **Gimo Gg 3 - Bhaskara 3/10** | "Gimo Gg 3 - Bhaskara 3/10" | 0 |
 | **Griya Asri G2 - 28** | "Griya Asri G2 - 28" | 5000 |
-| **H - 18** | "H - 18" | 5000 |
-| **herlin T.lingkungan** | "herlin T.lingkungan" | 5000 |
+| **ITS H 18** | "ITS H 18", "H - 18", "H 18", "H18", "H/18", "ITS H/18", "Blok H18" | 5000 |
+| **Herlin T. Lingkungan** | "Herlin T. Lingkungan", "herlin T.lingkungan", "Herlin T Lingkungan", "Herlin Teknik Lingkungan", "Herlin", "T Lingkungan Herlin" | 5000 |
 | **ITS D 20** | "ITS D 20" | 5000 |
-| **ITS D23** | "ITS D23" | 5000 |
+| **ITS D 23** | "ITS D 23", "ITS D23", "D 23", "D23", "D/23", "ITS D/23", "Blok D23" | 5000 |
 | **ITS F 6** | "ITS F 6" | 0 |
-| **ITS i 6** | "ITS i 6", "ITS BLK I6" | 5000 |
-| **ITS J / 3** | "ITS J / 3", "J / 3" | 5000 |
+| **ITS I 6** | "ITS I 6", "ITS i 6", "ITS BLK I6", "I 6", "I6", "I/6", "ITS I/6", "Blok I6" | 5000 |
+| **ITS J 3** | "ITS J 3", "ITS J / 3", "J / 3", "J3", "J/3", "ITS J/3", "Blok J3" | 0 |
 | **ITS J 41** | "ITS J 41" | 0 |
-| **ITS J 5** | "ITS J 5" | 5000 |
+| **ITS J 5** | "ITS J 5", "J 5 Endah", "J 5 Endah - Blok J/5", "Endah J5", "Endah", "J5", "J 5", "J/5", "Blok J/5", "Blok J5" | 5000 |
 | **ITS M 3** | "ITS M 3" | 5000 |
-| **ITS N 11** | "ITS N 11" | 5000 |
-| **ITS N/2** | "ITS N/2", "N - 2" | 0 |
-| **ITS N8** | "ITS N8" | 5000 |
+| **ITS N 11** | "ITS N 11", "N11 Tanti", "Tanti N11", "Tanti", "N11", "N 11", "ITS N11", "ITS N/11", "Blok N11" | 5000 |
+| **ITS N 2** | "ITS N 2", "ITS N/2", "N - 2", "N 2", "N2", "Blok N2" | 0 |
+| **ITS N 8** | "ITS N 8", "ITS N8", "N 8", "N8", "N/8", "ITS N/8", "Blok N8" | 5000 |
 | **ITS P 7** | "ITS P 7" | 5000 |
-| **ITS R - 8** | "ITS R - 8" | 5000 |
+| **ITS R 8** | "ITS R 8", "ITS R - 8", "R 8", "R8", "R/8", "ITS R/8", "Blok R8" | 5000 |
 | **ITS T 52** | "ITS T 52", "T52" | 0 |
 | **ITS T 8 LAMA** | "ITS T 8 LAMA" | 5000 |
-| **ITS T 85** | "ITS T 85" | 0 |
-| **ITS T 86** | "ITS T 86", "T86" | 0 |
+| **ITS T 85** | "ITS T 85", "ITS T85", "ITS T/85", "T85", "T 85", "T/85", "T - 85", "Blok T85" | 0 |
+| **ITS T 86** | "ITS T 86", "Blok T 86.bu Ratna", "Bu Ratna", "Ratna T86", "T86", "T 86", "ITS T86", "ITS T/86", "Blok T86" | 0 |
 | **ITS T 9** | "ITS T 9" | 5000 |
 | **ITS T 93** | "ITS T 93", "T 93 ITS" | 0 |
-| **ITS T/4** | "ITS T/4", "ITS T 4" | 5000 |
-| **ITS T/73** | "ITS T/73", "Blok T/73" | 0 |
+| **ITS T 4** | "ITS T 4", "ITS T/4", "ITS T4", "T - 4", "T 4", "T4", "T/4", "Blok T4" | 5000 |
+| **ITS T 73** | "ITS T 73", "ITS T/73", "ITS T73", "T73", "T 73", "T/73", "Blok T/73", "Blok T 73" | 0 |
 | **ITS U 132** | "ITS U 132" | 5000 |
-| **ITS U 180** | "ITS U 180" | 5000 |
+| **ITS U 180** | "ITS U 180", "ITS U180", "U 180", "U180", "U-180", "U/180", "Blok U 180" | 5000 |
 | **ITS U 196** | "ITS U 196" | 5000 |
+| **ITS U 64** | "ITS U 64", "ITS U/64", "U 64", "U64", "U/64", "Blok U64" | 0 |
 | **ITS U 87** | "ITS U 87" | 5000 |
 | **ITS U/117** | "ITS U/117" | 0 |
 | **ITS V 10** | "ITS V 10", "ITS V10" | 0 |
 | **ITS W/6** | "ITS W/6" | 0 |
-| **ITS W20** | "ITS W20" | 5000 |
+| **ITS W 12** | "ITS W 12", "W - 12", "W 12", "W12", "W/12", "ITS W/12", "Blok W12" | 0 |
+| **ITS W 20** | "ITS W 20", "ITS W20", "W 20", "W20", "W/20", "ITS W/20", "Blok W20" | 5000 |
 | **ITS X 16** | "ITS X 16" | 0 |
 | **ITS X 4** | "ITS X 4" | 5000 |
-| **ITS X/22** | "ITS X/22" | 5000 |
-| **J 5 Endah** | "J 5 Endah" | 5000 |
-| **J 5 Endah - Blok J/5** | "J 5 Endah - Blok J/5" | 5000 |
+| **ITS X 22** | "ITS X 22", "ITS X/22", "ITS X22", "X 22", "X22", "X/22", "Blok X22" | 5000 |
 | **Jl Memet S no 22 komplek AL** | "Jl Memet S no 22 komplek AL" | 5000 |
 | **Jl. Dharmahusada Indah 42** | "Jl. Dharmahusada Indah 42" | 5000 |
 | **Jl. Suto prima indah barat blok PQ 35.** | "Jl. Suto prima indah barat blok PQ 35." | 0 |
@@ -294,9 +306,9 @@ Below is the list of official customer names registered in the cashier app datab
 | **Leli - Wisper 5/6** | "Leli - Wisper 5/6" | 5000 |
 | **Leli Wisper - Wisma Permai V/6** | "Leli Wisper - Wisma Permai V/6" | 5000 |
 | **Lora** | "Lora" | 0 |
-| **M 4 A** | "M 4 A" | 0 |
+| **ITS M 4A** | "ITS M 4A", "M 4 A", "M4A", "M 4A", "M/4A", "ITS M 4 A", "ITS M4A", "ITS M/4A", "Blok M4A" | 0 |
 | **M BPD B/46** | "M BPD B/46" | 0 |
-| **Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2** | "Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2" | 5000 |
+| **Ayu Managemen Bisnis** | "Ayu Managemen Bisnis", "Ayu Manajemen Bisnis", "Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2", "Managemen Bisnis Ayu", "Manajemen Bisnis Ayu", "Gedung FKK ITS Lt 2" | 5000 |
 | **Manyar Tirtoyoso 3/18** | "Manyar Tirtoyoso 3/18" | 20000 |
 | **Mbak JU KARIS - Ibu Artha suteng blok G no.11** | "Mbak JU KARIS - Ibu Artha suteng blok G no.11" | 0 |
 | **MUJI DPTSI RC Lt.4** | "MUJI DPTSI RC Lt.4" | 5000 |
@@ -317,12 +329,12 @@ Below is the list of official customer names registered in the cashier app datab
 | **Mulyosari prima 1/92 mc 19** | "Mulyosari prima 1/92 mc 19" | 5000 |
 | **Mulyosari Ut 8/5** | "Mulyosari Ut 8/5" | 0 |
 | **Mutiara C3 / 367** | "Mutiara C3 / 367" | 5000 |
-| **N11 Tanti** | "N11 Tanti" | 5000 |
 | **NGADI 5** | "NGADI 5" | 5000 |
 | **P1/40 - Puri asri** | "P1/40 - Puri asri" | 5000 |
+| **P1 / 40** | "P1 / 40", "P1/40", "P1 40", "P 1 / 40" | 0 |
 | **Pakuwon City San Diego M2** | "Pakuwon City San Diego M2" | 5000 |
 | **Pantai Mentari Blok SF no. 9** | "Pantai Mentari Blok SF no. 9", "Pantai Mentari Blok SF / 9" | 10000 |
-| **Prof Yulfi Zetra - Asww - Blok T99** | "Prof Yulfi Zetra - Asww - Blok T99" | 5000 |
+| **ITS T 99** | "ITS T 99", "Prof Yulfi Zetra - Asww - Blok T99", "Prof Yulfi Zetra", "Yulfi", "Yulfi Zetra", "Asww", "Blok T99", "T99", "T 99", "ITS T99", "ITS T/99" | 5000 |
 | **Pucangan 3.no.49** | "Pucangan 3.no.49" | 25000 |
 | **Puri Asri P3 no. 32 Nenet** | "Puri Asri P3 no. 32 Nenet" | 5000 |
 | **RENA SMA** | "RENA SMA" | 5000 |
@@ -356,16 +368,15 @@ Below is the list of official customer names registered in the cashier app datab
 | **Sutorejo Tengah 2/6** | "Sutorejo Tengah 2/6" | 0 |
 | **Sutorejo Tengah 8/10** | "Sutorejo Tengah 8/10", "Sutorejo Tengah 8 / 10" | 0 |
 | **sutorejo timur 32/H5** | "sutorejo timur 32/H5" | 0 |
-| **T - 49** | "T - 49" | 5000 |
-| **T - 65** | "T - 65" | 5000 |
-| **T - 72** | "T - 72" | 0 |
+| **ITS T 49** | "ITS T 49", "T - 49", "T 49", "T49", "T/49", "ITS T/49", "Blok T49" | 5000 |
+| **ITS T 65** | "ITS T 65", "T - 65", "T 65", "T65", "T/65", "ITS T/65", "Blok T65" | 5000 |
+| **ITS T 72** | "ITS T 72", "T - 72", "T 72", "T72", "T/72", "ITS T/72", "Blok T72" | 0 |
 | **T 93** | "T 93" | 0 |
-| **T71** | "T71", "Alfita", "Alfita - T71" | 0 |
-| **T73** | "T73" | 0 |
+| **ITS T 71** | "ITS T 71", "T71", "T 71", "T/71", "ITS T/71", "Blok T71", "Alfita", "Alftita", "Alfita - T71" | 0 |
 | **Taman Mulyo Ut 7 - Telly - Taman Mulyosari Utara no 7** | "Taman Mulyo Ut 7 - Telly - Taman Mulyosari Utara no 7" | 0 |
 | **Taman Mulyo Utara 20** | "Taman Mulyo Utara 20" | 0 |
 | **Taman Suto Timur 48 Baru** | "Taman Suto Timur 48 Baru" | 0 |
-| **Tek Lingkungan Khusnul** | "Tek Lingkungan Khusnul" | 5000 |
+| **Teknik Lingkungan Khusnul** | "Teknik Lingkungan Khusnul", "Tek Lingkungan Khusnul", "Khusnul", "T Lingkungan Khusnul" | 5000 |
 | **Temen Pak Didik (IDA)** | "Temen Pak Didik (IDA)", "Temen Pak Didik" | 35000 |
 | **Tenggilis Mejoyo Fayzia** | "Tenggilis Mejoyo Fayzia" | 35000 |
 | **Tohir 1** | "Tohir 1" | 5000 |
@@ -375,13 +386,12 @@ Below is the list of official customer names registered in the cashier app datab
 | **Tohir 23** | "Tohir 23" | 5000 |
 | **Tohir 30** | "Tohir 30", "Pantai Mentari F / 31" | 5000 |
 | **Tuwowo Rejo** | "Tuwowo Rejo" | 15000 |
-| **U / 9 Atria** | "U / 9 Atria" | 5000 |
+| **ITS U 9** | "ITS U 9", "U / 9 Atria", "U 9 Atria", "U/9 Atria", "Atria", "U 9", "U9", "U/9", "ITS U9", "ITS U/9", "Blok U9" | 5000 |
 | **U 117** | "U 117" | 0 |
-| **U 180** | "U 180" | 5000 |
-| **U 4 / 5 A Perpus - Blok U-IV/5A** | "U 4 / 5 A Perpus - Blok U-IV/5A" | 5000 |
-| **U I76** | "U I76" | 0 |
+| **ITS U4 5A** | "ITS U4 5A", "U4 5A", "U 4 5A", "U4/5A", "U 4 / 5 A", "U 4 / 5 A Perpus - Blok U-IV/5A", "Blok U-IV/5A" | 5000 |
+| **ITS U 176** | "ITS U 176", "U I76", "U 176", "U176", "U/176", "ITS U176", "ITS U/176", "Blok U176" | 0 |
 | **U87** | "U87" | 5000 |
-| **V / 3** | "V / 3" | 5000 |
+| **ITS V 3** | "ITS V 3", "V / 3", "V 3", "V3", "V/3", "ITS V/3", "Blok V3" | 5000 |
 | **Vila Westwood A6-1** | "Vila Westwood A6-1", "villa westwood A6-1" | 5000 |
 | **Villa Royal C4/18** | "Villa Royal C4/18" | 5000 |
 | **W / 6** | "W / 6" | 0 |
@@ -392,7 +402,6 @@ Below is the list of official customer names registered in the cashier app datab
 | **Wisper 5 / 18** | "Wisper 5 / 18", "Wisper 5/18" | 5000 |
 | **WisPer Tengah 9/JJ-37** | "WisPer Tengah 9/JJ-37", "WisPer Tengah 9/JJ -37 Sby", "WISPER TGH 9/JJ-37" | 10000 |
 | **Wisper Tengah Blok Kk** | "Wisper Tengah Blok Kk", "WISPER TENGAH KK" | 5000 |
-| **WPT IX / JJ - 37** | "WPT IX / JJ - 37" | 10000 |
-| **X 26** | "X 26" | 5000 |
-| **X 26 - Bu iis** | "X 26 - Bu iis" | 5000 |
+| **WPT IX / JJ - 37** | "WPT IX / JJ - 37", "WISPER WPT IX / JJ - 37" | 10000 |
+| **ITS X 26** | "ITS X 26", "X 26", "X26", "X/26", "ITS X/26", "Blok X26", "X 26 - Bu iis", "Bu Iis X26", "Bu iis", "Iis X26" | 5000 |
 | **Zainal Gg. 3** | "Zainal Gg. 3" | 0 |
