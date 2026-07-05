@@ -6475,23 +6475,23 @@ function renderCourierShippingList(element, summary) {
     return;
   }
 
-  const maxValue = Math.max(...items.map((item) => Number(item.total || 0)), 1);
   const graphColors = ["#0f766e", "#2563eb", "#b45309", "#7c3aed", "#be123c", "#15803d", "#0891b2", "#a16207"];
   element.innerHTML = items
     .map((item, index) => {
-      const value = Number(item.total || 0);
-      const fill = Math.max(8, Math.round((value / maxValue) * 100));
       const color = graphColors[index % graphColors.length];
-      const tagText = item.tags.map((tag) => `${tag.tag} ${currency.format(tag.total)}`).join(" / ");
-      const metaText = `${item.count || 0} transaksi${tagText ? ` - ${tagText}` : ""}`;
+      const tagChips = item.tags
+        .map((tag) => `<span class="courier-shipping-tag-chip">${escapeHtml(tag.tag)} ${currency.format(tag.total)}</span>`)
+        .join("");
       return `
-        <div class="mini-list-row courier-shipping-row" style="--mini-fill: ${fill}%; --mini-color: ${color}">
-          <span class="mini-list-fill" aria-hidden="true"></span>
+        <div class="mini-list-row courier-shipping-row" style="--mini-color: ${color}">
           <span class="mini-list-name">
             <span class="mini-list-icon" aria-hidden="true">${escapeHtml(getCourierBadgeText(item.courier))}</span>
             <span class="courier-shipping-copy">
               <span>${escapeHtml(item.courier)}</span>
-              <small>${escapeHtml(metaText)}</small>
+              <span class="courier-shipping-tags">
+                <span class="courier-shipping-count-chip">${item.count || 0} transaksi</span>
+                ${tagChips}
+              </span>
             </span>
           </span>
           <strong>${currency.format(item.total)}</strong>

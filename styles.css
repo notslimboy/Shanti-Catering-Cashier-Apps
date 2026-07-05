@@ -2285,7 +2285,18 @@ label {
 }
 
 .courier-shipping-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   min-height: 46px;
+  overflow: visible;
+  border-color: color-mix(in srgb, var(--mini-color, var(--teal)) 28%, var(--line));
+  background: var(--surface);
+}
+
+.courier-shipping-row .mini-list-name {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  min-width: 0;
 }
 
 .courier-shipping-copy {
@@ -2303,12 +2314,51 @@ label {
   line-height: 1.15;
 }
 
-.courier-shipping-copy small {
-  color: var(--muted);
+.courier-shipping-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 5px;
+  min-width: 0;
+}
+
+.courier-shipping-count-chip,
+.courier-shipping-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  border: 1px solid color-mix(in srgb, var(--mini-color, var(--teal)) 42%, var(--line));
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--mini-color, var(--teal)) 68%, var(--ink));
+  padding: 2px 7px;
   font-size: 0.72rem;
-  font-weight: 750;
-  line-height: 1.25;
+  font-weight: 850;
+  line-height: 1.1;
   overflow-wrap: anywhere;
+}
+
+.courier-shipping-count-chip {
+  color: var(--muted);
+  border-color: var(--line);
+}
+
+@media (max-width: 520px) {
+  .courier-shipping-row {
+    display: block;
+    min-height: 94px;
+  }
+
+  .courier-shipping-row > strong {
+    display: block;
+    margin-top: 6px;
+    text-align: right;
+  }
+
+  .daily-courier-card .mini-list {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
 }
 
 .sales-list {
