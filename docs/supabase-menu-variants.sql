@@ -238,3 +238,5 @@ update public.product_variants
 set is_default = 0
 where client_id not like '%::normal'
   and product_client_id in (select client_id from public.products);
+
+notify pgrst, 'reload schema';

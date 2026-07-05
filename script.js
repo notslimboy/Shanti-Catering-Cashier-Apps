@@ -5510,6 +5510,12 @@ function getSupabaseMissingSchemaColumn(error, tableName) {
   return "";
 }
 
+function isSupabaseMissingTableError(error, tableName) {
+  const text = `${error?.code || ""} ${error?.message || ""} ${error?.details || ""}`.toLowerCase();
+  const table = String(tableName || "").toLowerCase();
+  return Boolean(table) && (error?.code === "PGRST205" || text.includes("schema cache")) && text.includes(table);
+}
+
 const SUPABASE_SALE_ITEM_EXTENDED_COLUMNS = new Set([
   "product_client_id",
   "variant_client_id",
@@ -6151,8 +6157,9 @@ async function saveProductsToDatabase(options = {}) {
     if (state.settings.dbMode === "supabase") {
       const supabase = getSupabaseClient();
       const { error: variantSchemaError } = await supabase.from("product_variants").select("client_id").limit(1);
-      if (variantSchemaError) {
-        throw new Error(`Supabase belum punya tabel product_variants. Jalankan docs/supabase-menu-variants.sql dulu. ${variantSchemaError.message || ""}`.trim());
+      const canPersistVariants = !variantSchemaError;
+      if (variantSchemaError && !isSupabaseMissingTableError(variantSchemaError, "product_variants")) {
+        throw variantSchemaError;
       }
       const dbProducts = state.products.map(p => ({
         client_id: p.id,
@@ -6169,39 +6176,46 @@ async function saveProductsToDatabase(options = {}) {
 
 	      const { error } = await supabase.from("products").upsert(dbProducts, { onConflict: "client_id" });
 	      if (error) throw error;
-	      const productIds = state.products.map((product) => product.id);
-	      if (productIds.length) {
-	        const { error: deleteVariantError } = await supabase.from("product_variants").delete().in("product_client_id", productIds);
-	        if (deleteVariantError) throw deleteVariantError;
-	      }
-	      const dbVariants = state.products.flatMap((product) =>
-	        getProductVariants(product).map((variant, index) => ({
-	          client_id: variant.id,
-	          product_client_id: product.id,
-	          name: variant.name || "Normal",
-	          pricing_type: normalizePricingType(variant.pricingType),
-	          price: Number(variant.price || 0),
-	          unit_name: variant.unitName || "porsi",
-	          package_quantity: Number(variant.packageQuantity || 1),
-	          package_unit: variant.packageUnit || variant.unitName || "porsi",
-	          receipt_label: variant.receiptLabel || "",
-	          is_default: variant.isDefault ? 1 : 0,
-	          allow_quantity_override: variant.allowQuantityOverride ? 1 : 0,
-	          allow_price_override: variant.allowPriceOverride ? 1 : 0,
-	          stock: Number(variant.stock || 0),
-	          stock_unlimited: variant.stockUnlimited ? 1 : 0,
-	          aliases: JSON.stringify(variant.aliases || []),
-	          sort_order: index,
-	          active: variant.active === false ? 0 : 1,
-	          updated_at: new Date().toISOString()
-	        }))
-	      );
-	      if (dbVariants.length) {
-	        const { error: variantError } = await supabase.from("product_variants").upsert(dbVariants, { onConflict: "client_id" });
-	        if (variantError) throw variantError;
+	      if (canPersistVariants) {
+	        const productIds = state.products.map((product) => product.id);
+	        if (productIds.length) {
+	          const { error: deleteVariantError } = await supabase.from("product_variants").delete().in("product_client_id", productIds);
+	          if (deleteVariantError) throw deleteVariantError;
+	        }
+	        const dbVariants = state.products.flatMap((product) =>
+	          getProductVariants(product).map((variant, index) => ({
+	            client_id: variant.id,
+	            product_client_id: product.id,
+	            name: variant.name || "Normal",
+	            pricing_type: normalizePricingType(variant.pricingType),
+	            price: Number(variant.price || 0),
+	            unit_name: variant.unitName || "porsi",
+	            package_quantity: Number(variant.packageQuantity || 1),
+	            package_unit: variant.packageUnit || variant.unitName || "porsi",
+	            receipt_label: variant.receiptLabel || "",
+	            is_default: variant.isDefault ? 1 : 0,
+	            allow_quantity_override: variant.allowQuantityOverride ? 1 : 0,
+	            allow_price_override: variant.allowPriceOverride ? 1 : 0,
+	            stock: Number(variant.stock || 0),
+	            stock_unlimited: variant.stockUnlimited ? 1 : 0,
+	            aliases: JSON.stringify(variant.aliases || []),
+	            sort_order: index,
+	            active: variant.active === false ? 0 : 1,
+	            updated_at: new Date().toISOString()
+	          }))
+	        );
+	        if (dbVariants.length) {
+	          const { error: variantError } = await supabase.from("product_variants").upsert(dbVariants, { onConflict: "client_id" });
+	          if (variantError) throw variantError;
+	        }
 	      }
 
-	      if (options.toast) setSyncStatus(`${state.products.length} barang tersimpan ke Supabase Cloud.`, { toast: true });
+	      if (options.toast) {
+	        const message = canPersistVariants
+	          ? `${state.products.length} barang tersimpan ke Supabase Cloud.`
+	          : `${state.products.length} barang tersimpan. Varian belum tersimpan karena Supabase REST belum bisa akses product_variants.`;
+	        setSyncStatus(message, { toast: true });
+	      }
     } else {
       await requestJson("/api/products", {
         method: "PUT",
@@ -6224,7 +6238,8 @@ async function clearProductsInDatabase() {
   try {
 	    if (state.settings.dbMode === "supabase") {
 	      const supabase = getSupabaseClient();
-	      await supabase.from("product_variants").delete().neq("id", 0);
+	      const { error: variantError } = await supabase.from("product_variants").delete().neq("id", 0);
+	      if (variantError && !isSupabaseMissingTableError(variantError, "product_variants")) throw variantError;
 	      const { error } = await supabase.from("products").delete().neq("id", 0);
 	      if (error) throw error;
     } else {
@@ -6241,7 +6256,8 @@ async function deleteProductsFromSupabase(clientIds) {
     const supabase = getSupabaseClient();
 	    const ids = Array.isArray(clientIds) ? clientIds : [clientIds];
 	    if (!ids.length) return;
-	    await supabase.from("product_variants").delete().in("product_client_id", ids);
+	    const { error: variantError } = await supabase.from("product_variants").delete().in("product_client_id", ids);
+	    if (variantError && !isSupabaseMissingTableError(variantError, "product_variants")) throw variantError;
 	    const { error } = await supabase.from("products").delete().in("client_id", ids);
     if (error) throw error;
   } catch (error) {
@@ -6257,9 +6273,8 @@ async function loadProductsFromDatabase(options = {}) {
 	      if (error) throw error;
 	      const { data: variantData, error: variantError } = await supabase.from("product_variants").select("*");
 	      if (variantError) {
-	        const isMissingVariantsTable = variantError.code === "PGRST205" || /product_variants/i.test(String(variantError.message || ""));
-	        if (!isMissingVariantsTable) throw variantError;
-	        setSyncStatus("Supabase belum punya tabel product_variants. Produk lama tetap dibaca dengan variasi Normal; jalankan docs/supabase-menu-variants.sql agar variasi tersimpan.", { toast: false });
+	        if (!isSupabaseMissingTableError(variantError, "product_variants")) throw variantError;
+	        setSyncStatus("Supabase REST belum bisa akses product_variants. Produk tetap dibaca dengan varian otomatis; jalankan docs/supabase-menu-variants.sql lalu reload schema agar varian tersimpan.", { toast: false });
 	      }
 	      const variantsByProduct = {};
 	      (Array.isArray(variantData) ? variantData : []).forEach((variant) => {
