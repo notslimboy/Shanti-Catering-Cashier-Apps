@@ -8,6 +8,18 @@ const CUSTOMER_TAG_ALIAS_PREFIX = "tagalamat:";
 const CUSTOMER_TAG_FILTER_ALL = "all";
 const CUSTOMER_TAG_FILTER_OTHER = "__other";
 const CUSTOMER_TAG_FILTER_OTHER_LABEL = "Lainnya";
+const CUSTOMER_HYGIENE_FILTER_ALL = "all";
+const CUSTOMER_HYGIENE_FILTER_REVIEW = "needsReview";
+const CUSTOMER_HYGIENE_ISSUES = [
+  { key: "missingExplicitTag", label: "Tag belum disimpan" },
+  { key: "missingResolvedTag", label: "Tanpa tag" },
+  { key: "zeroShipping", label: "Ongkir 0" },
+  { key: "tagMismatch", label: "Tag beda alamat" },
+  { key: "shippingOutlier", label: "Ongkir beda tag" },
+  { key: "duplicateAlias", label: "Alias dobel" },
+  { key: "similarName", label: "Nama mirip" },
+];
+const CUSTOMER_HYGIENE_ISSUE_LABELS = new Map(CUSTOMER_HYGIENE_ISSUES.map((issue) => [issue.key, issue.label]));
 const CUSTOMER_TAG_FILTER_ORDER = [
   "ITS",
   "Sutorejo",
@@ -147,6 +159,7 @@ const state = {
   },
   customerSearch: "",
   customerTagFilter: "all",
+  customerHygieneFilter: "all",
   selectedCategory: "all",
   dailyMenu: {
     date: getLocalDateKey(),
@@ -344,6 +357,7 @@ const els = {
   customerDataModal: document.querySelector("#customerDataModal"),
   customerSearchInput: document.querySelector("#customerSearchInput"),
   customerTagFilter: document.querySelector("#customerTagFilter"),
+  customerHygienePanel: document.querySelector("#customerHygienePanel"),
   customerDepositHint: document.querySelector("#customerDepositHint"),
   openPiutangButton: document.querySelector("#openPiutangButton"),
   piutangModal: document.querySelector("#piutangModal"),
@@ -2144,13 +2158,18 @@ function normalizeCustomerRecord(customer) {
   const aliasData = splitCustomerTagAliases(customer?.aliases ?? customer?.alias ?? []);
   const aliases = aliasData.aliases;
   const savedTag = aliasData.tag;
-  const explicitTag = customer?.tag ?? customer?.customerTag ?? customer?.address_tag ?? customer?.addressTag ?? "";
+  const rawExplicitTag = customer?.tag ?? customer?.customerTag ?? customer?.address_tag ?? customer?.addressTag ?? "";
+  const explicitTag = normalizeCustomerTag(rawExplicitTag || savedTag);
+  const inferredTag = inferCustomerAddressTag(name, aliases);
   return {
     id: String(customer?.id ?? "").trim(),
     name,
     shipping: parseIntegerInput(customer?.default_shipping ?? customer?.defaultShipping ?? customer?.shipping ?? 0),
     depositBalance: parseIntegerInput(customer?.deposit_balance ?? customer?.depositBalance ?? 0),
-    tag: resolveCustomerTag(name, aliases, explicitTag || savedTag),
+    tag: explicitTag || inferredTag,
+    explicitTag,
+    inferredTag,
+    tagSource: explicitTag ? "saved" : inferredTag ? "inferred" : "empty",
     lastOrderAt,
     timestamp: lastOrderAt ? new Date(lastOrderAt).getTime() || 0 : 0,
     aliases,
@@ -2206,10 +2225,7 @@ function getCustomerTagFilterOptions(customers = getNormalizedCustomersForFilter
   ];
 }
 
-function getSimilarCustomerGroups() {
-  const customers = state.customers
-    .map(normalizeCustomerRecord)
-    .filter((customer) => customer.id && customer.name);
+function getSimilarCustomerGroups(customers = getNormalizedCustomersForFilter()) {
   const byId = new Map(customers.map((customer) => [customer.id, customer]));
   const parent = new Map(customers.map((customer) => [customer.id, customer.id]));
 
@@ -2265,17 +2281,148 @@ function getSimilarCustomerGroups() {
     .sort((left, right) => right.length - left.length || left[0].name.localeCompare(right[0].name, "id-ID"));
 }
 
-function getEditableCustomerRows() {
+function getCustomerHygieneAnalysis(customers = getNormalizedCustomersForFilter()) {
+  const issueKeysByCustomer = new Map(customers.map((customer) => [customer.id, new Set()]));
+  const issueDetailsByCustomer = new Map(customers.map((customer) => [customer.id, []]));
+  const issueCounts = new Map(CUSTOMER_HYGIENE_ISSUES.map((issue) => [issue.key, 0]));
+  const aliasesByKey = new Map();
+  const shippingByTag = new Map();
+
+  const addIssue = (customer, key, detail = "") => {
+    if (!customer?.id || !issueKeysByCustomer.has(customer.id)) return;
+    const issueKeys = issueKeysByCustomer.get(customer.id);
+    if (issueKeys.has(key)) return;
+    issueKeys.add(key);
+    issueDetailsByCustomer.get(customer.id).push({
+      key,
+      label: CUSTOMER_HYGIENE_ISSUE_LABELS.get(key) || key,
+      detail: String(detail || "").trim(),
+    });
+  };
+
+  customers.forEach((customer) => {
+    if (!customer.explicitTag) {
+      addIssue(customer, "missingExplicitTag", customer.inferredTag ? `Infer ${customer.inferredTag}` : "");
+    }
+    if (!customer.tag) {
+      addIssue(customer, "missingResolvedTag");
+    }
+    if (customer.shipping === 0) {
+      addIssue(customer, "zeroShipping");
+    }
+    if (customer.explicitTag && customer.inferredTag && normalizeKey(customer.explicitTag) !== normalizeKey(customer.inferredTag)) {
+      addIssue(customer, "tagMismatch", `Alamat kebaca ${customer.inferredTag}`);
+    }
+
+    customer.aliases.forEach((alias) => {
+      const aliasKey = compactCustomerKey(alias);
+      if (aliasKey.length < 4) return;
+      const entries = aliasesByKey.get(aliasKey) || [];
+      entries.push({ customer, alias });
+      aliasesByKey.set(aliasKey, entries);
+    });
+
+    if (customer.tag) {
+      const group = shippingByTag.get(customer.tag) || [];
+      group.push(customer);
+      shippingByTag.set(customer.tag, group);
+    }
+  });
+
+  aliasesByKey.forEach((entries) => {
+    const uniqueCustomerIds = new Set(entries.map((entry) => entry.customer.id));
+    if (uniqueCustomerIds.size < 2) return;
+
+    entries.forEach((entry) => {
+      const otherNames = entries
+        .filter((other) => other.customer.id !== entry.customer.id)
+        .map((other) => other.customer.name)
+        .filter(Boolean);
+      addIssue(entry.customer, "duplicateAlias", otherNames.length ? `Juga di ${otherNames.slice(0, 2).join(", ")}` : "");
+    });
+  });
+
+  shippingByTag.forEach((group, tag) => {
+    if (group.length < 3) return;
+    const counts = new Map();
+    group.forEach((customer) => {
+      counts.set(customer.shipping, (counts.get(customer.shipping) || 0) + 1);
+    });
+    if (counts.size < 2) return;
+
+    const [modeShipping] = [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0] - right[0])[0];
+    group.forEach((customer) => {
+      if (customer.shipping !== modeShipping) {
+        addIssue(customer, "shippingOutlier", `${tag} biasanya ${currency.format(modeShipping)}`);
+      }
+    });
+  });
+
+  getSimilarCustomerGroups(customers).forEach((group) => {
+    const names = group.map((customer) => customer.name).filter(Boolean);
+    group.forEach((customer) => {
+      const otherNames = names.filter((name) => name !== customer.name);
+      addIssue(customer, "similarName", otherNames.length ? `Mirip ${otherNames.slice(0, 2).join(", ")}` : "");
+    });
+  });
+
+  let reviewCustomerCount = 0;
+  issueKeysByCustomer.forEach((issueKeys) => {
+    if (issueKeys.size) reviewCustomerCount += 1;
+    issueKeys.forEach((key) => {
+      issueCounts.set(key, (issueCounts.get(key) || 0) + 1);
+    });
+  });
+
+  return {
+    issueKeysByCustomer,
+    issueDetailsByCustomer,
+    issueCounts,
+    reviewCustomerCount,
+  };
+}
+
+function isCustomerMatchingHygieneFilter(customer, analysis, filterKey = state.customerHygieneFilter) {
+  if (!filterKey || filterKey === CUSTOMER_HYGIENE_FILTER_ALL) return true;
+  const issueKeys = analysis?.issueKeysByCustomer?.get(customer.id) || new Set();
+  if (filterKey === CUSTOMER_HYGIENE_FILTER_REVIEW) return issueKeys.size > 0;
+  return issueKeys.has(filterKey);
+}
+
+function getCustomerHygieneIssueDetails(customer, analysis) {
+  return analysis?.issueDetailsByCustomer?.get(customer.id) || [];
+}
+
+function renderCustomerHygieneFlags(customer, analysis) {
+  const issues = getCustomerHygieneIssueDetails(customer, analysis);
+  if (!issues.length) return "";
+
+  return `
+    <div class="customer-hygiene-flags" aria-label="Catatan cek data">
+      ${issues
+        .map((issue) => `
+          <span class="customer-hygiene-flag" data-hygiene-issue="${escapeHtml(issue.key)}">
+            <strong>${escapeHtml(issue.label)}</strong>
+            ${issue.detail ? `<small>${escapeHtml(issue.detail)}</small>` : ""}
+          </span>
+        `)
+        .join("")}
+    </div>
+  `;
+}
+
+function getEditableCustomerRows(customers = getNormalizedCustomersForFilter(), hygieneAnalysis = getCustomerHygieneAnalysis(customers)) {
   const searchKey = normalizeKey(state.customerSearch);
-  return getNormalizedCustomersForFilter()
+  return customers
     .filter((customer) => isCustomerMatchingTagFilter(customer))
+    .filter((customer) => isCustomerMatchingHygieneFilter(customer, hygieneAnalysis))
     .filter((customer) => !searchKey || normalizeKey(customer.name).includes(searchKey) || normalizeKey(customer.tag).includes(searchKey) || customer.aliases.some((alias) => normalizeKey(alias).includes(searchKey)));
 }
 
-function renderCustomerSimilarSection() {
+function renderCustomerSimilarSection(customers = getNormalizedCustomersForFilter()) {
   if (!els.customerSimilarSection || !els.customerSimilarList) return;
 
-  const groups = getSimilarCustomerGroups();
+  const groups = getSimilarCustomerGroups(customers);
   if (!groups.length) {
     els.customerSimilarSection.hidden = true;
     els.customerSimilarList.innerHTML = "";
@@ -2305,9 +2452,8 @@ function renderCustomerSimilarSection() {
     .join("");
 }
 
-function renderCustomerTagFilter() {
+function renderCustomerTagFilter(customers = getNormalizedCustomersForFilter()) {
   if (!els.customerTagFilter) return;
-  const customers = getNormalizedCustomersForFilter();
   const options = getCustomerTagFilterOptions(customers);
   const optionKeys = new Set(options.map((option) => option.key));
   if (!optionKeys.has(state.customerTagFilter)) state.customerTagFilter = CUSTOMER_TAG_FILTER_ALL;
@@ -2337,14 +2483,66 @@ function renderCustomerTagFilter() {
   `;
 }
 
+function renderCustomerHygienePanel(customers = getNormalizedCustomersForFilter(), analysis = getCustomerHygieneAnalysis(customers)) {
+  if (!els.customerHygienePanel) return;
+
+  if (!customers.length) {
+    els.customerHygienePanel.hidden = true;
+    els.customerHygienePanel.innerHTML = "";
+    state.customerHygieneFilter = CUSTOMER_HYGIENE_FILTER_ALL;
+    return;
+  }
+
+  const options = [
+    { key: CUSTOMER_HYGIENE_FILTER_ALL, label: "Semua", count: customers.length },
+    { key: CUSTOMER_HYGIENE_FILTER_REVIEW, label: "Perlu cek", count: analysis.reviewCustomerCount },
+    ...CUSTOMER_HYGIENE_ISSUES.map((issue) => ({
+      key: issue.key,
+      label: issue.label,
+      count: analysis.issueCounts.get(issue.key) || 0,
+    })),
+  ];
+  const optionKeys = new Set(options.map((option) => option.key));
+  if (!optionKeys.has(state.customerHygieneFilter)) state.customerHygieneFilter = CUSTOMER_HYGIENE_FILTER_ALL;
+
+  els.customerHygienePanel.hidden = false;
+  els.customerHygienePanel.innerHTML = `
+    <div class="customer-hygiene-heading">
+      <div>
+        <p class="eyebrow">Cek Data</p>
+        <h3>Tag & ongkir</h3>
+      </div>
+      <span class="customer-hygiene-score${analysis.reviewCustomerCount ? " attention" : ""}">
+        ${analysis.reviewCustomerCount ? `${escapeHtml(analysis.reviewCustomerCount)} perlu cek` : "Aman"}
+      </span>
+    </div>
+    <div class="customer-hygiene-chips" role="group" aria-label="Filter cek data customer">
+      ${options
+        .map((option) => {
+          const active = option.key === state.customerHygieneFilter;
+          return `
+            <button class="customer-hygiene-chip${active ? " active" : ""}${option.count ? "" : " empty"}" type="button" data-customer-hygiene-filter="${escapeHtml(option.key)}" aria-pressed="${active ? "true" : "false"}">
+              <span>${escapeHtml(option.label)}</span>
+              <strong>${escapeHtml(option.count)}</strong>
+            </button>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
 function renderCustomerDataList(statusMessage = "") {
   if (!els.customerDataList) return;
 
-  renderCustomerSimilarSection();
-  renderCustomerTagFilter();
-  const rows = getEditableCustomerRows();
+  const customers = getNormalizedCustomersForFilter();
+  const hygieneAnalysis = getCustomerHygieneAnalysis(customers);
+  renderCustomerSimilarSection(customers);
+  renderCustomerTagFilter(customers);
+  renderCustomerHygienePanel(customers, hygieneAnalysis);
+  const rows = getEditableCustomerRows(customers, hygieneAnalysis);
 
-  const totalCount = state.customers.map(normalizeCustomerRecord).filter((customer) => customer.id && customer.name).length;
+  const totalCount = customers.length;
   const countChip = document.getElementById("customerCountChip");
   if (countChip) {
     countChip.textContent = `${totalCount} Customer`;
@@ -2357,7 +2555,10 @@ function renderCustomerDataList(statusMessage = "") {
 
   if (!rows.length) {
     els.customerDataList.innerHTML = `<div class="empty-state">Customer tidak ditemukan.</div>`;
-    setCustomerDataStatus(statusMessage || "Tidak ada customer yang cocok dengan pencarian.");
+    const emptyMessage = state.customerHygieneFilter !== CUSTOMER_HYGIENE_FILTER_ALL
+      ? "Tidak ada customer di filter cek data ini."
+      : "Tidak ada customer yang cocok dengan pencarian.";
+    setCustomerDataStatus(statusMessage || emptyMessage);
     return;
   }
 
@@ -2392,6 +2593,7 @@ function renderCustomerDataList(statusMessage = "") {
         <button class="ghost-button danger customer-remove-button" type="button" data-delete-customer="${escapeHtml(customer.id)}" data-customer-name="${escapeHtml(customer.name)}" aria-label="Hapus ${escapeHtml(customer.name)}" title="Hapus customer">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
         </button>
+        ${renderCustomerHygieneFlags(customer, hygieneAnalysis)}
         ${customer.aliases.length ? `<div class="customer-alias-copy"><span>${escapeHtml(customer.aliases.join(", "))}</span></div>` : ""}
       </form>
     `)
@@ -2406,6 +2608,7 @@ function renderCustomerDataList(statusMessage = "") {
 async function openCustomerDataManager() {
   state.customerSearch = "";
   state.customerTagFilter = CUSTOMER_TAG_FILTER_ALL;
+  state.customerHygieneFilter = CUSTOMER_HYGIENE_FILTER_ALL;
   if (els.customerSearchInput) els.customerSearchInput.value = "";
   renderCustomerDataList("Memuat data customer...");
   openModal(els.customerDataModal, els.customerSearchInput);
@@ -5307,6 +5510,17 @@ function getSupabaseMissingSchemaColumn(error, tableName) {
   return "";
 }
 
+const SUPABASE_SALE_ITEM_EXTENDED_COLUMNS = new Set([
+  "product_client_id",
+  "variant_client_id",
+  "menu_name",
+  "variant_name",
+  "unit_name",
+  "unit_quantity",
+  "pricing_type",
+  "receipt_label",
+]);
+
 function buildSupabaseSaleItem(item, saleId, options = {}) {
   const includeExtendedColumns = options.includeExtendedColumns !== false;
   const dbItem = {
@@ -5333,6 +5547,37 @@ function buildSupabaseSaleItem(item, saleId, options = {}) {
   }
 
   return dbItem;
+}
+
+function stripSupabaseSaleItemExtendedColumns(item) {
+  const basicItem = { ...item };
+  SUPABASE_SALE_ITEM_EXTENDED_COLUMNS.forEach((column) => {
+    delete basicItem[column];
+  });
+  return basicItem;
+}
+
+async function insertSupabaseSaleItems(supabase, dbItems, options = {}) {
+  const items = Array.isArray(dbItems) ? dbItems : [];
+  if (!items.length) return;
+
+  const { error } = await supabase.from("sale_items").insert(items);
+  if (!error) return;
+
+  const missingColumn = getSupabaseMissingSchemaColumn(error, "sale_items");
+  if (!missingColumn || !SUPABASE_SALE_ITEM_EXTENDED_COLUMNS.has(missingColumn)) {
+    throw error;
+  }
+
+  if (options.warn !== false) {
+    console.warn(
+      `Supabase sale_items belum punya kolom '${missingColumn}', menyimpan item dengan kolom dasar saja.`,
+      error
+    );
+  }
+  const fallbackItems = items.map(stripSupabaseSaleItemExtendedColumns);
+  const { error: fallbackError } = await supabase.from("sale_items").insert(fallbackItems);
+  if (fallbackError) throw fallbackError;
 }
 
 async function cleanupSupabaseInsertedSale(supabase, saleId) {
@@ -5421,24 +5666,11 @@ async function saveSaleToDatabase(payload) {
     
     if (Array.isArray(payload.items) && payload.items.length > 0) {
       const dbItems = payload.items.map(item => buildSupabaseSaleItem(item, saleData.id));
-      const { error: itemsError } = await supabase.from("sale_items").insert(dbItems);
-      if (itemsError) {
-        const missingColumn = getSupabaseMissingSchemaColumn(itemsError, "sale_items");
-        if (missingColumn) {
-          console.warn(
-            `Supabase sale_items belum punya kolom '${missingColumn}', menyimpan item dengan kolom dasar saja.`,
-            itemsError
-          );
-          const fallbackItems = payload.items.map(item => buildSupabaseSaleItem(item, saleData.id, { includeExtendedColumns: false }));
-          const { error: fallbackItemsError } = await supabase.from("sale_items").insert(fallbackItems);
-          if (fallbackItemsError) {
-            await cleanupSupabaseInsertedSale(supabase, saleData.id);
-            throw fallbackItemsError;
-          }
-        } else {
-          await cleanupSupabaseInsertedSale(supabase, saleData.id);
-          throw itemsError;
-        }
+      try {
+        await insertSupabaseSaleItems(supabase, dbItems);
+      } catch (itemsError) {
+        await cleanupSupabaseInsertedSale(supabase, saleData.id);
+        throw itemsError;
       }
     }
 
@@ -5534,25 +5766,16 @@ async function updateSaleInDatabase(saleId, payload) {
     if (deleteError) throw deleteError;
     
     if (Array.isArray(payload.items) && payload.items.length > 0) {
-      const dbItems = payload.items.map(item => ({
-        sale_id: saleId,
-        sku: item.sku || "",
-        name: item.name,
-        price: Number(item.price || 0),
-        quantity: Number(item.quantity || 0),
-        line_total: Number(item.lineTotal || item.line_total || (Number(item.price || 0) * Number(item.quantity || 0))),
-        note: item.note || "",
-        product_client_id: item.productClientId || item.product_client_id || "",
-        variant_client_id: item.variantId || item.variantClientId || item.variant_client_id || "",
-        menu_name: item.menuName || item.menu_name || item.name || "",
-        variant_name: item.variantName || item.variant_name || "",
-        unit_name: item.unitName || item.unit_name || "",
-        unit_quantity: Number(item.unitQuantity || item.unit_quantity || 0),
-        pricing_type: item.pricingType || item.pricing_type || "",
-        receipt_label: item.receiptLabel || item.receipt_label || ""
-      }));
-      const { error: itemsError } = await supabase.from("sale_items").insert(dbItems);
-      if (itemsError) throw itemsError;
+      const dbItems = payload.items.map(item => buildSupabaseSaleItem(
+        {
+          ...item,
+          price: Number(item.price || 0),
+          quantity: Number(item.quantity || 0),
+          lineTotal: Number(item.lineTotal || item.line_total || (Number(item.price || 0) * Number(item.quantity || 0))),
+        },
+        saleId
+      ));
+      await insertSupabaseSaleItems(supabase, dbItems);
     }
 
     // Upsert customer profile
@@ -9730,6 +9953,12 @@ function bindEvents() {
     state.customerTagFilter = button.dataset.customerTagFilter || CUSTOMER_TAG_FILTER_ALL;
     renderCustomerDataList();
   });
+  els.customerHygienePanel?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-customer-hygiene-filter]");
+    if (!button) return;
+    state.customerHygieneFilter = button.dataset.customerHygieneFilter || CUSTOMER_HYGIENE_FILTER_ALL;
+    renderCustomerDataList();
+  });
   els.customerSimilarList.addEventListener("submit", (event) => {
     if (!event.target.matches(".customer-merge-card")) return;
     event.preventDefault();
@@ -11005,8 +11234,11 @@ async function migrateDataToSupabase() {
         const chunkSize = 200;
         for (let i = 0; i < allDbItems.length; i += chunkSize) {
           const chunk = allDbItems.slice(i, i + chunkSize);
-          const { error: itemsError } = await supabase.from("sale_items").insert(chunk);
-          if (itemsError) throw new Error(`Gagal migrasi detail barang: ${itemsError.message}`);
+          try {
+            await insertSupabaseSaleItems(supabase, chunk);
+          } catch (itemsError) {
+            throw new Error(`Gagal migrasi detail barang: ${itemsError.message}`);
+          }
         }
       }
       

@@ -1,9 +1,9 @@
-const CACHE_NAME = "kasir-bento-v218";
+const CACHE_NAME = "kasir-bento-v220";
 const APP_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=218",
-  "./script.js?v=218",
+  "./styles.css?v=220",
+  "./script.js?v=220",
   "./drivers/XP%20PRINTER%20DRIVER.rar",
   "./sample-items.csv",
   "./sample-bulk-orders.csv",

@@ -220,7 +220,7 @@ Below is the list of official customer names registered in the cashier app datab
 | **Blok T/11** | "Blok T/11" | 0 |
 | **Blok U / 177** | "Blok U / 177" | 0 |
 | **Blok U/117** | "Blok U/117" | 0 |
-| **Blok X-16** | "Blok X-16" | 5000 |
+| **Blok X-16** | "Blok X-16" | 0 |
 | **BPD  B 34-35** | "BPD  B 34-35" | 0 |
 | **BPD B / 33** | "BPD B / 33" | 0 |
 | **BPD B 11** | "BPD B 11" | 0 |
