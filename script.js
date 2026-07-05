@@ -20,6 +20,27 @@ const CUSTOMER_HYGIENE_ISSUES = [
   { key: "similarName", label: "Nama mirip" },
 ];
 const CUSTOMER_HYGIENE_ISSUE_LABELS = new Map(CUSTOMER_HYGIENE_ISSUES.map((issue) => [issue.key, issue.label]));
+const CUSTOMER_SIMILAR_GENERIC_TOKENS = new Set([
+  "its",
+  "blok",
+  "perum",
+  "t",
+  "teknik",
+  "tek",
+  "lingkungan",
+  "lingku",
+  "kimia",
+  "fisika",
+  "mesin",
+  "manajemen",
+  "managemen",
+  "bisnis",
+  "bapkm",
+  "sdmo",
+  "spkb",
+  "dptsi",
+  "perpus",
+]);
 const CUSTOMER_TAG_FILTER_ORDER = [
   "ITS",
   "Sutorejo",
@@ -2010,6 +2031,13 @@ function getCustomerTokens(value) {
     .filter(Boolean);
 }
 
+function isWeakCustomerPortmanteauPrefix(tokens) {
+  if (tokens.length < 2) return true;
+  const [first, second] = tokens;
+  if (first.length < 2 || second.length < 2) return true;
+  return CUSTOMER_SIMILAR_GENERIC_TOKENS.has(first) && CUSTOMER_SIMILAR_GENERIC_TOKENS.has(second);
+}
+
 function getCustomerMatchSignatures(value) {
   const signatures = new Set();
   const compact = compactCustomerKey(value);
@@ -2026,7 +2054,7 @@ function getCustomerMatchSignatures(value) {
   }
 
   if (textTokens.length >= 2) {
-    const portmanteau = `${textTokens[0].slice(0, 3)}${textTokens[1].slice(0, 3)}${numberSuffix}`;
+    const portmanteau = isWeakCustomerPortmanteauPrefix(textTokens) ? "" : `${textTokens[0].slice(0, 3)}${textTokens[1].slice(0, 3)}${numberSuffix}`;
     if (portmanteau.length >= 4) signatures.add(portmanteau);
   }
 
