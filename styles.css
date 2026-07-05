@@ -9555,6 +9555,25 @@ label {
   inline-size: 44px;
 }
 
+.product-action-buttons .product-small-button svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.1;
+}
+
+.product-edit-button {
+  gap: 6px;
+}
+
+.product-edit-button svg {
+  display: none;
+}
+
 .product-variant-chips {
   display: flex;
   flex-wrap: wrap;
@@ -9590,6 +9609,10 @@ label {
   font-size: 0.75rem;
   line-height: 1.1;
   white-space: nowrap;
+}
+
+.product-variant-chip .variant-label-short {
+  display: none;
 }
 
 .product-variant-chip strong {
@@ -9910,6 +9933,305 @@ label {
     overflow: visible;
     text-overflow: clip;
     white-space: nowrap;
+  }
+}
+
+@media (max-width: 1100px) {
+  .panel-products {
+    gap: 12px;
+  }
+
+  .panel-products > .panel-heading {
+    gap: 10px;
+  }
+
+  .panel-products .panel-heading-actions {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .panel-products .search-label input {
+    min-height: 40px;
+    padding-left: 40px;
+    font-size: 0.86rem;
+  }
+
+  .panel-products .search-label::before {
+    left: 13px;
+    width: 13px;
+    height: 13px;
+  }
+
+  .panel-products .search-label::after {
+    left: 25px;
+    width: 7px;
+  }
+
+  #openInventoryModalButton,
+  #openDailyMenuButton {
+    min-height: 36px;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.76rem;
+    box-shadow: none;
+  }
+
+  .daily-menu-bar {
+    gap: 9px;
+    border-radius: 10px;
+    padding: 10px;
+  }
+
+  .daily-menu-bar strong {
+    font-size: 0.86rem;
+  }
+
+  .daily-menu-bar p {
+    margin-top: 2px;
+    font-size: 0.72rem;
+    line-height: 1.25;
+  }
+
+  .daily-menu-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .menu-filter-toggle {
+    min-width: 0;
+    border-radius: 9px;
+    padding: 2px;
+  }
+
+  .filter-toggle-btn {
+    min-height: 32px;
+    border-radius: 7px;
+    padding: 5px 8px;
+    font-size: 0.72rem;
+  }
+
+  .category-filter {
+    gap: 6px;
+    padding-bottom: 0;
+  }
+
+  .category-button {
+    min-height: 32px;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.74rem;
+    box-shadow: none;
+  }
+
+  .category-button.active {
+    box-shadow: 0 5px 12px rgba(15, 118, 110, 0.16);
+  }
+
+  .product-card {
+    gap: 6px;
+    padding: 9px 10px;
+  }
+
+  .product-card-main {
+    gap: 8px;
+  }
+
+  .product-info {
+    gap: 3px;
+  }
+
+  .product-title {
+    font-size: 0.98rem;
+    line-height: 1.16;
+  }
+
+  .product-card .product-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .product-price-stack {
+    gap: 3px;
+    justify-items: start;
+  }
+
+  .product-price {
+    font-size: 0.98rem;
+  }
+
+  .product-card .stock-pill {
+    min-height: 20px;
+    padding: 2px 8px;
+    font-size: 0.68rem;
+  }
+
+  .product-action-buttons {
+    grid-template-columns: repeat(3, 36px);
+    justify-self: end;
+    gap: 5px;
+    width: auto;
+  }
+
+  .product-action-buttons .add-button,
+  .product-action-buttons .product-small-button,
+  .product-action-buttons .product-delete-button {
+    inline-size: 36px;
+    min-height: 36px;
+    width: 36px;
+    border-radius: 8px;
+    padding: 0;
+  }
+
+  .product-action-buttons .add-button {
+    font-size: 1.12rem;
+    line-height: 1;
+  }
+
+  .product-edit-button svg {
+    display: block;
+  }
+
+  .product-edit-button .button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .product-variant-chips {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 5px;
+    overflow-x: auto;
+    padding: 5px 2px 1px;
+    border-top-color: color-mix(in srgb, var(--line) 58%, transparent);
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .product-variant-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .product-card .product-variant-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    inline-size: max-content;
+    max-inline-size: none;
+    min-inline-size: auto;
+    min-height: 32px;
+    gap: 5px;
+    border-radius: 999px;
+    padding: 5px 8px;
+  }
+
+  .product-card .product-variant-chip span {
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    font-size: 0.68rem;
+  }
+
+  .product-card .product-variant-chip .variant-label-full {
+    display: none;
+  }
+
+  .product-card .product-variant-chip .variant-label-short {
+    display: inline;
+  }
+
+  .product-card .product-variant-chip strong {
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    font-size: 0.74rem;
+  }
+}
+
+@media (max-width: 760px) {
+  #openInventoryModalButton,
+  #openDailyMenuButton {
+    font-size: 0;
+  }
+
+  #showAllMenuButton,
+  #showTodayMenuButton {
+    font-size: 0;
+  }
+
+  #openInventoryModalButton::after,
+  #openDailyMenuButton::after,
+  #showAllMenuButton::after,
+  #showTodayMenuButton::after {
+    font-size: 0.76rem;
+  }
+
+  #openInventoryModalButton::after {
+    content: "Kelola";
+  }
+
+  #openDailyMenuButton::after {
+    content: "Atur";
+  }
+
+  #showAllMenuButton::after {
+    content: "Semua";
+  }
+
+  #showTodayMenuButton::after {
+    content: "Hari ini";
+  }
+
+  .daily-menu-actions {
+    align-items: stretch;
+  }
+
+  .product-card .product-actions {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .product-action-buttons {
+    grid-template-columns: repeat(3, 36px);
+    justify-self: end;
+    width: auto;
+  }
+
+  .product-action-buttons .product-small-button:not(.product-delete-button) {
+    width: 36px;
+  }
+}
+
+@media (max-width: 360px) {
+  .product-card {
+    padding: 8px;
+  }
+
+  .product-card .product-variant-chips {
+    gap: 4px;
+    padding-inline: 0;
+  }
+
+  .product-card .product-variant-chip {
+    min-height: 30px;
+    gap: 3px;
+    padding: 4px 5px;
+  }
+
+  .product-card .product-variant-chip span {
+    font-size: 0.62rem;
+  }
+
+  .product-card .product-variant-chip strong {
+    font-size: 0.68rem;
   }
 }
 

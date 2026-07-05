@@ -1600,6 +1600,20 @@ function formatCompactCurrency(value) {
   return currency.format(amount);
 }
 
+function formatVariantChipPrice(value) {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount) || amount <= 0) return "0";
+  if (Math.abs(amount) >= 1000000) {
+    return `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(amount / 1000000)}jt`;
+  }
+  if (Math.abs(amount) >= 1000) {
+    const thousands = amount / 1000;
+    const fractionDigits = Number.isInteger(thousands) ? 0 : 2;
+    return `${new Intl.NumberFormat("id-ID", { maximumFractionDigits: fractionDigits }).format(thousands)}rb`;
+  }
+  return integerFormatter.format(amount);
+}
+
 function formatSalesDateLabel() {
   if (state.salesRange === "all") return "Semua tanggal";
   const range = getSalesRangeDates();
@@ -7568,10 +7582,14 @@ function renderProducts() {
         .map((variant) => {
           const active = String(variant.id) === String(defaultVariant?.id);
           const variantLabel = String(variant.name || "").toLowerCase().replace(/\s+/g, " ").trim() === "custom input" ? "Custom" : variant.name;
+          const normalizedVariantLabel = String(variantLabel || "").toLowerCase().replace(/\s+/g, " ").trim();
+          const variantShortLabel = normalizedVariantLabel === "normal" ? "Norm" : normalizedVariantLabel === "custom" ? "Cust" : variantLabel;
+          const variantPriceLabel = formatVariantChipPrice(variant.price);
           return `
-            <button class="product-variant-chip ${active ? "default" : ""}" type="button" data-add="${escapeHtml(product.id)}" data-variant="${escapeHtml(variant.id)}" ${addDisabled ? "disabled" : ""}>
-              <span>${escapeHtml(variantLabel)}</span>
-              <strong>${currency.format(variant.price)}</strong>
+            <button class="product-variant-chip ${active ? "default" : ""}" type="button" data-add="${escapeHtml(product.id)}" data-variant="${escapeHtml(variant.id)}" aria-label="Tambah ${escapeHtml(product.name)} varian ${escapeHtml(variantLabel)} ${escapeHtml(currency.format(variant.price))}" ${addDisabled ? "disabled" : ""}>
+              <span class="variant-label-full">${escapeHtml(variantLabel)}</span>
+              <span class="variant-label-short" aria-hidden="true">${escapeHtml(variantShortLabel)}</span>
+              <strong>${escapeHtml(variantPriceLabel)}</strong>
             </button>
           `;
         })
@@ -7599,7 +7617,10 @@ function renderProducts() {
               </div>
               <div class="product-action-buttons" aria-label="Aksi ${escapeHtml(product.name)}">
                 <button class="add-button" type="button" data-add="${escapeHtml(product.id)}" data-variant="${escapeHtml(defaultVariant?.id || "")}" aria-label="Tambah ${escapeHtml(product.name)}" ${addDisabled ? "disabled" : ""}>+</button>
-                <button class="ghost-button product-small-button" type="button" data-edit-product="${product.id}">Edit</button>
+                <button class="ghost-button product-small-button product-edit-button" type="button" data-edit-product="${product.id}" aria-label="Edit ${escapeHtml(product.name)}">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+                  <span class="button-label">Edit</span>
+                </button>
                 <button class="ghost-button danger product-small-button product-delete-button" type="button" data-delete-product="${product.id}" aria-label="Hapus ${escapeHtml(product.name)}" title="Hapus">
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
                 </button>
