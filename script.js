@@ -2578,40 +2578,60 @@ function renderCustomerDataList(statusMessage = "") {
   }
 
   els.customerDataList.innerHTML = rows
-    .map((customer) => `
-      <form class="customer-card" data-customer-id="${escapeHtml(customer.id)}" data-original-name="${escapeHtml(customer.name)}">
-        <label class="customer-name-field">
-          Nama customer
-          <span class="customer-wrap-editor" role="textbox" tabindex="0" contenteditable="plaintext-only" data-wrap-field="name" aria-label="Nama customer">${escapeHtml(customer.name)}</span>
-          <input name="name" type="hidden" value="${escapeHtml(customer.name)}">
-        </label>
-        <label class="customer-tag-field">
-          Tag alamat
-          <span class="customer-wrap-editor" role="textbox" tabindex="0" contenteditable="plaintext-only" data-wrap-field="tag" data-placeholder="Otomatis" aria-label="Tag alamat">${escapeHtml(customer.tag)}</span>
-          <input name="tag" type="hidden" value="${escapeHtml(customer.tag)}">
-        </label>
-        <label class="customer-shipping-field">
-          Ongkir
-          <span class="customer-money-input">
-            <span>Rp</span>
-            <input name="defaultShipping" type="text" inputmode="numeric" value="${escapeHtml(formatIntegerInput(customer.shipping))}">
-          </span>
-        </label>
-        <label class="customer-deposit-field">
-          Deposit
-          <span class="customer-money-input">
-            <span>Rp</span>
-            <input name="depositBalance" type="text" inputmode="numeric" value="${escapeHtml(formatIntegerInput(customer.depositBalance))}">
-          </span>
-        </label>
-        <button class="primary-button customer-save-button" type="submit">Simpan</button>
-        <button class="ghost-button danger customer-remove-button" type="button" data-delete-customer="${escapeHtml(customer.id)}" data-customer-name="${escapeHtml(customer.name)}" aria-label="Hapus ${escapeHtml(customer.name)}" title="Hapus customer">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
-        </button>
-        ${renderCustomerHygieneFlags(customer, hygieneAnalysis)}
-        ${customer.aliases.length ? `<div class="customer-alias-copy"><span>${escapeHtml(customer.aliases.join(", "))}</span></div>` : ""}
-      </form>
-    `)
+    .map((customer) => {
+      const tagLabel = customer.tag || "Otomatis";
+      const aliasPreview = customer.aliases.length
+        ? `<span class="customer-summary-alias">Alias: ${escapeHtml(customer.aliases[0])}${customer.aliases.length > 1 ? ` +${customer.aliases.length - 1}` : ""}</span>`
+        : "";
+      return `
+        <form class="customer-card" data-customer-id="${escapeHtml(customer.id)}" data-original-name="${escapeHtml(customer.name)}">
+          <div class="customer-card-summary">
+            <div class="customer-summary-copy">
+              <strong>${escapeHtml(customer.name)}</strong>
+              <div class="customer-summary-meta">
+                <span>${escapeHtml(tagLabel)}</span>
+                <span>Ongkir ${escapeHtml(currency.format(customer.shipping))}</span>
+                <span>Deposit ${escapeHtml(currency.format(customer.depositBalance))}</span>
+                ${aliasPreview}
+              </div>
+            </div>
+            <button class="ghost-button customer-edit-toggle" type="button" data-edit-customer="${escapeHtml(customer.id)}" aria-expanded="false">Edit</button>
+          </div>
+          <div class="customer-card-edit">
+            <label class="customer-name-field">
+              Nama customer
+              <span class="customer-wrap-editor" role="textbox" tabindex="0" contenteditable="plaintext-only" data-wrap-field="name" aria-label="Nama customer">${escapeHtml(customer.name)}</span>
+              <input name="name" type="hidden" value="${escapeHtml(customer.name)}">
+            </label>
+            <label class="customer-tag-field">
+              Tag alamat
+              <span class="customer-wrap-editor" role="textbox" tabindex="0" contenteditable="plaintext-only" data-wrap-field="tag" data-placeholder="Otomatis" aria-label="Tag alamat">${escapeHtml(customer.tag)}</span>
+              <input name="tag" type="hidden" value="${escapeHtml(customer.tag)}">
+            </label>
+            <label class="customer-shipping-field">
+              Ongkir
+              <span class="customer-money-input">
+                <span>Rp</span>
+                <input name="defaultShipping" type="text" inputmode="numeric" value="${escapeHtml(formatIntegerInput(customer.shipping))}">
+              </span>
+            </label>
+            <label class="customer-deposit-field">
+              Deposit
+              <span class="customer-money-input">
+                <span>Rp</span>
+                <input name="depositBalance" type="text" inputmode="numeric" value="${escapeHtml(formatIntegerInput(customer.depositBalance))}">
+              </span>
+            </label>
+            <button class="primary-button customer-save-button" type="submit">Simpan</button>
+            <button class="ghost-button danger customer-remove-button" type="button" data-delete-customer="${escapeHtml(customer.id)}" data-customer-name="${escapeHtml(customer.name)}" aria-label="Hapus ${escapeHtml(customer.name)}" title="Hapus customer">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
+            </button>
+          </div>
+          ${renderCustomerHygieneFlags(customer, hygieneAnalysis)}
+          ${customer.aliases.length ? `<div class="customer-alias-copy"><span>${escapeHtml(customer.aliases.join(", "))}</span></div>` : ""}
+        </form>
+      `;
+    })
     .join("");
 
   const statusText = state.customerSearch
@@ -10067,6 +10087,15 @@ function bindEvents() {
     }
   });
   els.customerDataList.addEventListener("click", (event) => {
+    const editButton = event.target.closest("[data-edit-customer]");
+    if (editButton) {
+      const card = editButton.closest(".customer-card");
+      const isEditing = !card?.classList.contains("editing");
+      card?.classList.toggle("editing", isEditing);
+      editButton.setAttribute("aria-expanded", String(isEditing));
+      editButton.textContent = isEditing ? "Tutup" : "Edit";
+      return;
+    }
     const deleteButton = event.target.closest("[data-delete-customer]");
     if (deleteButton) removeCustomerData(deleteButton);
   });
