@@ -2959,6 +2959,12 @@ function getShippingCourierForTag(tag) {
   return SHIPPING_COURIER_BY_TAG.get(normalizedTag) || "";
 }
 
+function getSaleShippingCourierLabel(sale) {
+  const tag = resolveSaleShippingTag(sale);
+  if (!tag) return "-";
+  return getShippingCourierForTag(tag) || SHIPPING_COURIER_UNMAPPED_LABEL;
+}
+
 function getShippingTagSortIndex(tag) {
   const normalizedTag = normalizeCustomerTag(tag);
   const index = CUSTOMER_TAG_FILTER_ORDER.indexOf(normalizedTag);
@@ -8301,11 +8307,10 @@ function salesReportA4Html() {
         const index = chunk.startIndex + offset;
         const isEven = (index + 1) % 2 === 0;
         const rowClass = isEven ? ' class="row-even"' : "";
-        const completedAt = new Date(sale.completed_at);
-        const jamStr = completedAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
         const customerName = getCustomerNameFromSale(sale) || "Customer belum diisi";
         const items = Array.isArray(sale.items) ? sale.items : [];
         const rowspan = Math.max(1, items.length);
+        const courier = getSaleShippingCourierLabel(sale);
         const ongkir = getSaleShipping(sale);
         const total = Number(sale.total || 0);
         const bayar = sale.payment || "Tunai";
@@ -8314,8 +8319,8 @@ function salesReportA4Html() {
           return `
             <tr${rowClass}>
               <td>${index + 1}</td>
-              <td>${escapeHtml(jamStr)}</td>
               <td>${escapeHtml(customerName)}</td>
+              <td class="print-report-courier-cell">${escapeHtml(courier)}</td>
               <td>-</td>
               <td class="number">0</td>
               <td class="number">0</td>
@@ -8340,8 +8345,8 @@ function salesReportA4Html() {
               return `
                 <tr${rowClass}>
                   <td rowspan="${rowspan}">${index + 1}</td>
-                  <td rowspan="${rowspan}">${escapeHtml(jamStr)}</td>
                   <td rowspan="${rowspan}">${escapeHtml(customerName)}</td>
+                  <td rowspan="${rowspan}" class="print-report-courier-cell">${escapeHtml(courier)}</td>
                   <td>${menuStr}</td>
                   <td class="number">${quantity}</td>
                   <td class="number">${currency.format(price)}</td>
@@ -8376,8 +8381,8 @@ function salesReportA4Html() {
       <thead>
         <tr>
           <th>No</th>
-          <th>Jam</th>
           <th>Customer</th>
+          <th>Kurir</th>
           <th>Menu</th>
           <th class="number">Qty</th>
           <th class="number">Satuan</th>
