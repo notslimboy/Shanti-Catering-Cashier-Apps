@@ -1389,6 +1389,80 @@ function setSyncStatus(message, options = {}) {
   if (options.toast !== false) showToast(message, options);
 }
 
+function bindHorizontalDragScroll(root, selector) {
+  if (!root) return;
+  let dragState = null;
+
+  const findStrip = (target) => target?.closest?.(selector);
+  const endDrag = (event) => {
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    const { strip, moved } = dragState;
+    if (moved) {
+      const token = String(Date.now());
+      strip.dataset.dragScrolled = token;
+      window.setTimeout(() => {
+        if (strip.dataset.dragScrolled === token) delete strip.dataset.dragScrolled;
+      }, 180);
+    }
+    strip.classList.remove("is-drag-scrolling");
+    try {
+      strip.releasePointerCapture?.(event.pointerId);
+    } catch (error) {
+      // Pointer capture can already be released after touch cancellation.
+    }
+    dragState = null;
+  };
+
+  root.addEventListener("pointerdown", (event) => {
+    const strip = findStrip(event.target);
+    if (!strip || strip.scrollWidth <= strip.clientWidth || (event.button !== undefined && event.button !== 0)) return;
+    dragState = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startScrollLeft: strip.scrollLeft,
+      strip,
+      moved: false,
+    };
+    strip.classList.add("is-drag-scrolling");
+    strip.setPointerCapture?.(event.pointerId);
+  });
+
+  root.addEventListener("pointermove", (event) => {
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    const deltaX = event.clientX - dragState.startX;
+    if (Math.abs(deltaX) < 4 && !dragState.moved) return;
+    dragState.moved = true;
+    dragState.strip.scrollLeft = dragState.startScrollLeft - deltaX;
+    event.preventDefault();
+  });
+
+  root.addEventListener("pointerup", endDrag);
+  root.addEventListener("pointercancel", endDrag);
+
+  root.addEventListener(
+    "click",
+    (event) => {
+      const strip = findStrip(event.target);
+      if (!strip?.dataset.dragScrolled) return;
+      event.preventDefault();
+      event.stopPropagation();
+      delete strip.dataset.dragScrolled;
+    },
+    true
+  );
+
+  root.addEventListener(
+    "wheel",
+    (event) => {
+      const strip = findStrip(event.target);
+      if (!strip || strip.scrollWidth <= strip.clientWidth || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+      strip.scrollLeft += event.deltaY;
+      event.preventDefault();
+    },
+    { passive: false }
+  );
+}
+
 function setDatabaseStatus(message, options = {}) {
   els.databaseStatus.textContent = message;
   if (options.toast !== false) showToast(message, options);
@@ -2426,11 +2500,10 @@ function renderCustomerHygieneFlags(customer, analysis) {
   `;
 }
 
-function getEditableCustomerRows(customers = getNormalizedCustomersForFilter(), hygieneAnalysis = getCustomerHygieneAnalysis(customers)) {
+function getEditableCustomerRows(customers = getNormalizedCustomersForFilter()) {
   const searchKey = normalizeKey(state.customerSearch);
   return customers
     .filter((customer) => isCustomerMatchingTagFilter(customer))
-    .filter((customer) => isCustomerMatchingHygieneFilter(customer, hygieneAnalysis))
     .filter((customer) => !searchKey || normalizeKey(customer.name).includes(searchKey) || normalizeKey(customer.tag).includes(searchKey) || customer.aliases.some((alias) => normalizeKey(alias).includes(searchKey)));
 }
 
@@ -2551,11 +2624,14 @@ function renderCustomerDataList(statusMessage = "") {
   if (!els.customerDataList) return;
 
   const customers = getNormalizedCustomersForFilter();
-  const hygieneAnalysis = getCustomerHygieneAnalysis(customers);
   renderCustomerSimilarSection(customers);
   renderCustomerTagFilter(customers);
-  renderCustomerHygienePanel(customers, hygieneAnalysis);
-  const rows = getEditableCustomerRows(customers, hygieneAnalysis);
+  if (els.customerHygienePanel) {
+    els.customerHygienePanel.hidden = true;
+    els.customerHygienePanel.innerHTML = "";
+  }
+  state.customerHygieneFilter = CUSTOMER_HYGIENE_FILTER_ALL;
+  const rows = getEditableCustomerRows(customers);
 
   const totalCount = customers.length;
   const countChip = document.getElementById("customerCountChip");
@@ -2627,7 +2703,6 @@ function renderCustomerDataList(statusMessage = "") {
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
             </button>
           </div>
-          ${renderCustomerHygieneFlags(customer, hygieneAnalysis)}
           ${customer.aliases.length ? `<div class="customer-alias-copy"><span>${escapeHtml(customer.aliases.join(", "))}</span></div>` : ""}
         </form>
       `;
@@ -3153,14 +3228,20 @@ function setSalesCalendarMonthFromDate(dateKey) {
 
 function renderSalesDateControls(range = getSalesRangeDates()) {
   const allMode = state.salesRange === "all";
-  const compactMeta = window.matchMedia("(max-width: 1100px)").matches;
-  const startMeta = allMode ? `${getSelectedSales().length} ${compactMeta ? "trx" : "transaksi"}` : getSalesDateMeta(range.start, compactMeta);
-  const endMeta = allMode || range.start === range.end ? startMeta : getSalesDateMeta(range.end, compactMeta);
+  const showDateMeta = !window.matchMedia("(max-width: 1100px)").matches;
+  const startMeta = allMode ? `${getSelectedSales().length} transaksi` : getSalesDateMeta(range.start, false);
+  const endMeta = allMode || range.start === range.end ? startMeta : getSalesDateMeta(range.end, false);
 
   if (els.salesStartDateText) els.salesStartDateText.textContent = allMode ? "Semua tanggal" : formatShortDateLabel(range.start);
   if (els.salesEndDateText) els.salesEndDateText.textContent = allMode ? "Semua tanggal" : formatShortDateLabel(range.end);
-  if (els.salesStartDateMeta) els.salesStartDateMeta.textContent = startMeta;
-  if (els.salesEndDateMeta) els.salesEndDateMeta.textContent = endMeta;
+  if (els.salesStartDateMeta) {
+    els.salesStartDateMeta.textContent = showDateMeta ? startMeta : "";
+    els.salesStartDateMeta.hidden = !showDateMeta;
+  }
+  if (els.salesEndDateMeta) {
+    els.salesEndDateMeta.textContent = showDateMeta ? endMeta : "";
+    els.salesEndDateMeta.hidden = !showDateMeta;
+  }
 
   [els.salesStartDateButton, els.salesEndDateButton].forEach((button) => {
     if (!button) return;
@@ -6986,7 +7067,8 @@ function renderSaleDetail(sale) {
     })
     .join("");
 
-  els.saleDetailTitle.textContent = payload.receiptNo || "Detail transaksi";
+  const receiptNo = payload.receiptNo || "Tanpa nomor struk";
+  els.saleDetailTitle.textContent = isEditing ? "Edit struk" : "Detail struk";
   els.editSaleDetailButton.textContent = isEditing ? "Batal Edit" : "Edit Data";
   els.editSaleDetailButton.setAttribute("aria-pressed", String(isEditing));
   els.editSaleDetailButton.disabled = isSaleDeleted(sale);
@@ -6995,7 +7077,11 @@ function renderSaleDetail(sale) {
     ${
       isEditing
         ? renderSaleEditForm(payload)
-        : `<div class="sale-detail-meta">
+        : `<div class="sale-detail-receipt-summary">
+            <span>Nomor struk</span>
+            <strong>${escapeHtml(receiptNo)}</strong>
+          </div>
+          <div class="sale-detail-meta">
             <div>
               <span>Tanggal</span>
               <strong>${new Date(payload.completedAt).toLocaleString("id-ID")}</strong>
@@ -10043,6 +10129,7 @@ function bindEvents() {
     state.customerSearch = els.customerSearchInput.value;
     renderCustomerDataList();
   });
+  bindHorizontalDragScroll(els.customerTagFilter, ".customer-tag-filter-chips");
   els.customerTagFilter?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-customer-tag-filter]");
     if (!button) return;
@@ -10226,7 +10313,10 @@ function bindEvents() {
   els.nextSalesPageButton?.addEventListener("click", () => setSalesPage(state.salesPage + 1));
   els.previousSalesDateButton.addEventListener("click", () => shiftSalesDate(-1));
   els.nextSalesDateButton.addEventListener("click", () => shiftSalesDate(1));
-  els.todaySalesDateButton.addEventListener("click", () => setSalesDate(getLocalDateKey()));
+  els.todaySalesDateButton.addEventListener("click", () => {
+    closeSalesCalendar();
+    setSalesDate(getLocalDateKey());
+  });
   els.salesList.addEventListener("click", (event) => {
     const detailButton = event.target.closest("[data-view-sale]");
     const deleteButton = event.target.closest("[data-delete-sale]");
@@ -10620,7 +10710,11 @@ function bindEvents() {
 
   document.addEventListener("click", (event) => {
     if (els.paymentSelect && !els.paymentSelect.contains(event.target)) setPaymentDropdownOpen(false);
-    if (els.salesCalendarPopover && !els.salesCalendarPopover.hidden && !event.target.closest(".sales-date-controls")) closeSalesCalendar();
+    if (els.salesCalendarPopover && !els.salesCalendarPopover.hidden) {
+      const clickedCalendar = els.salesCalendarPopover.contains(event.target);
+      const clickedTrigger = els.salesStartDateButton?.contains(event.target) || els.salesEndDateButton?.contains(event.target);
+      if (!clickedCalendar && !clickedTrigger) closeSalesCalendar();
+    }
     if (els.dailyMenuCalendarPopover && !els.dailyMenuCalendarPopover.hidden && !event.target.closest(".daily-menu-date-field")) closeDailyMenuCalendar();
   });
 

@@ -5242,6 +5242,111 @@ label {
   }
 }
 
+@media (min-width: 1101px) and (max-width: 1540px) and (max-height: 1120px) {
+  .app-shell {
+    display: block;
+    max-width: 1280px;
+    padding: clamp(18px, 2vw, 28px);
+  }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+
+  .topbar .sidebar-menu-button {
+    justify-self: start;
+  }
+
+  .topbar .brand-lockup {
+    min-width: 0;
+  }
+
+  .topbar .brand-lockup h1 {
+    font-size: clamp(1.2rem, 1.8vw, 1.55rem);
+    line-height: 1.1;
+  }
+
+  .topbar .brand-logo {
+    width: 58px;
+    height: 58px;
+  }
+
+  .topbar .topbar-status {
+    justify-self: end;
+    margin-inline-start: 0;
+  }
+
+  .app-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 120;
+    width: min(348px, calc(100vw - 42px));
+    height: 100dvh;
+    min-height: 0;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 18px;
+    transform: translateX(-104%);
+    transition: transform 180ms ease;
+  }
+
+  body.sidebar-open .app-sidebar {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 115;
+    display: block;
+    border-radius: 0;
+    background: var(--modal-backdrop);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+  }
+
+  body.sidebar-open .sidebar-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sidebar-brand {
+    grid-template-columns: 54px minmax(0, 1fr) 42px;
+  }
+
+  .sidebar-close-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar-menu-button {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .bento-grid {
+    grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.9fr);
+    gap: clamp(14px, 1.6vw, 22px);
+  }
+
+  .panel-products,
+  .panel-cart {
+    grid-column: auto;
+  }
+
+  .panel-products .panel-heading-actions {
+    width: min(520px, 100%);
+  }
+}
+
 @media (max-width: 900px) {
   .app-shell {
     padding: 18px;
@@ -8978,5 +9083,397 @@ label {
 
   .inventory-products-list {
     max-height: min(620px, 68dvh);
+  }
+}
+
+@media (max-width: 1100px) {
+  #salesDashboardModal .sales-date-controls {
+    z-index: 20;
+  }
+
+  #salesDashboardModal .date-picker-button {
+    grid-template-columns: minmax(0, 1fr) 24px;
+    align-items: center;
+  }
+
+  #salesDashboardModal .date-picker-button strong {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
+  #salesDashboardModal .date-picker-button small,
+  #salesDashboardModal .date-picker-button small[hidden] {
+    display: none !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  #salesDashboardModal .sales-date-controls {
+    grid-template-columns: 50px minmax(150px, 1fr) minmax(150px, 1fr) minmax(140px, 0.56fr) 50px !important;
+    grid-template-areas: "prev dari sampai today next" !important;
+    align-items: end;
+    gap: 10px;
+  }
+
+  #salesDashboardModal .date-picker-button {
+    min-height: 58px;
+    padding: 10px 12px;
+  }
+
+  #salesDashboardModal .date-picker-button strong {
+    font-size: clamp(0.92rem, 1.9vw, 1.08rem);
+    line-height: 1.08;
+  }
+
+  #salesDashboardModal #todaySalesDateButton {
+    width: 100% !important;
+    min-width: 0;
+    justify-self: stretch;
+    min-height: 58px;
+    padding-inline: 12px;
+  }
+}
+
+@media (max-width: 760px) {
+  #salesDashboardModal #todaySalesDateButton {
+    grid-column: 2 / 4 !important;
+    grid-row: 2 !important;
+    justify-self: stretch !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 46px;
+    padding-inline: 12px;
+    font-size: 0.92rem;
+  }
+
+  #salesDashboardModal .date-picker-button {
+    min-height: 50px;
+    padding: 8px 10px;
+  }
+
+  #salesDashboardModal .date-picker-button strong {
+    font-size: clamp(0.86rem, 4.1vw, 0.98rem);
+    line-height: 1.08;
+  }
+
+  #salesDashboardModal .sales-calendar-popover {
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    width: auto !important;
+    max-width: none;
+    max-height: min(68dvh, 620px);
+    overflow: auto;
+    border-radius: 14px;
+    padding: 12px;
+    z-index: 10020;
+  }
+
+  #salesDashboardModal .sales-calendar-header {
+    gap: 8px;
+  }
+
+  #salesDashboardModal .sales-calendar-header h3 {
+    font-size: 1.04rem;
+  }
+
+  #salesDashboardModal .sales-calendar-grid {
+    gap: 5px;
+  }
+
+  #salesDashboardModal .sales-calendar-day {
+    min-height: 42px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+  }
+
+  #salesDashboardModal .sales-calendar-info {
+    padding: 9px 10px;
+    border-radius: 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  #saleDetailModal.sale-detail-modal {
+    width: min(720px, calc(100dvw - 16px));
+  }
+
+  #saleDetailModal .modal-close-form {
+    top: max(10px, calc(env(safe-area-inset-top) + 10px));
+    right: max(10px, calc(env(safe-area-inset-right) + 10px));
+  }
+
+  #saleDetailModal .sale-detail-panel {
+    gap: 12px;
+    padding: max(16px, calc(env(safe-area-inset-top) + 14px)) max(16px, calc(env(safe-area-inset-right) + 14px)) max(18px, calc(env(safe-area-inset-bottom) + 16px)) max(16px, calc(env(safe-area-inset-left) + 14px));
+  }
+
+  #saleDetailModal .sale-detail-heading {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    padding: 0 48px 12px 0;
+  }
+
+  #saleDetailModal .sale-detail-heading .eyebrow {
+    margin-bottom: 4px;
+    font-size: 0.7rem;
+  }
+
+  #saleDetailModal .sale-detail-heading h2 {
+    font-size: clamp(1.32rem, 4.8vw, 1.7rem);
+    line-height: 1.08;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  #saleDetailModal .sale-detail-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+
+  #saleDetailModal .sale-detail-actions button {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+  }
+
+  #saleDetailModal .sale-detail-body {
+    gap: 10px;
+  }
+
+  #saleDetailModal .sale-detail-receipt-summary {
+    display: grid;
+    gap: 3px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 10px 12px;
+  }
+
+  #saleDetailModal .sale-detail-receipt-summary span,
+  #saleDetailModal .sale-detail-meta span,
+  #saleDetailModal .sale-detail-item-total span,
+  #saleDetailModal .sale-detail-totals span {
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 850;
+  }
+
+  #saleDetailModal .sale-detail-receipt-summary strong {
+    color: var(--ink);
+    font-size: clamp(1.02rem, 3.5vw, 1.18rem);
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+  }
+
+  #saleDetailModal .sale-detail-meta {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 4px 12px;
+  }
+
+  #saleDetailModal .sale-detail-meta div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 38px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    padding: 8px 0;
+  }
+
+  #saleDetailModal .sale-detail-meta div:last-child {
+    border-bottom: 0;
+  }
+
+  #saleDetailModal .sale-detail-meta strong {
+    max-width: 68%;
+    text-align: right;
+    font-size: 0.9rem;
+    line-height: 1.2;
+  }
+
+  #saleDetailModal .sale-detail-items {
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 10px 12px 2px;
+  }
+
+  #saleDetailModal .sale-detail-section-heading {
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.74rem;
+  }
+
+  #saleDetailModal .sale-detail-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    padding: 10px 0;
+  }
+
+  #saleDetailModal .sale-detail-item:last-child {
+    border-bottom: 0;
+  }
+
+  #saleDetailModal .sale-detail-item-main {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  #saleDetailModal .sale-detail-quantity {
+    min-width: 34px;
+    min-height: 28px;
+    border-radius: 9px;
+    font-size: 0.8rem;
+  }
+
+  #saleDetailModal .sale-detail-item-main strong,
+  #saleDetailModal .sale-detail-item-total strong {
+    font-size: 0.92rem;
+    line-height: 1.18;
+  }
+
+  #saleDetailModal .sale-detail-item p {
+    margin-top: 3px;
+    font-size: 0.74rem;
+  }
+
+  #saleDetailModal .sale-detail-item-total {
+    gap: 2px;
+    min-width: 88px;
+  }
+
+  #saleDetailModal .sale-detail-totals {
+    gap: 7px;
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+
+  #saleDetailModal .sale-detail-totals div {
+    gap: 10px;
+  }
+
+  #saleDetailModal .sale-detail-grand-total {
+    padding-top: 9px;
+    font-size: 1.02rem;
+  }
+}
+
+@media (max-width: 430px) {
+  #saleDetailModal.sale-detail-modal {
+    width: 100dvw;
+    max-width: 100dvw;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  #saleDetailModal .sale-detail-panel {
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+
+  #saleDetailModal .sale-detail-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #saleDetailModal .sale-detail-meta div {
+    align-items: flex-start;
+  }
+
+  #saleDetailModal .sale-detail-meta strong {
+    max-width: 62%;
+  }
+
+  #saleDetailModal .sale-detail-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #saleDetailModal .sale-detail-item-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 0;
+    text-align: left;
+  }
+}
+
+@media (max-width: 1100px) {
+  #customerDataModal .customer-tag-filter {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto;
+    align-items: center;
+    gap: 10px;
+    max-height: none;
+    overflow: hidden;
+    padding: 9px 10px;
+  }
+
+  #customerDataModal .customer-tag-filter-label {
+    white-space: nowrap;
+  }
+
+  #customerDataModal .customer-tag-filter-chips {
+    display: flex;
+    grid-template-columns: none;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    cursor: grab;
+    padding: 0 18px 2px 0;
+  }
+
+  #customerDataModal .customer-tag-filter-chips.is-drag-scrolling {
+    cursor: grabbing;
+    user-select: none;
+  }
+
+  #customerDataModal .customer-tag-filter-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  #customerDataModal .customer-filter-chip {
+    flex: 0 0 auto;
+    min-width: max-content;
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 430px) {
+  #customerDataModal .customer-tag-filter {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  #customerDataModal .customer-tag-filter-label {
+    padding-left: 2px;
   }
 }
