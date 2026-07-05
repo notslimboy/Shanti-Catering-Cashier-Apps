@@ -175,6 +175,7 @@ const state = {
   piutang: {
     tab: "belum_lunas",
     search: "",
+    visibleLimit: 40,
   },
   editingProductId: null,
   editingProductVariants: [],
@@ -197,6 +198,7 @@ const customerProfilesCache = {
   profiles: [],
   lastSuggestionsHtml: "",
 };
+const PIUTANG_BATCH_SIZE = 40;
 
 const CUSTOMER_ADDRESS_TAG_RULES = [
   { tag: "Sutorejo", pattern: /\b(?:sutorejo|suto|sut)\s*(?:tengah|teng|tgh)\b|\bsutotengah\b|\bsutoteng\b|\bsutotgh\b/ },
@@ -10225,6 +10227,7 @@ function bindEvents() {
   });
   els.piutangSearchInput.addEventListener("input", () => {
     state.piutang.search = els.piutangSearchInput.value;
+    state.piutang.visibleLimit = PIUTANG_BATCH_SIZE;
     renderPiutangList();
   });
   els.tabPiutangBelumLunas.addEventListener("click", () => {
@@ -10248,6 +10251,12 @@ function bindEvents() {
     submitPiutangPayment(event.target);
   });
   els.piutangList.addEventListener("click", (event) => {
+    const loadMoreButton = event.target.closest("[data-piutang-load-more]");
+    if (loadMoreButton) {
+      state.piutang.visibleLimit += PIUTANG_BATCH_SIZE;
+      renderPiutangList();
+      return;
+    }
     const revokeButton = event.target.closest("[data-revoke-sale-id]");
     if (revokeButton) {
       revokePiutangPayment(revokeButton.dataset.revokeSaleId);
@@ -10826,6 +10835,7 @@ function openPiutangManager() {
     els.piutangSearchInput.value = "";
     state.piutang.search = "";
   }
+  state.piutang.visibleLimit = PIUTANG_BATCH_SIZE;
 
   switchPiutangTab("belum_lunas", els.tabPiutangBelumLunas);
   openModal(els.piutangModal, els.piutangSearchInput);
@@ -10863,6 +10873,7 @@ function setPiutangStatus(message) {
 
 function switchPiutangTab(tabName, activeBtn) {
   state.piutang.tab = tabName;
+  state.piutang.visibleLimit = PIUTANG_BATCH_SIZE;
 
   [els.tabPiutangBelumLunas, els.tabPiutangLunas, els.tabPiutangSemua].forEach(btn => {
     if (btn) btn.classList.remove("active");
@@ -10921,7 +10932,21 @@ function renderPiutangList() {
     return;
   }
 
-  els.piutangList.innerHTML = filtered.map(sale => {
+  const visibleLimit = Math.max(PIUTANG_BATCH_SIZE, Number(state.piutang.visibleLimit || PIUTANG_BATCH_SIZE));
+  const visibleSales = filtered.slice(0, visibleLimit);
+  const hiddenCount = Math.max(0, filtered.length - visibleSales.length);
+  const listSummaryHtml = hiddenCount ? `
+    <div class="piutang-load-more">
+      <span>Menampilkan ${escapeHtml(visibleSales.length)} dari ${escapeHtml(filtered.length)} transaksi</span>
+      <button class="ghost-button" type="button" data-piutang-load-more>Muat ${escapeHtml(Math.min(PIUTANG_BATCH_SIZE, hiddenCount))} lagi</button>
+    </div>
+  ` : `
+    <div class="piutang-load-more done">
+      <span>Semua ${escapeHtml(filtered.length)} transaksi sudah tampil</span>
+    </div>
+  `;
+
+  els.piutangList.innerHTML = visibleSales.map(sale => {
     const total = Number(sale.total || 0);
     const paid = Number(sale.paid_amount || 0);
     const remaining = total - paid;
@@ -10938,12 +10963,39 @@ function renderPiutangList() {
       minute: "2-digit"
     }) : "-";
 
-    const itemRowsHtml = items.map(item => `
-      <div class="piutang-card-item-row">
-        <span><span class="item-qty">${item.quantity}x</span> ${escapeHtml(item.name)}</span>
-        <span>${currency.format(Number(item.price || 0) * Number(item.quantity || 0))}</span>
-      </div>
-    `).join("");
+    const itemCount = items.reduce((acc, item) => acc + Number(item.quantity || 0), 0);
+    const itemSummaryLabel = items.length
+      ? `${itemCount || items.length} item pesanan`
+      : "Tanpa rincian item";
+    const itemPreviewHtml = items.length
+      ? items
+          .slice(0, 2)
+          .map(item => `
+            <span class="piutang-item-chip">
+              <strong>${escapeHtml(item.quantity || 0)}x</strong>
+              <span>${escapeHtml(item.name || "Item")}</span>
+            </span>
+          `)
+          .join("") + (items.length > 2 ? `<span class="piutang-item-chip more">+${items.length - 2} lain</span>` : "")
+      : `<span class="piutang-item-chip empty">Tidak ada rincian item</span>`;
+
+    const itemRowsHtml = items.map(item => {
+      const quantity = Number(item.quantity || 0);
+      const lineTotal = Number(item.lineTotal ?? item.line_total ?? 0) || Number(item.price || 0) * quantity;
+      const itemMeta = [item.variantName || item.variant_name || "", item.note || ""].filter(Boolean).join(" / ");
+      return `
+        <div class="piutang-card-item-row">
+          <span>
+            <span class="item-qty">${escapeHtml(quantity || item.quantity || 0)}x</span>
+            <span class="piutang-item-name">
+              ${escapeHtml(item.name || "Item")}
+              ${itemMeta ? `<small>${escapeHtml(itemMeta)}</small>` : ""}
+            </span>
+          </span>
+          <strong>${currency.format(lineTotal)}</strong>
+        </div>
+      `;
+    }).join("");
 
     const paymentRowsHtml = payments.map(pay => {
       const payDate = pay.payment_date || pay.paymentDate || pay.created_at || "";
@@ -10965,6 +11017,15 @@ function renderPiutangList() {
       `;
     }).join("");
 
+    const customerAddress = sale.customer_address || sale.customerAddress || "";
+    const detailTotalsHtml = `
+      <div class="piutang-detail-totals">
+        <span><small>Total</small><strong>${currency.format(total)}</strong></span>
+        <span><small>Dibayar</small><strong>${currency.format(paid)}</strong></span>
+        <span class="${isLunas ? 'lunas' : 'debt'}"><small>Sisa</small><strong>${currency.format(remaining)}</strong></span>
+      </div>
+    `;
+
     const payFormHtml = isLunas ? `
       <div class="piutang-revoke-action">
         <button class="ghost-button danger piutang-revoke-button" type="button" data-revoke-sale-id="${sale.id}">
@@ -10972,13 +11033,19 @@ function renderPiutangList() {
         </button>
       </div>
     ` : `
-      <form class="piutang-pay-form" data-sale-id="${sale.id}">
-        <label>
-          Input Pembayaran
-          <input class="piutang-payment-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="Contoh: 50.000" autocomplete="off" required>
-        </label>
-        <button class="primary-button" type="submit">Simpan</button>
-      </form>
+      <details class="piutang-payment-action">
+        <summary>
+          <span>Catat bayar</span>
+          <strong>${currency.format(remaining)}</strong>
+        </summary>
+        <form class="piutang-pay-form" data-sale-id="${sale.id}">
+          <label>
+            <span>Nominal bayar</span>
+            <input class="piutang-payment-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="50.000" autocomplete="off" required>
+          </label>
+          <button class="primary-button" type="submit">Simpan</button>
+        </form>
+      </details>
     `;
 
     return `
@@ -10991,43 +11058,60 @@ function renderPiutangList() {
           <span class="piutang-status-pill ${isLunas ? 'paid' : 'unpaid'}">${isLunas ? 'Lunas' : 'Belum Lunas'}</span>
         </div>
 
-        <div class="piutang-card-body">
+        <div class="piutang-card-main">
           <div class="piutang-cust-info">
             <strong>${escapeHtml(sale.customer_name || sale.customerName || "Tanpa Nama")}</strong>
-            <p>${escapeHtml(sale.customer_address || sale.customerAddress || "Tidak ada alamat")}</p>
-
-            <div class="piutang-card-items-detail" id="piutangItems-${sale.id}">
-              ${itemRowsHtml || "<p>Tidak ada rincian item barang.</p>"}
-            </div>
+            ${customerAddress ? `<p>${escapeHtml(customerAddress)}</p>` : ""}
           </div>
 
-          <div class="piutang-financial-summary">
-            <div class="piutang-financial-row">
-              <span>Total Transaksi</span>
-              <strong>${currency.format(total)}</strong>
-            </div>
-            <div class="piutang-financial-row">
-              <span>Sudah Dibayar</span>
-              <strong>${currency.format(paid)}</strong>
-            </div>
-            <div class="piutang-financial-row debt ${isLunas ? 'lunas' : ''}">
-              <span>Sisa Tagihan</span>
-              <strong>${currency.format(remaining)}</strong>
-            </div>
+          <div class="piutang-debt-highlight ${isLunas ? 'lunas' : ''}">
+            <span>Sisa</span>
+            <strong>${currency.format(remaining)}</strong>
           </div>
         </div>
 
-        ${payments.length ? `
-          <div class="piutang-payment-logs">
-            <h4 class="piutang-payment-title">Riwayat Pembayaran:</h4>
-            ${paymentRowsHtml}
+        <div class="piutang-item-preview" aria-label="${escapeHtml(itemSummaryLabel)}">
+          ${itemPreviewHtml}
+        </div>
+
+        <div class="piutang-financial-summary">
+          <div class="piutang-financial-row">
+            <span>Total</span>
+            <strong>${currency.format(total)}</strong>
           </div>
-        ` : ""}
+          <div class="piutang-financial-row">
+            <span>Dibayar</span>
+            <strong>${currency.format(paid)}</strong>
+          </div>
+          <div class="piutang-financial-row debt ${isLunas ? 'lunas' : ''}">
+            <span>Sisa</span>
+            <strong>${currency.format(remaining)}</strong>
+          </div>
+        </div>
+
+        <details class="piutang-card-detail">
+          <summary>
+            <span>Detail transaksi</span>
+            <strong>${escapeHtml(itemSummaryLabel)}${payments.length ? ` / ${payments.length} bayar` : ""}</strong>
+          </summary>
+          <div class="piutang-detail-grid">
+            ${detailTotalsHtml}
+            <section class="piutang-card-items-detail" id="piutangItems-${sale.id}" aria-label="Rincian item">
+              <h4>Item pesanan</h4>
+              ${itemRowsHtml || "<p>Tidak ada rincian item barang.</p>"}
+            </section>
+
+            <section class="piutang-payment-logs" aria-label="Riwayat pembayaran">
+              <h4 class="piutang-payment-title">Riwayat pembayaran</h4>
+              ${paymentRowsHtml || "<p>Belum ada pembayaran.</p>"}
+            </section>
+          </div>
+        </details>
 
         ${payFormHtml}
       </article>
     `;
-  }).join("");
+  }).join("") + listSummaryHtml;
 
   els.piutangList.querySelectorAll(".piutang-payment-input").forEach(input => {
     input.addEventListener("input", () => {

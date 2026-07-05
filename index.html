@@ -32,10 +32,10 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=236">
+    <link rel="stylesheet" href="styles.css?v=237">
     <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script defer src="script.js?v=236"></script>
+    <script defer src="script.js?v=237"></script>
   </head>
   <body>
     <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
@@ -523,11 +523,11 @@
         </div>
 
         <div class="piutang-filters">
-          <label class="customer-search-label" style="margin-bottom: 0; flex-grow: 1;">
+          <label class="customer-search-label">
             Cari customer / nomor struk
             <span class="sales-search-control customer-search-control">
               <span aria-hidden="true">⌕</span>
-              <input id="piutangSearchInput" type="search" placeholder="Ketik nama customer atau nomor struk...">
+              <input id="piutangSearchInput" type="search" placeholder="Nama customer / nomor struk">
             </span>
           </label>
         </div>
@@ -535,7 +535,7 @@
         <div class="piutang-tab-bar">
           <button class="tab-button active" id="tabPiutangBelumLunas" type="button">Belum Lunas</button>
           <button class="tab-button" id="tabPiutangLunas" type="button">Lunas</button>
-          <button class="tab-button" id="tabPiutangSemua" type="button">Semua Transaksi</button>
+          <button class="tab-button" id="tabPiutangSemua" type="button">Semua</button>
         </div>
 
         <div class="customer-scroll-area" id="piutangScrollArea">

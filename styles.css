@@ -8092,6 +8092,7 @@ label {
 
 .customer-panel.piutang-panel {
   grid-template-rows: auto auto auto minmax(0, 1fr) auto !important;
+  gap: 12px;
 }
 
 .customer-panel.piutang-panel > :nth-child(1) { grid-row: 1 !important; }
@@ -8126,38 +8127,90 @@ label {
   margin-left: 8px;
 }
 
+#piutangModal .piutang-panel {
+  padding: 28px 42px 22px;
+}
+
+#piutangModal .piutang-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+
+#piutangModal .piutang-heading h2 {
+  font-size: clamp(2rem, 4vw, 2.45rem);
+}
+
+#piutangModal .piutang-heading .customer-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: min(380px, 100%);
+}
+
 .piutang-summary-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border: 1px solid color-mix(in srgb, var(--danger) 24%, var(--danger-bg));
+  border-radius: 8px;
   background: var(--danger-bg);
   color: var(--danger-ink);
-  border: 1px solid color-mix(in srgb, var(--danger) 25%, var(--danger-bg));
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 0.88rem;
-  font-weight: 900;
+  padding: 8px 12px;
+  font-size: 0.86rem;
+  font-weight: 950;
+  line-height: 1.12;
+  text-align: center;
+}
+
+.piutang-filters {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+#piutangModal .piutang-filters .customer-search-label {
+  margin-bottom: 0;
+  width: 100%;
+}
+
+#piutangModal .piutang-filters input {
+  min-height: 44px;
 }
 
 .piutang-tab-bar {
-  display: flex;
-  gap: 8px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 8px;
-  margin-bottom: 16px;
-  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft-surface);
+  padding: 4px;
 }
 
 .piutang-tab-bar .tab-button {
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 42px;
   border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
   color: var(--muted);
-  padding: 8px 16px;
-  border-radius: var(--radius);
-  font-size: 0.88rem;
-  font-weight: 800;
   cursor: pointer;
-  transition: all 0.2s ease;
-  min-height: 38px;
+  font-size: 0.84rem;
+  font-weight: 900;
+  line-height: 1.05;
+  padding: 8px 10px;
+  text-align: center;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
 }
 
 .piutang-tab-bar .tab-button:hover {
@@ -8166,68 +8219,79 @@ label {
 }
 
 .piutang-tab-bar .tab-button.active {
+  border-color: color-mix(in srgb, var(--teal) 34%, var(--soft-teal));
   background: var(--soft-teal);
-  border-color: color-mix(in srgb, var(--teal) 35%, var(--soft-teal));
   color: var(--teal-dark);
+}
+
+#piutangScrollArea {
+  min-height: min(420px, 52dvh);
+  overflow: auto;
+  padding-right: 5px;
+  scrollbar-gutter: stable;
 }
 
 .piutang-list {
   display: grid;
-  gap: 16px;
+  gap: 10px;
 }
 
 .piutang-card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface-strong);
-  padding: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
   display: grid;
-  gap: 12px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-strong);
+  box-shadow: 0 1px 5px rgba(5, 16, 14, 0.04);
+  padding: 12px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .piutang-card:hover {
-  border-color: color-mix(in srgb, var(--teal) 30%, var(--line));
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+  border-color: color-mix(in srgb, var(--teal) 28%, var(--line));
+  box-shadow: 0 4px 14px rgba(5, 16, 14, 0.07);
 }
 
-.piutang-card-header {
-  display: flex;
-  justify-content: space-between;
+.piutang-card-header,
+.piutang-card-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 10px;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
 }
 
 .piutang-card-title-group {
   display: grid;
   gap: 2px;
+  min-width: 0;
 }
 
 .piutang-card-title {
   margin: 0;
-  font-size: 0.94rem;
-  font-weight: 900;
   color: var(--ink);
+  font-size: 0.93rem;
+  font-weight: 950;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
 }
 
 .piutang-card-date {
   color: var(--muted);
-  font-size: 0.8rem;
-  font-weight: 650;
+  font-size: 0.74rem;
+  font-weight: 750;
+  line-height: 1.1;
 }
 
 .piutang-status-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-height: 24px;
   border-radius: 999px;
-  padding: 3px 8px;
-  font-size: 0.72rem;
-  font-weight: 900;
+  padding: 4px 8px;
+  font-size: 0.68rem;
+  font-weight: 950;
   line-height: 1;
   white-space: nowrap;
 }
@@ -8242,189 +8306,636 @@ label {
   color: var(--teal-dark);
 }
 
-.piutang-card-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
-  gap: 16px;
-}
-
-@media (max-width: 720px) {
-  .piutang-card-body {
-    grid-template-columns: 1fr;
-  }
-}
-
 .piutang-cust-info {
   display: grid;
-  gap: 4px;
+  gap: 3px;
+  min-width: 0;
 }
 
 .piutang-cust-info strong {
-  font-size: 0.96rem;
-  font-weight: 900;
   color: var(--ink);
+  font-size: 0.98rem;
+  font-weight: 950;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
 }
 
 .piutang-cust-info p {
   margin: 0;
-  font-size: 0.82rem;
   color: var(--muted);
-  font-weight: 650;
+  font-size: 0.78rem;
+  font-weight: 720;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
-.piutang-card-items-toggle {
-  background: transparent;
-  border: 0;
+.piutang-debt-highlight {
+  display: grid;
+  justify-items: end;
+  align-content: center;
+  gap: 2px;
+  min-width: 112px;
+  border: 1px solid color-mix(in srgb, var(--danger) 16%, var(--line));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--danger-bg) 72%, var(--surface));
+  padding: 8px 10px;
+  color: var(--danger-ink);
+  text-align: right;
+}
+
+.piutang-debt-highlight.lunas {
+  border-color: color-mix(in srgb, var(--teal) 22%, var(--line));
+  background: var(--soft-teal);
   color: var(--teal-dark);
-  font-size: 0.8rem;
-  font-weight: 850;
-  cursor: pointer;
+}
+
+.piutang-debt-highlight span {
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.piutang-debt-highlight strong {
+  font-size: 1.02rem;
+  font-weight: 950;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.piutang-item-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.piutang-item-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 0;
-  margin-top: 6px;
-  min-height: 24px;
-}
-
-.piutang-card-items-toggle:hover {
-  text-decoration: underline;
-}
-
-.piutang-card-items-detail {
-  margin-top: 8px;
-  background: var(--soft-surface);
+  min-width: 0;
+  max-width: 100%;
+  min-height: 30px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 10px 12px;
-  font-size: 0.82rem;
+  border-radius: 8px;
+  background: var(--soft-surface);
+  color: var(--ink);
+  padding: 4px 8px;
+  font-size: 0.76rem;
+  font-weight: 850;
+  line-height: 1.08;
+}
+
+.piutang-item-chip strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  min-height: 22px;
+  border-radius: 7px;
+  background: var(--mint);
+  color: var(--teal-dark);
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.piutang-item-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.piutang-item-chip.more,
+.piutang-item-chip.empty {
+  color: var(--muted);
+}
+
+.piutang-financial-summary {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
-.piutang-card-item-row {
-  display: flex;
-  justify-content: space-between;
+.piutang-financial-row {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft-surface);
+  padding: 7px 8px;
+}
+
+.piutang-financial-row span {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.piutang-financial-row strong {
   color: var(--ink);
-  font-weight: 650;
+  font-size: 0.82rem;
+  font-weight: 950;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.piutang-financial-row.debt {
+  border-color: color-mix(in srgb, var(--danger) 20%, var(--line));
+  background: color-mix(in srgb, var(--danger-bg) 58%, var(--surface));
+}
+
+.piutang-financial-row.debt strong {
+  color: var(--danger);
+}
+
+.piutang-financial-row.debt.lunas {
+  border-color: color-mix(in srgb, var(--teal) 20%, var(--line));
+  background: var(--soft-teal);
+}
+
+.piutang-financial-row.debt.lunas strong {
+  color: var(--teal-dark);
+}
+
+.piutang-card-detail {
+  border-top: 1px dashed var(--line);
+  padding-top: 2px;
+}
+
+.piutang-card-detail summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 36px;
+  border-radius: 8px;
+  color: var(--teal-dark);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 900;
+  list-style: none;
+  padding: 6px 2px;
+}
+
+.piutang-card-detail summary::-webkit-details-marker {
+  display: none;
+}
+
+.piutang-card-detail summary::after {
+  content: "+";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--soft-teal);
+  color: var(--teal-dark);
+  flex: 0 0 auto;
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.piutang-card-detail[open] summary::after {
+  content: "-";
+}
+
+.piutang-card-detail summary strong {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.piutang-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.piutang-detail-totals {
+  display: none;
+  grid-column: 1 / -1;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.piutang-detail-totals span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 7px 8px;
+}
+
+.piutang-detail-totals small {
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.piutang-detail-totals strong {
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 950;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.piutang-detail-totals .debt {
+  border-color: color-mix(in srgb, var(--danger) 18%, var(--line));
+  background: color-mix(in srgb, var(--danger-bg) 56%, var(--surface));
+}
+
+.piutang-detail-totals .debt strong {
+  color: var(--danger);
+}
+
+.piutang-detail-totals .lunas {
+  border-color: color-mix(in srgb, var(--teal) 20%, var(--line));
+  background: var(--soft-teal);
+}
+
+.piutang-detail-totals .lunas strong {
+  color: var(--teal-dark);
+}
+
+.piutang-card-items-detail,
+.piutang-payment-logs {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft-surface);
+  padding: 9px;
+}
+
+.piutang-card-items-detail h4,
+.piutang-payment-title {
+  margin: 0 0 2px;
+  color: var(--ink);
+  font-size: 0.74rem;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+}
+
+.piutang-card-items-detail p,
+.piutang-payment-logs p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.piutang-card-item-row,
+.payment-log-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 760;
+  line-height: 1.2;
+}
+
+.piutang-card-item-row > span {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
 }
 
 .piutang-card-item-row .item-qty {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 26px;
+  min-height: 22px;
+  border: 1px solid color-mix(in srgb, var(--teal) 15%, var(--soft-teal));
+  border-radius: 7px;
   background: var(--soft-teal);
   color: var(--teal-dark);
-  border: 1px solid color-mix(in srgb, var(--teal) 15%, var(--soft-teal));
-  border-radius: 4px;
-  padding: 1px 6px;
-  font-size: 0.74rem;
-  font-weight: 900;
-  margin-right: 4px;
-  min-width: 22px;
-  line-height: 1.25;
-}
-
-.piutang-financial-summary {
-  background: var(--soft-surface);
-  border-radius: var(--radius);
-  padding: 12px;
-  display: grid;
-  gap: 8px;
-  align-self: start;
-}
-
-.piutang-financial-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.84rem;
-  font-weight: 750;
-}
-
-.piutang-financial-row.debt {
-  border-top: 1px solid var(--line);
-  padding-top: 8px;
-  font-size: 0.94rem;
+  font-size: 0.7rem;
   font-weight: 950;
-  color: var(--danger);
+  line-height: 1;
+  padding: 2px 5px;
 }
 
-.piutang-financial-row.debt.lunas {
-  color: var(--teal-dark);
-}
-
-.piutang-payment-logs {
-  border-top: 1px solid var(--line);
-  padding-top: 10px;
+.piutang-item-name {
   display: grid;
-  gap: 6px;
+  gap: 2px;
+  min-width: 0;
 }
 
-.piutang-payment-title {
-  font-size: 0.8rem;
-  font-weight: 900;
-  color: var(--ink);
-  margin: 0 0 4px;
+.piutang-item-name small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 720;
+}
+
+.piutang-card-item-row strong,
+.payment-log-row strong {
+  font-weight: 950;
+  white-space: nowrap;
 }
 
 .payment-log-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.78rem;
-  padding: 4px 6px;
-  background: var(--soft-surface);
-  border-radius: 4px;
+  border-radius: 7px;
+  background: var(--surface);
+  padding: 6px 7px;
   color: var(--muted);
-  font-weight: 700;
 }
 
 .payment-log-row.deposit-type {
+  border: 1px solid color-mix(in srgb, var(--teal) 15%, var(--soft-teal));
   background: var(--soft-teal);
   color: var(--teal-dark);
-  border: 1px solid color-mix(in srgb, var(--teal) 15%, var(--soft-teal));
+}
+
+.payment-log-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .piutang-pay-form {
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.piutang-payment-action {
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
+.piutang-payment-action summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid color-mix(in srgb, var(--teal) 22%, var(--line));
+  border-radius: 8px;
+  background: var(--soft-teal);
+  color: var(--teal-dark);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 950;
+  list-style: none;
+  padding: 7px 10px;
+}
+
+.piutang-payment-action summary::-webkit-details-marker {
+  display: none;
+}
+
+.piutang-payment-action summary::after {
+  content: "+";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--teal-dark);
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.piutang-payment-action[open] summary::after {
+  content: "-";
+}
+
+.piutang-payment-action summary strong {
+  color: var(--teal-dark);
+  font-size: 0.86rem;
+  font-weight: 950;
+  white-space: nowrap;
 }
 
 .piutang-pay-form label {
-  flex-grow: 1;
   display: grid;
   gap: 5px;
-  font-size: 0.8rem;
-  font-weight: 800;
+  min-width: 0;
   color: var(--ink);
+  font-size: 0.74rem;
+  font-weight: 900;
 }
 
 .piutang-pay-form input {
-  min-height: 40px;
-  font-weight: 850;
+  min-height: 44px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 900;
 }
 
-.piutang-pay-form button {
-  min-height: 40px;
-  padding: 8px 16px;
+.piutang-pay-form button,
+.piutang-revoke-button {
+  min-height: 44px;
+  border-radius: 8px;
   font-size: 0.84rem;
+  font-weight: 950;
+  padding: 8px 14px;
 }
 
 .piutang-revoke-action {
-  border-top: 1px dashed var(--line);
-  padding-top: 12px;
   display: flex;
   justify-content: flex-end;
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
 }
 
-.piutang-revoke-button {
-  min-height: 40px;
-  padding: 8px 16px;
-  font-size: 0.84rem;
+.piutang-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: var(--soft-surface);
+  color: var(--muted);
+  padding: 10px 12px;
+  font-size: 0.8rem;
   font-weight: 850;
+}
+
+.piutang-load-more.done {
+  justify-content: center;
+}
+
+.piutang-load-more button {
+  min-height: 38px;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+@media (max-width: 900px) {
+  #piutangModal .piutang-panel {
+    padding: 24px 34px 20px;
+  }
+
+  #piutangModal .piutang-heading {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  #piutangModal .piutang-heading .customer-heading-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    justify-content: stretch;
+    min-width: 0;
+    width: 100%;
+  }
+
+  #piutangScrollArea {
+    min-height: min(520px, 58dvh);
+  }
+
+  .piutang-financial-summary {
+    display: none;
+  }
+
+  .piutang-detail-totals {
+    display: grid;
+  }
+}
+
+@media (max-width: 720px) {
+  .piutang-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  #piutangModal {
+    width: min(100dvw - 20px, 430px);
+  }
+
+  #piutangModal .piutang-panel {
+    gap: 10px;
+    padding: 22px 18px 18px;
+  }
+
+  #piutangModal .piutang-heading h2 {
+    font-size: clamp(1.75rem, 7.4vw, 2.05rem);
+  }
+
+  #piutangModal .piutang-heading .customer-heading-actions {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  #piutangModal #refreshPiutangButton {
+    min-height: 42px;
+    padding-inline: 12px;
+  }
+
+  .piutang-summary-badge {
+    min-height: 40px;
+    padding: 7px 10px;
+    font-size: 0.78rem;
+  }
+
+  .piutang-tab-bar .tab-button {
+    min-height: 44px;
+    padding-inline: 6px;
+    font-size: 0.78rem;
+  }
+
+  #piutangScrollArea {
+    min-height: min(420px, 54dvh);
+    padding-right: 2px;
+  }
+
+  .piutang-list {
+    gap: 9px;
+  }
+
+  .piutang-card {
+    gap: 9px;
+    padding: 11px;
+  }
+
+  .piutang-card-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .piutang-card-main {
+    grid-template-columns: 1fr;
+  }
+
+  .piutang-debt-highlight {
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-items: stretch;
+    align-items: center;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .piutang-debt-highlight strong {
+    text-align: right;
+  }
+
+  .piutang-financial-summary {
+    gap: 5px;
+  }
+
+  .piutang-financial-row {
+    padding: 6px 7px;
+  }
+
+  .piutang-financial-row strong {
+    font-size: 0.78rem;
+  }
+
+  .piutang-card-detail summary {
+    align-items: flex-start;
+    min-height: 38px;
+  }
+
+  .piutang-card-detail summary strong {
+    white-space: normal;
+    text-align: right;
+  }
+
+  .piutang-load-more {
+    align-items: stretch;
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+@media (max-width: 380px) {
+  #piutangModal .piutang-panel {
+    padding-inline: 14px;
+  }
+
+  .piutang-pay-form {
+    grid-template-columns: 1fr;
+  }
+
+  .piutang-pay-form button,
+  .piutang-revoke-button {
+    width: 100%;
+  }
 }
 
 /* Bulk Draft Import Modal Search and Loading UX */
