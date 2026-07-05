@@ -7567,9 +7567,10 @@ function renderProducts() {
       const variantButtons = variants
         .map((variant) => {
           const active = String(variant.id) === String(defaultVariant?.id);
+          const variantLabel = String(variant.name || "").toLowerCase().replace(/\s+/g, " ").trim() === "custom input" ? "Custom" : variant.name;
           return `
             <button class="product-variant-chip ${active ? "default" : ""}" type="button" data-add="${escapeHtml(product.id)}" data-variant="${escapeHtml(variant.id)}" ${addDisabled ? "disabled" : ""}>
-              <span>${escapeHtml(variant.name)}</span>
+              <span>${escapeHtml(variantLabel)}</span>
               <strong>${currency.format(variant.price)}</strong>
             </button>
           `;
@@ -7579,21 +7580,31 @@ function renderProducts() {
       const dailyBadge = hasDailyMenu
         ? `<span class="menu-day-pill ${daily ? "today" : "outside"}">${daily ? "Menu Hari Ini" : "Di luar menu hari ini"}</span>`
         : "";
+      const metaHtml = [
+        product.sku ? `<span>${escapeHtml(product.sku)}</span>` : "",
+        dailyBadge,
+      ].filter(Boolean).join("");
       return `
         <article class="product-card" data-product-id="${escapeHtml(product.id)}">
-          <div>
-            <p class="product-title">${escapeHtml(product.name)}</p>
-            <p class="product-meta"><span>${escapeHtml(product.sku || "Tanpa SKU")}</span>${dailyBadge}</p>
-            ${aliases.length ? `<p class="product-aliases">Alias: ${escapeHtml(aliases.join(", "))}</p>` : ""}
-          </div>
-          <div class="product-actions">
-            <strong class="product-price product-action-price">${currency.format(defaultVariant?.price || product.price)}</strong>
-            <span class="stock-pill ${stockBadge.className}">${escapeHtml(stockBadge.label)}</span>
-            <button class="add-button" type="button" data-add="${escapeHtml(product.id)}" data-variant="${escapeHtml(defaultVariant?.id || "")}" aria-label="Tambah ${escapeHtml(product.name)}" ${addDisabled ? "disabled" : ""}>+</button>
-            <button class="ghost-button product-small-button" type="button" data-edit-product="${product.id}">Edit</button>
-            <button class="ghost-button danger product-small-button product-delete-button" type="button" data-delete-product="${product.id}" aria-label="Hapus ${escapeHtml(product.name)}" title="Hapus">
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
-            </button>
+          <div class="product-card-main">
+            <div class="product-info">
+              <p class="product-title" title="${escapeHtml(product.name)}">${escapeHtml(product.name)}</p>
+              ${metaHtml ? `<p class="product-meta">${metaHtml}</p>` : ""}
+              ${aliases.length ? `<p class="product-aliases">Alias: ${escapeHtml(aliases.join(", "))}</p>` : ""}
+            </div>
+            <div class="product-actions">
+              <div class="product-price-stack">
+                <strong class="product-price product-action-price">${currency.format(defaultVariant?.price || product.price)}</strong>
+                <span class="stock-pill ${stockBadge.className}">${escapeHtml(stockBadge.label)}</span>
+              </div>
+              <div class="product-action-buttons" aria-label="Aksi ${escapeHtml(product.name)}">
+                <button class="add-button" type="button" data-add="${escapeHtml(product.id)}" data-variant="${escapeHtml(defaultVariant?.id || "")}" aria-label="Tambah ${escapeHtml(product.name)}" ${addDisabled ? "disabled" : ""}>+</button>
+                <button class="ghost-button product-small-button" type="button" data-edit-product="${product.id}">Edit</button>
+                <button class="ghost-button danger product-small-button product-delete-button" type="button" data-delete-product="${product.id}" aria-label="Hapus ${escapeHtml(product.name)}" title="Hapus">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
+                </button>
+              </div>
+            </div>
           </div>
           ${variants.length > 1 ? `<div class="product-variant-chips">${variantButtons}</div>` : ""}
         </article>

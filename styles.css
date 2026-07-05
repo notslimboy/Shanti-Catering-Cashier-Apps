@@ -9435,6 +9435,238 @@ label {
   border-color: var(--teal);
 }
 
+/* Cleaner item cards for Daftar Barang */
+.product-card {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 12px;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.product-card:hover {
+  border-color: color-mix(in srgb, var(--teal) 26%, var(--line));
+  box-shadow: 0 6px 18px rgba(15, 118, 110, 0.08);
+}
+
+.product-card-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.product-info {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.product-title {
+  font-size: clamp(0.98rem, 1.1vw, 1.08rem);
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
+.product-meta {
+  margin-top: 0;
+  gap: 6px;
+}
+
+.product-meta > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.product-aliases {
+  margin-top: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.25;
+  max-width: 64ch;
+  overflow-wrap: anywhere;
+}
+
+.product-card .product-actions {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  justify-content: end;
+  gap: 10px;
+  min-width: 0;
+  width: auto;
+}
+
+.product-price-stack {
+  display: grid;
+  justify-items: end;
+  align-content: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.product-action-price {
+  min-height: 0;
+  align-self: auto;
+  justify-self: auto;
+}
+
+.product-price {
+  font-size: clamp(1rem, 1.25vw, 1.14rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.product-card .stock-pill {
+  margin-inline-end: 0;
+}
+
+.product-action-buttons {
+  display: grid;
+  grid-template-columns: 44px minmax(54px, auto) 44px;
+  align-items: center;
+  gap: 8px;
+}
+
+.product-action-buttons .add-button,
+.product-action-buttons .product-small-button {
+  min-height: 44px;
+  border-radius: 9px;
+}
+
+.product-action-buttons .add-button {
+  inline-size: 44px;
+  padding: 6px;
+}
+
+.product-action-buttons .product-delete-button {
+  inline-size: 44px;
+}
+
+.product-variant-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 7px;
+  padding-top: 9px;
+  border-top: 1px dashed var(--line);
+}
+
+.product-variant-chip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: 4px;
+  min-height: 54px;
+  border-radius: 9px;
+  padding: 8px 9px;
+  text-align: center;
+}
+
+.product-variant-chip span,
+.product-variant-chip strong {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.product-variant-chip span {
+  color: var(--ink);
+  font-size: 0.84rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.product-variant-chip strong {
+  font-size: 0.95rem;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+@container product-list (max-width: 700px) {
+  .product-card {
+    gap: 10px;
+    padding: 11px;
+  }
+
+  .product-card-main {
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .product-card .product-actions {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    width: 100%;
+  }
+
+  .product-price-stack {
+    justify-items: start;
+  }
+
+  .product-action-buttons {
+    justify-self: end;
+  }
+
+  .product-price {
+    font-size: 1.12rem;
+  }
+
+  .product-variant-chips {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .product-variant-chip {
+    min-height: 48px;
+    padding: 7px 6px;
+  }
+
+  .product-variant-chip span {
+    font-size: 0.75rem;
+  }
+
+  .product-variant-chip strong {
+    font-size: 0.84rem;
+  }
+}
+
+@container product-list (max-width: 360px) {
+  .product-card .product-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .product-action-buttons {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .product-action-buttons .product-small-button:not(.product-delete-button) {
+    width: 100%;
+  }
+
+  .product-variant-chip {
+    min-height: 46px;
+    padding-inline: 5px;
+  }
+
+  .product-variant-chip span {
+    font-size: 0.7rem;
+  }
+
+  .product-variant-chip strong {
+    font-size: 0.78rem;
+  }
+}
+
 .cart-variant-select {
   margin-top: 6px;
 }
@@ -9553,12 +9785,23 @@ label {
 @media (max-width: 760px) {
   .product-variant-chips {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
   }
 
   .product-variant-chip {
     grid-template-columns: minmax(0, 1fr);
     align-items: start;
+    min-height: 48px;
+    padding: 7px 6px;
+  }
+
+  .product-variant-chip span {
+    font-size: 0.75rem;
+  }
+
+  .product-variant-chip strong {
+    font-size: 0.84rem;
   }
 
   .variant-editor-heading,
@@ -9584,6 +9827,25 @@ label {
   .menu-item-variant-price {
     text-align: left;
     padding-right: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .product-card .product-variant-chip {
+    min-height: 48px;
+    padding: 6px 4px;
+  }
+
+  .product-card .product-variant-chip span {
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+
+  .product-card .product-variant-chip strong {
+    font-size: 0.72rem;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
   }
 }
 
