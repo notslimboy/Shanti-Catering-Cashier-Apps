@@ -9439,21 +9439,21 @@ label {
 .product-card {
   grid-template-columns: 1fr;
   align-items: stretch;
-  gap: 10px;
-  border-radius: 10px;
-  padding: 12px;
+  gap: 8px;
+  border-radius: 9px;
+  padding: 11px 12px;
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
 .product-card:hover {
   border-color: color-mix(in srgb, var(--teal) 26%, var(--line));
-  box-shadow: 0 6px 18px rgba(15, 118, 110, 0.08);
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.06);
 }
 
 .product-card-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
+  align-items: center;
   gap: 12px;
   min-width: 0;
 }
@@ -9465,8 +9465,9 @@ label {
 }
 
 .product-title {
-  font-size: clamp(0.98rem, 1.1vw, 1.08rem);
-  line-height: 1.12;
+  font-size: clamp(0.98rem, 1.04vw, 1.05rem);
+  font-weight: 850;
+  line-height: 1.18;
   overflow-wrap: anywhere;
 }
 
@@ -9489,10 +9490,14 @@ label {
 .product-aliases {
   margin-top: 0;
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   line-height: 1.25;
   max-width: 64ch;
+  display: -webkit-box;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .product-card .product-actions {
@@ -9551,22 +9556,25 @@ label {
 }
 
 .product-variant-chips {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  gap: 7px;
-  padding-top: 9px;
-  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
 }
 
 .product-variant-chip {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  justify-items: center;
-  gap: 4px;
-  min-height: 54px;
-  border-radius: 9px;
-  padding: 8px 9px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-inline-size: 104px;
+  min-height: 36px;
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  text-align: left;
 }
 
 .product-variant-chip span,
@@ -9579,20 +9587,20 @@ label {
 
 .product-variant-chip span {
   color: var(--ink);
-  font-size: 0.84rem;
+  font-size: 0.75rem;
   line-height: 1.1;
   white-space: nowrap;
 }
 
 .product-variant-chip strong {
-  font-size: 0.95rem;
+  font-size: 0.82rem;
   line-height: 1.05;
   white-space: nowrap;
 }
 
 @container product-list (max-width: 700px) {
   .product-card {
-    gap: 10px;
+    gap: 9px;
     padding: 11px;
   }
 
@@ -9620,13 +9628,11 @@ label {
   }
 
   .product-variant-chips {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }
 
   .product-variant-chip {
-    min-height: 48px;
-    padding: 7px 6px;
+    min-height: 36px;
   }
 
   .product-variant-chip span {
@@ -9655,7 +9661,7 @@ label {
 
   .product-variant-chip {
     min-height: 46px;
-    padding-inline: 5px;
+    padding-inline: 4px;
   }
 
   .product-variant-chip span {
@@ -9827,6 +9833,64 @@ label {
   .menu-item-variant-price {
     text-align: left;
     padding-right: 0;
+  }
+}
+
+@container product-list (min-width: 421px) {
+  .product-variant-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .product-variant-chip {
+    display: inline-flex;
+    grid-template-columns: none;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-inline-size: 104px;
+    min-height: 36px;
+    border-radius: 999px;
+    padding: 7px 10px;
+    text-align: left;
+  }
+
+  .product-variant-chip span {
+    font-size: 0.75rem;
+  }
+
+  .product-variant-chip strong {
+    font-size: 0.82rem;
+  }
+}
+
+@container product-list (max-width: 420px) {
+  .product-variant-chips {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .product-variant-chip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 3px;
+    min-inline-size: 0;
+    min-height: 44px;
+    border-radius: 8px;
+    padding: 6px 4px;
+    text-align: center;
+  }
+
+  .product-variant-chip span {
+    font-size: 0.7rem;
+  }
+
+  .product-variant-chip strong {
+    font-size: 0.78rem;
   }
 }
 
