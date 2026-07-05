@@ -7586,8 +7586,9 @@ function renderProducts() {
       return categoryMatch && searchScore > 0;
     })
     .sort((left, right) => {
-      if (!rawQuery.trim()) return left.index - right.index;
-      return right.searchScore - left.searchScore || left.index - right.index;
+      const nameOrder = (left.product.name || "").localeCompare(right.product.name || "", "id-ID", { sensitivity: "base", numeric: true });
+      if (!rawQuery.trim()) return nameOrder;
+      return right.searchScore - left.searchScore || nameOrder;
     })
     .map(({ product }) => product);
 
