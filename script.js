@@ -1394,6 +1394,13 @@ function bindHorizontalDragScroll(root, selector) {
   let dragState = null;
 
   const findStrip = (target) => target?.closest?.(selector);
+  const capturePointer = (strip, pointerId) => {
+    try {
+      strip.setPointerCapture?.(pointerId);
+    } catch (error) {
+      // Some synthetic or interrupted pointer streams cannot be captured.
+    }
+  };
   const endDrag = (event) => {
     if (!dragState || event.pointerId !== dragState.pointerId) return;
     const { strip, moved } = dragState;
@@ -1415,26 +1422,41 @@ function bindHorizontalDragScroll(root, selector) {
 
   root.addEventListener("pointerdown", (event) => {
     const strip = findStrip(event.target);
-    if (event.pointerType === "touch") return;
     if (!strip || strip.scrollWidth <= strip.clientWidth || (event.button !== undefined && event.button !== 0)) return;
     dragState = {
       pointerId: event.pointerId,
+      pointerType: event.pointerType || "mouse",
       startX: event.clientX,
+      startY: event.clientY,
       startScrollLeft: strip.scrollLeft,
       strip,
       moved: false,
+      lockedAxis: event.pointerType === "touch" ? "" : "x",
     };
-    strip.classList.add("is-drag-scrolling");
-    strip.setPointerCapture?.(event.pointerId);
+    if (dragState.lockedAxis === "x") {
+      strip.classList.add("is-drag-scrolling");
+      capturePointer(strip, event.pointerId);
+    }
   });
 
   root.addEventListener("pointermove", (event) => {
     if (!dragState || event.pointerId !== dragState.pointerId) return;
     const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+    if (!dragState.lockedAxis) {
+      if (Math.abs(deltaX) < 7 && Math.abs(deltaY) < 7) return;
+      if (Math.abs(deltaY) > Math.abs(deltaX) * 1.05) {
+        dragState = null;
+        return;
+      }
+      dragState.lockedAxis = "x";
+      dragState.strip.classList.add("is-drag-scrolling");
+      capturePointer(dragState.strip, event.pointerId);
+    }
     if (Math.abs(deltaX) < 4 && !dragState.moved) return;
     dragState.moved = true;
     dragState.strip.scrollLeft = dragState.startScrollLeft - deltaX;
-    event.preventDefault();
+    if (event.cancelable) event.preventDefault();
   });
 
   root.addEventListener("pointerup", endDrag);
@@ -2556,57 +2578,20 @@ function renderCustomerTagFilter(customers = getNormalizedCustomersForFilter()) 
   els.customerTagFilter.hidden = false;
   els.customerTagFilter.innerHTML = `
     <span class="customer-tag-filter-label">Tag alamat</span>
-    <div class="customer-tag-filter-strip">
-      <button class="customer-tag-scroll-button" type="button" data-customer-tag-scroll="-1" aria-label="Geser tag alamat ke kiri">&lt;</button>
-      <div class="customer-tag-filter-chips" role="group" aria-label="Filter tag alamat">
-        ${options
-          .map((option) => {
-            const active = option.key === state.customerTagFilter;
-            return `
-              <button class="customer-filter-chip${active ? " active" : ""}" type="button" data-customer-tag-filter="${escapeHtml(option.key)}" aria-pressed="${active ? "true" : "false"}">
-                <span>${escapeHtml(option.label)}</span>
-                <strong>${escapeHtml(option.count)}</strong>
-              </button>
-            `;
-          })
-          .join("")}
-      </div>
-      <button class="customer-tag-scroll-button" type="button" data-customer-tag-scroll="1" aria-label="Geser tag alamat ke kanan">&gt;</button>
+    <div class="customer-tag-filter-chips" role="group" aria-label="Filter tag alamat">
+      ${options
+        .map((option) => {
+          const active = option.key === state.customerTagFilter;
+          return `
+            <button class="customer-filter-chip${active ? " active" : ""}" type="button" data-customer-tag-filter="${escapeHtml(option.key)}" aria-pressed="${active ? "true" : "false"}">
+              <span>${escapeHtml(option.label)}</span>
+              <strong>${escapeHtml(option.count)}</strong>
+            </button>
+          `;
+        })
+        .join("")}
     </div>
   `;
-  const strip = getCustomerTagFilterStrip();
-  strip?.addEventListener("scroll", syncCustomerTagScrollButtons, { passive: true });
-  requestAnimationFrame(syncCustomerTagScrollButtons);
-  window.setTimeout(syncCustomerTagScrollButtons, 240);
-}
-
-function getCustomerTagFilterStrip() {
-  return els.customerTagFilter?.querySelector(".customer-tag-filter-chips") || null;
-}
-
-function syncCustomerTagScrollButtons() {
-  const strip = getCustomerTagFilterStrip();
-  if (!strip || !els.customerTagFilter) return;
-  const maxScroll = Math.max(0, strip.scrollWidth - strip.clientWidth);
-  const hasOverflow = maxScroll > 2;
-  els.customerTagFilter.querySelectorAll("[data-customer-tag-scroll]").forEach((button) => {
-    const direction = Number(button.dataset.customerTagScroll || 1);
-    button.hidden = !hasOverflow;
-    button.disabled = !hasOverflow || (direction < 0 ? strip.scrollLeft <= 2 : strip.scrollLeft >= maxScroll - 2);
-  });
-}
-
-function scrollCustomerTagFilter(direction = 1) {
-  const strip = getCustomerTagFilterStrip();
-  if (!strip) return;
-  const scrollDirection = Number(direction) < 0 ? -1 : 1;
-  const amount = Math.max(150, Math.round(strip.clientWidth * 0.78));
-  if (typeof strip.scrollBy === "function") {
-    strip.scrollBy({ left: amount * scrollDirection, behavior: "smooth" });
-  } else {
-    strip.scrollLeft += amount * scrollDirection;
-  }
-  window.setTimeout(syncCustomerTagScrollButtons, 260);
 }
 
 function renderCustomerHygienePanel(customers = getNormalizedCustomersForFilter(), analysis = getCustomerHygieneAnalysis(customers)) {
@@ -10169,11 +10154,6 @@ function bindEvents() {
   });
   bindHorizontalDragScroll(els.customerTagFilter, ".customer-tag-filter-chips");
   els.customerTagFilter?.addEventListener("click", (event) => {
-    const scrollButton = event.target.closest("[data-customer-tag-scroll]");
-    if (scrollButton) {
-      scrollCustomerTagFilter(scrollButton.dataset.customerTagScroll);
-      return;
-    }
     const button = event.target.closest("[data-customer-tag-filter]");
     if (!button) return;
     state.customerTagFilter = button.dataset.customerTagFilter || CUSTOMER_TAG_FILTER_ALL;

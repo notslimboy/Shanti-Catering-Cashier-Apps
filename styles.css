@@ -3465,14 +3465,6 @@ label {
   min-width: 0;
 }
 
-.customer-tag-filter-strip {
-  min-width: 0;
-}
-
-.customer-tag-scroll-button {
-  display: none;
-}
-
 .customer-filter-chip {
   display: inline-flex;
   align-items: center;
@@ -9442,51 +9434,6 @@ label {
     white-space: nowrap;
   }
 
-  #customerDataModal .customer-tag-filter-strip {
-    display: grid;
-    grid-template-columns: 34px minmax(0, 1fr) 34px;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    width: 100%;
-  }
-
-  #customerDataModal .customer-tag-scroll-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    min-width: 34px;
-    height: 34px;
-    min-height: 34px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--mint) 68%, var(--surface));
-    color: var(--teal-dark);
-    cursor: pointer;
-    font-size: 0.82rem;
-    font-weight: 950;
-    line-height: 1;
-    padding: 0;
-    transition: opacity 0.18s ease, background 0.18s ease, border-color 0.18s ease;
-  }
-
-  #customerDataModal .customer-tag-scroll-button:hover {
-    border-color: var(--teal);
-    background: var(--mint);
-  }
-
-  #customerDataModal .customer-tag-scroll-button:focus-visible {
-    outline: 0;
-    border-color: var(--teal);
-    box-shadow: 0 0 0 3px var(--teal-ring);
-  }
-
-  #customerDataModal .customer-tag-scroll-button:disabled {
-    cursor: default;
-    opacity: 0.34;
-  }
-
   #customerDataModal .customer-tag-filter-chips {
     display: flex;
     grid-template-columns: none;
@@ -9502,8 +9449,10 @@ label {
     scroll-snap-type: none;
     scrollbar-width: none;
     cursor: grab;
-    padding: 0 2px 2px;
-    touch-action: pan-x;
+    padding: 0 18px 2px 0;
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   #customerDataModal .customer-tag-filter-chips.is-drag-scrolling {
@@ -9519,6 +9468,7 @@ label {
     flex: 0 0 auto;
     min-width: max-content;
     scroll-snap-align: none;
+    touch-action: pan-y;
   }
 }
 
@@ -9526,18 +9476,6 @@ label {
   #customerDataModal .customer-tag-filter {
     grid-template-columns: 1fr;
     gap: 7px;
-  }
-
-  #customerDataModal .customer-tag-filter-strip {
-    grid-template-columns: 32px minmax(0, 1fr) 32px;
-    gap: 5px;
-  }
-
-  #customerDataModal .customer-tag-scroll-button {
-    width: 32px;
-    min-width: 32px;
-    height: 32px;
-    min-height: 32px;
   }
 
   #customerDataModal .customer-tag-filter-label {
