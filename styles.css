@@ -47,6 +47,8 @@
   --receipt-small-font-size: 11px;
   --print-page-size: var(--receipt-print-width) var(--receipt-page-height);
   --print-page-margin: 0;
+  --report-print-width: 190mm;
+  --report-print-height: 310mm;
 }
 
 :root[data-theme="dark"] {
@@ -5997,12 +5999,12 @@ label {
   html.report-print-mode .print-area {
     position: static;
     inset: auto;
-    width: 190mm;
+    width: var(--report-print-width);
   }
 
   html.report-print-mode .print-report-a4 {
     display: block !important;
-    width: 190mm;
+    width: var(--report-print-width);
     min-height: 0;
     color: #17211d;
     background: #fff;
@@ -6013,9 +6015,9 @@ label {
   html.report-print-mode .print-report-page {
     display: block !important;
     box-sizing: border-box;
-    width: 190mm;
-    height: 277mm;
-    min-height: 277mm;
+    width: var(--report-print-width);
+    height: var(--report-print-height);
+    min-height: var(--report-print-height);
     overflow: hidden;
     break-inside: avoid-page;
     page-break-inside: avoid;

@@ -8096,12 +8096,12 @@ async function printReportHtmlInFrame(html) {
 
   frameDocument.open();
   frameDocument.write(`<!doctype html>
-<html lang="id" class="report-print-mode" style="--print-page-size: A4 portrait; --print-page-margin: 10mm; --receipt-print-width: 48mm;">
+<html lang="id" class="report-print-mode" style="--print-page-size: ${REPORT_PRINT_PAGE_SIZE}; --print-page-margin: ${REPORT_PRINT_PAGE_MARGIN}; --receipt-print-width: 48mm; --report-print-width: ${REPORT_PRINT_CONTENT_WIDTH}; --report-print-height: ${REPORT_PRINT_CONTENT_HEIGHT};">
   <head>
     <meta charset="utf-8">
     <title>Laporan Penjualan</title>
     <link rel="stylesheet" href="${escapeHtml(getPrintStylesheetHref())}">
-    <style>@media print { @page { size: A4 portrait; margin: 10mm; } }</style>
+    <style>@media print { @page { size: ${REPORT_PRINT_PAGE_SIZE}; margin: ${REPORT_PRINT_PAGE_MARGIN}; } }</style>
   </head>
   <body class="report-print-mode">
     <div class="print-area report-print-area">${html}</div>
@@ -8208,10 +8208,14 @@ function formatReportItemList(items = []) {
   `;
 }
 
-const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 24;
-const REPORT_DETAIL_PAGE_UNIT_LIMIT = 32;
+const REPORT_PRINT_PAGE_SIZE = "210mm 330mm";
+const REPORT_PRINT_PAGE_MARGIN = "10mm";
+const REPORT_PRINT_CONTENT_WIDTH = "190mm";
+const REPORT_PRINT_CONTENT_HEIGHT = "310mm";
+const REPORT_SUMMARY_DETAIL_UNIT_LIMIT = 40;
+const REPORT_DETAIL_PAGE_UNIT_LIMIT = 46;
 const REPORT_DETAIL_ROW_MIN_UNITS = 2;
-const REPORT_COURIER_SUMMARY_UNIT_RESERVE = 8;
+const REPORT_COURIER_SUMMARY_UNIT_RESERVE = 3;
 
 function estimateReportDetailRowUnits(sale) {
   const customerName = getCustomerNameFromSale(sale) || "Customer belum diisi";
@@ -8545,9 +8549,11 @@ function salesReportA4Html() {
 
 function preparePrintReportHtml(html) {
   setPrintMode("report");
-  document.documentElement.style.setProperty("--print-page-size", "A4 portrait");
-  document.documentElement.style.setProperty("--print-page-margin", "10mm");
-  setDynamicPrintPageRule("A4 portrait", "10mm");
+  document.documentElement.style.setProperty("--print-page-size", REPORT_PRINT_PAGE_SIZE);
+  document.documentElement.style.setProperty("--print-page-margin", REPORT_PRINT_PAGE_MARGIN);
+  document.documentElement.style.setProperty("--report-print-width", REPORT_PRINT_CONTENT_WIDTH);
+  document.documentElement.style.setProperty("--report-print-height", REPORT_PRINT_CONTENT_HEIGHT);
+  setDynamicPrintPageRule(REPORT_PRINT_PAGE_SIZE, REPORT_PRINT_PAGE_MARGIN);
   els.printArea.innerHTML = html;
 }
 
