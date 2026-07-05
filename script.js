@@ -154,6 +154,9 @@ const state = {
     month: getLocalDateKey().slice(0, 7),
     hoverDate: "",
   },
+  dailyReportExpanded: {
+    itemTotals: false,
+  },
   dailyMenuCalendar: {
     month: getLocalDateKey().slice(0, 7),
   },
@@ -452,6 +455,7 @@ const els = {
   salesCalendarTitle: document.querySelector("#salesCalendarTitle"),
   salesCalendarGrid: document.querySelector("#salesCalendarGrid"),
   salesCalendarInfo: document.querySelector("#salesCalendarInfo"),
+  closeSalesCalendarButton: document.querySelector("#closeSalesCalendarButton"),
   previousSalesCalendarMonthButton: document.querySelector("#previousSalesCalendarMonthButton"),
   nextSalesCalendarMonthButton: document.querySelector("#nextSalesCalendarMonthButton"),
   salesRangeButtons: document.querySelectorAll("[data-sales-range]"),
@@ -1484,6 +1488,17 @@ function formatShortDateLabel(dateKey) {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+function formatCompactCurrency(value) {
+  const amount = Number(value || 0);
+  if (Math.abs(amount) >= 1000000) {
+    return `Rp ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(amount / 1000000)} jt`;
+  }
+  if (Math.abs(amount) >= 1000) {
+    return `Rp ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(amount / 1000)} rb`;
+  }
+  return currency.format(amount);
 }
 
 function formatSalesDateLabel() {
@@ -3087,9 +3102,10 @@ function getSalesCalendarStats(dateKey) {
   };
 }
 
-function getSalesDateMeta(dateKey) {
+function getSalesDateMeta(dateKey, compact = false) {
   const stats = getSalesCalendarStats(dateKey);
   if (!stats.count) return "Tidak ada transaksi";
+  if (compact) return `${stats.count} trx · ${formatCompactCurrency(stats.revenue)}`;
   return `${stats.count} transaksi · ${currency.format(stats.revenue)}`;
 }
 
@@ -3117,8 +3133,9 @@ function setSalesCalendarMonthFromDate(dateKey) {
 
 function renderSalesDateControls(range = getSalesRangeDates()) {
   const allMode = state.salesRange === "all";
-  const startMeta = allMode ? `${getSelectedSales().length} transaksi` : getSalesDateMeta(range.start);
-  const endMeta = allMode || range.start === range.end ? startMeta : getSalesDateMeta(range.end);
+  const compactMeta = window.matchMedia("(max-width: 1100px)").matches;
+  const startMeta = allMode ? `${getSelectedSales().length} ${compactMeta ? "trx" : "transaksi"}` : getSalesDateMeta(range.start, compactMeta);
+  const endMeta = allMode || range.start === range.end ? startMeta : getSalesDateMeta(range.end, compactMeta);
 
   if (els.salesStartDateText) els.salesStartDateText.textContent = allMode ? "Semua tanggal" : formatShortDateLabel(range.start);
   if (els.salesEndDateText) els.salesEndDateText.textContent = allMode ? "Semua tanggal" : formatShortDateLabel(range.end);
@@ -6435,9 +6452,13 @@ function renderMiniList(element, items, emptyText, options = {}) {
     return;
   }
 
+  const limit = Number(options.limit || 0);
+  const expanded = Boolean(options.expanded);
+  const visibleItems = limit > 0 && !expanded ? items.slice(0, limit) : items;
+  const hiddenCount = Math.max(0, items.length - visibleItems.length);
   const maxValue = Math.max(...items.map((item) => Number(item.total ?? item.quantity ?? 0)), 1);
   const graphColors = ["#0f766e", "#2563eb", "#b45309", "#7c3aed", "#be123c", "#15803d", "#0891b2", "#a16207"];
-  element.innerHTML = items
+  const rows = visibleItems
     .map(
       (item, index) => {
         const value = Number(item.total ?? item.quantity ?? 0);
@@ -6454,6 +6475,24 @@ function renderMiniList(element, items, emptyText, options = {}) {
       }
     )
     .join("");
+
+  const shouldShowToggle = Boolean(options.toggleKey) && limit > 0 && items.length > limit;
+  const toggleRow = shouldShowToggle
+    ? `
+        <div class="mini-list-row mini-list-more">
+          <span class="mini-list-name">${expanded ? `${items.length} ${escapeHtml(options.totalLabel || "item")}` : `+${hiddenCount} ${escapeHtml(options.moreLabel || "lainnya")}`}</span>
+          <button class="mini-list-toggle" type="button" data-mini-list-toggle="${escapeHtml(options.toggleKey)}" aria-expanded="${expanded ? "true" : "false"}">${expanded ? "Lebih sedikit" : "Lihat detail"}</button>
+        </div>
+      `
+    : hiddenCount
+      ? `
+        <div class="mini-list-row mini-list-more">
+          <span class="mini-list-name">+${hiddenCount} ${escapeHtml(options.moreLabel || "lainnya")}</span>
+          <strong>Lihat detail</strong>
+        </div>
+      `
+    : "";
+  element.innerHTML = `${rows}${toggleRow}`;
 }
 
 function getCourierBadgeText(courier) {
@@ -6508,7 +6547,8 @@ function renderDailyReport(selectedSales) {
   renderMiniList(
     els.dailyItemTotals,
     report.itemTotals.map((item) => ({ name: item.name, quantity: item.quantity })),
-    "Belum ada item terjual."
+    "Belum ada item terjual.",
+    { limit: 6, moreLabel: "item lain", totalLabel: "item tampil", toggleKey: "itemTotals", expanded: state.dailyReportExpanded.itemTotals }
   );
   renderCourierShippingList(els.dailyCourierShipping, report.shippingSummary);
 }
@@ -6517,7 +6557,9 @@ function renderSaleCardItems(items = []) {
   if (!items.length) return `<p class="sale-card-items">Tidak ada item</p>`;
 
   const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const rows = items
+  const previewItems = items.slice(0, 2);
+  const hiddenItems = Math.max(0, items.length - previewItems.length);
+  const rows = previewItems
     .map((item) => {
       const quantity = Math.max(0, Number(item.quantity || 0));
       const price = Number(item.price || 0);
@@ -6536,6 +6578,9 @@ function renderSaleCardItems(items = []) {
       `;
     })
     .join("");
+  const moreRow = hiddenItems
+    ? `<li class="sale-card-item-more"><span>+${hiddenItems} item lain</span><strong>Buka detail</strong></li>`
+    : "";
 
   return `
     <div class="sale-card-items sale-card-item-block">
@@ -6543,7 +6588,7 @@ function renderSaleCardItems(items = []) {
         <span>Item pesanan</span>
         <strong>${totalQuantity} item</strong>
       </div>
-      <ul class="sale-card-item-list">${rows}</ul>
+      <ul class="sale-card-item-list">${rows}${moreRow}</ul>
     </div>
   `;
 }
@@ -6664,15 +6709,20 @@ function renderSalesDashboard() {
               <p class="sale-card-receipt">${escapeHtml(receiptNo)}</p>
             </div>
             <div class="sale-card-actions">
-              <strong>${currency.format(Number(sale.total || 0))}</strong>
-              <button class="ghost-button sale-print-button" type="button" data-print-sale="${escapeHtml(saleId)}" aria-label="Cetak struk ${escapeHtml(receiptNo)}" ${saleId ? "" : "disabled"}>Cetak Struk</button>
-              <button class="ghost-button sale-edit-button" type="button" data-edit-sale="${escapeHtml(saleId)}" aria-label="Edit ${escapeHtml(receiptNo)}" ${saleId && !deleted ? "" : "disabled"}>Edit</button>
-              <button class="ghost-button sale-detail-button" type="button" data-view-sale="${escapeHtml(saleId)}" aria-label="Detail ${escapeHtml(receiptNo)}" ${saleId ? "" : "disabled"}>Detail</button>
-              ${
-                deleted
-                  ? `<button class="secondary-button sale-restore-button" type="button" data-restore-sale="${escapeHtml(saleId)}" aria-label="Restore ${escapeHtml(receiptNo)}" ${saleId ? "" : "disabled"}>Restore</button>`
-                  : `<button class="ghost-button danger sale-delete-button" type="button" data-delete-sale="${escapeHtml(saleId)}" aria-label="Hapus ${escapeHtml(receiptNo)}" ${saleId ? "" : "disabled"}>Hapus</button>`
-              }
+              <div class="sale-card-total">
+                <span>Total</span>
+                <strong>${currency.format(Number(sale.total || 0))}</strong>
+              </div>
+              <div class="sale-card-action-buttons">
+                <button class="secondary-button sale-print-button" type="button" data-print-sale="${escapeHtml(saleId)}" aria-label="Cetak struk ${escapeHtml(receiptNo)}" ${saleId ? "" : "disabled"}>Cetak</button>
+                <button class="ghost-button sale-detail-button" type="button" data-view-sale="${escapeHtml(saleId)}" aria-label="Detail ${escapeHtml(receiptNo)}" ${saleId ? "" : "disabled"}>Detail</button>
+                <button class="ghost-button sale-edit-button" type="button" data-edit-sale="${escapeHtml(saleId)}" aria-label="Edit ${escapeHtml(receiptNo)}" ${saleId && !deleted ? "" : "disabled"}>Edit</button>
+                ${
+                  deleted
+                    ? `<button class="secondary-button sale-restore-button" type="button" data-restore-sale="${escapeHtml(saleId)}" aria-label="Restore ${escapeHtml(receiptNo)}" ${saleId ? "" : "disabled"}>Restore</button>`
+                    : `<button class="ghost-button danger sale-delete-button" type="button" data-delete-sale="${escapeHtml(saleId)}" aria-label="Hapus ${escapeHtml(receiptNo)}" ${saleId ? "" : "disabled"}>Hapus</button>`
+                }
+              </div>
             </div>
           </div>
           <div class="sale-card-info">
@@ -10100,6 +10150,7 @@ function bindEvents() {
     state.salesCalendar.month = addMonthsToMonthKey(state.salesCalendar.month, 1);
     renderSalesCalendar();
   });
+  els.closeSalesCalendarButton?.addEventListener("click", closeSalesCalendar);
   els.salesCalendarGrid?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-calendar-date]");
     if (button) selectSalesCalendarDate(button.dataset.calendarDate);
@@ -10132,6 +10183,15 @@ function bindEvents() {
     resetSalesPage();
     renderSalesDashboard();
     saveState();
+  });
+  els.dailyReportSection?.addEventListener("click", (event) => {
+    const toggleButton = event.target.closest("[data-mini-list-toggle]");
+    if (!toggleButton) return;
+    const key = toggleButton.dataset.miniListToggle;
+    if (key === "itemTotals") {
+      state.dailyReportExpanded.itemTotals = !state.dailyReportExpanded.itemTotals;
+      renderSalesDashboard();
+    }
   });
   els.previousSalesPageButton?.addEventListener("click", () => setSalesPage(state.salesPage - 1));
   els.nextSalesPageButton?.addEventListener("click", () => setSalesPage(state.salesPage + 1));

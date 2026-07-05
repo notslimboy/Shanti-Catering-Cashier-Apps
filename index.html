@@ -32,10 +32,10 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=225">
+    <link rel="stylesheet" href="styles.css?v=230">
     <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script defer src="script.js?v=225"></script>
+    <script defer src="script.js?v=230"></script>
   </head>
   <body>
     <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
@@ -311,7 +311,7 @@
           </div>
           <div class="dashboard-actions">
             <button class="ghost-button" id="refreshSalesButton" type="button">Muat Ulang</button>
-            <button class="secondary-button report-print-button" id="printDailyReportButton" type="button">Cetak Laporan F4</button>
+            <button class="secondary-button report-print-button" id="printDailyReportButton" type="button" title="Cetak Laporan F4">Cetak F4</button>
             <details class="export-menu">
               <summary>Export</summary>
               <div class="export-menu-panel">
@@ -355,6 +355,7 @@
                 <button class="icon-button" id="previousSalesCalendarMonthButton" type="button" aria-label="Bulan sebelumnya">&lt;</button>
                 <strong id="salesCalendarTitle">Mei 2026</strong>
                 <button class="icon-button" id="nextSalesCalendarMonthButton" type="button" aria-label="Bulan berikutnya">&gt;</button>
+                <button class="icon-button sales-calendar-close-button" id="closeSalesCalendarButton" type="button" aria-label="Tutup kalender">×</button>
               </div>
               <div class="sales-calendar-weekdays" aria-hidden="true">
                 <span>Min</span>
@@ -436,7 +437,7 @@
             Cari transaksi
             <span class="sales-search-control">
               <span aria-hidden="true">⌕</span>
-              <input id="salesSearchInput" type="search" placeholder="Nomor struk, item, customer, catatan, pembayaran">
+              <input id="salesSearchInput" type="search" placeholder="Struk, item, customer, catatan">
             </span>
           </label>
           <label class="sales-sort-label">

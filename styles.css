@@ -2268,6 +2268,39 @@ label {
   white-space: nowrap;
 }
 
+.mini-list-more {
+  border-style: dashed;
+  background: transparent;
+}
+
+.mini-list-more .mini-list-name,
+.mini-list-more strong {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.mini-list-toggle {
+  position: relative;
+  z-index: 1;
+  min-height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--teal) 9%, var(--surface-strong));
+  color: var(--teal-dark);
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mini-list-toggle:hover,
+.mini-list-toggle:focus-visible {
+  outline: 2px solid var(--teal-ring);
+  outline-offset: 2px;
+}
+
 .mini-list-empty {
   margin: 0;
 }
@@ -2495,6 +2528,31 @@ label {
   white-space: nowrap;
 }
 
+.sale-card-total {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.sale-card-total span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.sale-card-total strong {
+  color: var(--ink);
+  font-size: 1.02rem;
+  line-height: 1.1;
+}
+
+.sale-card-action-buttons {
+  display: contents;
+}
+
 .sale-detail-button,
 .sale-delete-button,
 .sale-edit-button,
@@ -2622,6 +2680,26 @@ label {
   border-radius: var(--radius);
   background: var(--surface-strong);
   padding: 7px 8px;
+}
+
+.sale-card-item-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  padding: 7px 9px;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.sale-card-item-more strong {
+  color: var(--teal-dark);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .sale-card-item-qty {
@@ -4719,7 +4797,7 @@ label {
 
 .sales-calendar-header {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  grid-template-columns: 42px minmax(0, 1fr) 42px 38px;
   align-items: center;
   gap: 8px;
 }
@@ -4733,6 +4811,11 @@ label {
   min-height: 38px;
   background: var(--soft-teal);
   color: var(--teal-dark);
+}
+
+.sales-calendar-close-button {
+  background: var(--surface) !important;
+  color: var(--muted) !important;
 }
 
 .sales-calendar-weekdays,
@@ -5889,6 +5972,864 @@ label {
   }
 }
 
+/* Sales dashboard mobile/tablet rework */
+#salesDashboardModal .modal-panel {
+  overflow-x: hidden;
+}
+
+#salesDashboardModal .sales-modal-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "eyebrow actions"
+    "title actions"
+    "date actions";
+  gap: 6px 16px;
+}
+
+#salesDashboardModal .sales-modal-heading h2 {
+  font-size: clamp(1.9rem, 4vw, 2.55rem);
+}
+
+#salesDashboardModal .dashboard-actions {
+  justify-content: end;
+}
+
+#salesDashboardModal .sales-summary-card {
+  min-height: 94px;
+  padding: 14px;
+}
+
+#salesDashboardModal .sales-list {
+  min-height: 0;
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  #salesDashboardModal.sales-modal {
+    width: min(980px, calc(100dvw - 20px));
+  }
+
+  #salesDashboardModal .modal-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "head"
+      "filters"
+      "listToolbar"
+      "list"
+      "metrics"
+      "closing"
+      "pager";
+    align-items: start;
+    gap: 12px;
+    min-height: calc(100dvh - 28px);
+    padding: 24px 32px 20px;
+  }
+
+  #salesDashboardModal .sales-modal-heading {
+    grid-area: head;
+  }
+
+  #salesDashboardModal .sales-modal-heading .dashboard-actions {
+    gap: 6px;
+  }
+
+  #salesDashboardModal .sales-modal-heading .dashboard-actions button,
+  #salesDashboardModal .sales-modal-heading .dashboard-actions .export-menu,
+  #salesDashboardModal .sales-modal-heading .dashboard-actions summary {
+    min-height: 38px;
+    padding: 6px 9px;
+    font-size: 0.72rem;
+    border-radius: 10px;
+  }
+
+  #salesDashboardModal .sales-filter-panel {
+    grid-area: filters;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-self: stretch;
+    position: relative;
+    top: auto;
+    z-index: 1;
+    padding: 10px;
+  }
+
+  #salesDashboardModal .sales-date-controls {
+    grid-template-columns: 42px minmax(150px, 1fr) minmax(150px, 1fr) auto 42px;
+    grid-template-areas:
+      "prev dari sampai today next";
+    gap: 8px;
+    align-items: end;
+  }
+
+  #salesDashboardModal .sales-date-controls .date-picker-field:nth-of-type(1) {
+    grid-area: dari;
+  }
+
+  #salesDashboardModal .sales-date-controls .date-picker-field:nth-of-type(2) {
+    grid-area: sampai;
+  }
+
+  #salesDashboardModal #previousSalesDateButton {
+    grid-area: prev;
+  }
+
+  #salesDashboardModal #nextSalesDateButton {
+    grid-area: next;
+  }
+
+  #salesDashboardModal #todaySalesDateButton {
+    grid-area: today;
+    grid-column: auto;
+    width: auto;
+    min-width: 108px;
+  }
+
+  #salesDashboardModal .date-picker-button {
+    min-height: 50px;
+    gap: 4px;
+    padding: 8px 10px;
+  }
+
+  #salesDashboardModal .date-picker-button::after {
+    display: none;
+  }
+
+  #salesDashboardModal .date-picker-button strong {
+    font-size: 0.98rem;
+  }
+
+  #salesDashboardModal .date-picker-button small {
+    font-size: 0.68rem;
+  }
+
+  #salesDashboardModal .sales-range-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  #salesDashboardModal .sales-status-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #salesDashboardModal .sales-range-tabs,
+  #salesDashboardModal .sales-status-tabs {
+    gap: 6px;
+    padding: 5px;
+  }
+
+  #salesDashboardModal .tab-button {
+    min-height: 42px;
+    padding: 7px 8px;
+    font-size: 0.78rem;
+  }
+
+  #salesDashboardModal .sales-summary {
+    grid-area: metrics;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    padding-bottom: 2px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  #salesDashboardModal .sales-summary::-webkit-scrollbar {
+    display: none;
+  }
+
+  #salesDashboardModal .sales-summary-card {
+    flex: 0 0 164px;
+    min-height: 82px;
+    padding: 12px;
+    scroll-snap-align: start;
+  }
+
+  #salesDashboardModal .sales-revenue-card {
+    order: -1;
+    flex-basis: 188px;
+  }
+
+  #salesDashboardModal .sales-summary-card::after {
+    right: 10px;
+    top: 10px;
+    min-width: 38px;
+    height: 28px;
+    padding: 0 8px;
+    font-size: 0.64rem;
+  }
+
+  #salesDashboardModal .sales-summary span {
+    font-size: 0.7rem;
+    max-width: calc(100% - 48px);
+  }
+
+  #salesDashboardModal .sales-summary strong {
+    font-size: clamp(1.15rem, 2vw, 1.42rem);
+  }
+
+  #salesDashboardModal .daily-report {
+    grid-area: closing;
+    padding: 12px;
+  }
+
+  #salesDashboardModal .daily-report-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  #salesDashboardModal .daily-items-card .mini-list,
+  #salesDashboardModal .daily-courier-card .mini-list {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  #salesDashboardModal .sales-list-toolbar {
+    grid-area: listToolbar;
+    display: grid;
+    grid-template-columns: minmax(170px, 0.7fr) minmax(260px, 1.3fr) minmax(150px, 0.7fr);
+    align-items: end;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  #salesDashboardModal .sales-search-label,
+  #salesDashboardModal .sales-sort-label {
+    max-width: none;
+    width: 100%;
+  }
+
+  #salesDashboardModal .sales-list {
+    grid-area: list;
+    max-height: none;
+    overflow: visible;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding-right: 0;
+  }
+
+  #salesDashboardModal .sales-pagination {
+    grid-area: pager;
+  }
+
+  #salesDashboardModal .sale-card {
+    padding: 11px;
+  }
+
+  #salesDashboardModal .sale-card-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  #salesDashboardModal .sale-card-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  #salesDashboardModal .sale-card-action-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "detail edit"
+      "print destructive";
+    gap: 6px;
+  }
+
+  #salesDashboardModal .sale-print-button {
+    grid-area: print;
+  }
+
+  #salesDashboardModal .sale-detail-button {
+    grid-area: detail;
+  }
+
+  #salesDashboardModal .sale-edit-button {
+    grid-area: edit;
+  }
+
+  #salesDashboardModal .sale-delete-button,
+  #salesDashboardModal .sale-restore-button {
+    grid-area: destructive;
+  }
+
+  #salesDashboardModal .sale-card-action-buttons button {
+    min-width: 0;
+    min-height: 38px;
+    padding: 7px 8px;
+    font-size: 0.74rem;
+  }
+}
+
+@media (max-width: 760px) {
+  #salesDashboardModal.sales-modal {
+    width: 100dvw;
+    max-width: 100dvw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  #salesDashboardModal .modal-panel {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    min-height: 100dvh !important;
+    max-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: auto;
+    padding: max(12px, calc(env(safe-area-inset-top) + 10px)) max(12px, calc(env(safe-area-inset-right) + 12px)) max(18px, calc(env(safe-area-inset-bottom) + 14px)) max(12px, calc(env(safe-area-inset-left) + 12px));
+  }
+
+  #salesDashboardModal .modal-close-form {
+    position: fixed;
+    top: max(10px, calc(env(safe-area-inset-top) + 8px));
+    right: max(10px, calc(env(safe-area-inset-right) + 10px));
+    z-index: 10000;
+  }
+
+  #salesDashboardModal .modal-close-button {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 12px;
+    background: var(--surface-strong);
+    box-shadow: 0 10px 24px color-mix(in srgb, var(--line) 48%, transparent);
+  }
+
+  #salesDashboardModal .sales-modal-heading {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "eyebrow"
+      "title"
+      "date"
+      "actions";
+    gap: 4px;
+    padding-right: 50px;
+  }
+
+  #salesDashboardModal .sales-modal-heading h2 {
+    font-size: clamp(1.52rem, 7vw, 1.84rem);
+    line-height: 1.04;
+    white-space: nowrap;
+  }
+
+  #salesDashboardModal .sales-modal-heading .eyebrow {
+    font-size: 0.68rem;
+  }
+
+  #salesDashboardModal .sales-date-label {
+    margin: 2px 0 0;
+    font-size: 0.78rem;
+    line-height: 1.25;
+  }
+
+  #salesDashboardModal .sales-modal-heading .dashboard-actions {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 5px !important;
+    width: 100% !important;
+    margin: 6px 0 0 !important;
+    overflow: visible;
+    padding: 0;
+  }
+
+  #salesDashboardModal .sales-modal-heading .dashboard-actions button,
+  #salesDashboardModal .sales-modal-heading .dashboard-actions .export-menu,
+  #salesDashboardModal .sales-modal-heading .dashboard-actions summary {
+    width: 100% !important;
+    min-height: 38px;
+    min-width: 0;
+    padding: 6px 4px;
+    border-radius: 10px;
+    font-size: 0.58rem;
+    line-height: 1.08;
+    white-space: nowrap;
+  }
+
+  #salesDashboardModal .report-print-button {
+    order: -1;
+  }
+
+  #salesDashboardModal .export-menu-panel {
+    position: fixed;
+    top: max(132px, calc(env(safe-area-inset-top) + 126px));
+    left: 12px;
+    right: 12px;
+    z-index: 10001;
+    min-width: 0;
+    max-width: calc(100dvw - 24px);
+  }
+
+  #salesDashboardModal .sales-filter-panel {
+    gap: 8px;
+    border-radius: 12px;
+    padding: 8px;
+  }
+
+  #salesDashboardModal .sales-date-controls {
+    display: grid !important;
+    grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr) 42px !important;
+    grid-template-areas:
+      "dari dari sampai sampai"
+      "prev today today next" !important;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  #salesDashboardModal .sales-date-controls .date-picker-field:nth-of-type(1) {
+    grid-area: dari !important;
+  }
+
+  #salesDashboardModal .sales-date-controls .date-picker-field:nth-of-type(2) {
+    grid-area: sampai !important;
+  }
+
+  #salesDashboardModal #previousSalesDateButton {
+    grid-area: prev !important;
+  }
+
+  #salesDashboardModal #nextSalesDateButton {
+    grid-area: next !important;
+  }
+
+  #salesDashboardModal #todaySalesDateButton {
+    grid-area: today !important;
+    grid-column: auto !important;
+    justify-self: center;
+    width: min(132px, 100%) !important;
+  }
+
+  #salesDashboardModal .date-picker-field {
+    gap: 3px;
+  }
+
+  #salesDashboardModal .date-picker-field > span {
+    font-size: 0.66rem;
+  }
+
+  #salesDashboardModal .date-picker-button {
+    min-height: 46px;
+    border-radius: 10px;
+    gap: 2px 5px;
+    padding: 7px 8px;
+  }
+
+  #salesDashboardModal .date-picker-button::after {
+    font-size: 0.9rem;
+  }
+
+  #salesDashboardModal .date-picker-button strong {
+    font-size: 0.86rem;
+  }
+
+  #salesDashboardModal .date-picker-button small {
+    font-size: 0.62rem;
+    line-height: 1.2;
+  }
+
+  #salesDashboardModal .date-step-button {
+    min-width: 42px;
+    width: 42px;
+    min-height: 42px;
+    justify-self: center;
+    border-radius: 10px;
+    padding: 0;
+    font-size: 0.92rem;
+  }
+
+  #salesDashboardModal #todaySalesDateButton {
+    min-height: 42px;
+    padding: 7px 12px;
+    border-radius: 11px;
+    font-size: 0.88rem;
+    line-height: 1;
+  }
+
+  #salesDashboardModal .sales-range-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  #salesDashboardModal .sales-status-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  #salesDashboardModal .sales-range-tabs,
+  #salesDashboardModal .sales-status-tabs {
+    gap: 5px;
+    border-radius: 11px;
+    padding: 5px;
+  }
+
+  #salesDashboardModal .tab-button {
+    min-height: 44px;
+    padding: 6px 5px;
+    font-size: 0.7rem;
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+  }
+
+  #salesDashboardModal .sales-summary {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    padding-bottom: 2px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  #salesDashboardModal .sales-summary::-webkit-scrollbar {
+    display: none;
+  }
+
+  #salesDashboardModal .sales-revenue-card {
+    order: -1;
+    flex-basis: clamp(178px, 56vw, 220px);
+  }
+
+  #salesDashboardModal .sales-summary-card {
+    flex: 0 0 clamp(148px, 45vw, 176px);
+    min-height: 72px;
+    border-radius: 12px;
+    padding: 10px 11px;
+    box-shadow: none;
+    scroll-snap-align: start;
+  }
+
+  #salesDashboardModal .sales-summary-card::after {
+    right: 10px;
+    top: 10px;
+    min-width: 34px;
+    height: 26px;
+    padding: 0 8px;
+    font-size: 0.6rem;
+  }
+
+  #salesDashboardModal .sales-summary span {
+    font-size: 0.66rem;
+    line-height: 1.2;
+    max-width: calc(100% - 44px);
+  }
+
+  #salesDashboardModal .sales-summary strong {
+    font-size: clamp(1.08rem, 5.5vw, 1.36rem);
+  }
+
+  #salesDashboardModal .daily-report {
+    gap: 9px;
+    border-radius: 12px;
+    padding: 10px;
+  }
+
+  #salesDashboardModal .daily-report-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #salesDashboardModal .daily-report h3 {
+    font-size: 0.96rem;
+  }
+
+  #salesDashboardModal .daily-average-card {
+    min-width: 104px;
+    border-radius: 10px;
+    padding: 7px 9px;
+  }
+
+  #salesDashboardModal .daily-average-card span {
+    font-size: 0.58rem;
+  }
+
+  #salesDashboardModal .daily-average-card strong {
+    font-size: 0.82rem;
+  }
+
+  #salesDashboardModal .daily-report-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  #salesDashboardModal .daily-report-card {
+    gap: 7px;
+    border-radius: 11px;
+    padding: 9px;
+  }
+
+  #salesDashboardModal .daily-report-card > span,
+  #salesDashboardModal .mini-list-empty {
+    font-size: 0.66rem;
+  }
+
+  #salesDashboardModal .mini-list {
+    gap: 5px;
+  }
+
+  #salesDashboardModal .daily-items-card .mini-list,
+  #salesDashboardModal .daily-courier-card .mini-list {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  #salesDashboardModal .mini-list-row {
+    min-height: 30px;
+    border-radius: 8px;
+    gap: 7px;
+    padding: 5px 7px;
+  }
+
+  #salesDashboardModal .mini-list-name {
+    gap: 6px;
+    font-size: 0.74rem;
+  }
+
+  #salesDashboardModal .mini-list-row strong {
+    font-size: 0.74rem;
+  }
+
+  #salesDashboardModal .mini-list-icon {
+    width: 22px;
+    height: 22px;
+    font-size: 0.62rem;
+  }
+
+  #salesDashboardModal .courier-shipping-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 52px !important;
+    align-items: center;
+    padding: 6px 7px;
+  }
+
+  #salesDashboardModal .courier-shipping-row > strong {
+    display: block;
+    margin-top: 0;
+    font-size: 0.82rem;
+    text-align: right;
+  }
+
+  #salesDashboardModal .courier-shipping-row .mini-list-name {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  #salesDashboardModal .courier-shipping-copy > span {
+    font-size: 0.76rem;
+  }
+
+  #salesDashboardModal .courier-shipping-tags {
+    gap: 2px 3px;
+  }
+
+  #salesDashboardModal .courier-shipping-count-chip,
+  #salesDashboardModal .courier-shipping-tag-chip {
+    min-height: 16px;
+    padding: 1px 4px;
+    font-size: 0.56rem;
+  }
+
+  #salesDashboardModal .sales-list-toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    border-radius: 12px;
+    padding: 10px;
+  }
+
+  #salesDashboardModal .sales-list-title {
+    font-size: 0.94rem;
+    white-space: normal;
+  }
+
+  #salesDashboardModal .sales-list-heading,
+  #salesDashboardModal .sales-search-label,
+  #salesDashboardModal .sales-sort-label {
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
+
+  #salesDashboardModal .sales-list {
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    gap: 8px;
+    padding-right: 0;
+  }
+
+  #salesDashboardModal .sale-card {
+    gap: 7px;
+    border-radius: 12px;
+    padding: 10px;
+  }
+
+  #salesDashboardModal .sale-card-header {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  #salesDashboardModal .sale-card-customer {
+    font-size: 1rem;
+    line-height: 1.12;
+  }
+
+  #salesDashboardModal .sale-card-badges {
+    gap: 4px;
+  }
+
+  #salesDashboardModal .status-badge {
+    min-height: 20px;
+    padding: 2px 6px;
+    font-size: 0.58rem;
+  }
+
+  #salesDashboardModal .sale-card-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 7px;
+    width: 100%;
+  }
+
+  #salesDashboardModal .sale-card-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    justify-items: stretch;
+    border-top: 1px solid var(--line);
+    padding-top: 7px;
+  }
+
+  #salesDashboardModal .sale-card-total span {
+    font-size: 0.62rem;
+  }
+
+  #salesDashboardModal .sale-card-total strong {
+    font-size: 1rem;
+  }
+
+  #salesDashboardModal .sale-card-action-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "detail edit"
+      "print destructive";
+    gap: 5px;
+  }
+
+  #salesDashboardModal .sale-print-button {
+    grid-area: print;
+  }
+
+  #salesDashboardModal .sale-detail-button {
+    grid-area: detail;
+  }
+
+  #salesDashboardModal .sale-edit-button {
+    grid-area: edit;
+  }
+
+  #salesDashboardModal .sale-delete-button,
+  #salesDashboardModal .sale-restore-button {
+    grid-area: destructive;
+  }
+
+  #salesDashboardModal .sale-card-action-buttons button {
+    min-width: 0;
+    min-height: 44px;
+    padding: 7px 5px;
+    font-size: 0.68rem;
+  }
+
+  #salesDashboardModal .sale-card-info {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 10px;
+  }
+
+  #salesDashboardModal .sale-card-info span {
+    font-size: 0.62rem;
+  }
+
+  #salesDashboardModal .sale-card-info strong {
+    font-size: 0.76rem;
+  }
+
+  #salesDashboardModal .sale-card-item-block {
+    gap: 5px;
+    border-radius: 10px;
+    padding: 7px;
+  }
+
+  #salesDashboardModal .sale-card-item-heading {
+    font-size: 0.64rem;
+  }
+
+  #salesDashboardModal .sale-card-item-list {
+    gap: 5px;
+  }
+
+  #salesDashboardModal .sale-card-item-row {
+    gap: 6px;
+    border-radius: 9px;
+    padding: 6px;
+  }
+
+  #salesDashboardModal .sale-card-item-qty {
+    min-width: 28px;
+    min-height: 25px;
+    font-size: 0.68rem;
+  }
+
+  #salesDashboardModal .sale-card-item-copy strong,
+  #salesDashboardModal .sale-card-item-total {
+    font-size: 0.76rem;
+  }
+
+  #salesDashboardModal .sale-card-item-more {
+    padding: 6px 7px;
+    font-size: 0.7rem;
+  }
+
+  #salesDashboardModal .sale-card-summary {
+    gap: 5px 10px;
+    padding-top: 7px;
+  }
+
+  #salesDashboardModal .sale-card-summary span,
+  #salesDashboardModal .sale-card-summary strong {
+    font-size: 0.74rem;
+  }
+}
+
+@media (max-width: 380px) {
+  #salesDashboardModal .sales-modal-heading h2 {
+    font-size: 1.48rem;
+  }
+
+  #salesDashboardModal .date-picker-button strong {
+    font-size: 0.8rem;
+  }
+
+  #salesDashboardModal .date-picker-button small {
+    font-size: 0.58rem;
+  }
+
+  #salesDashboardModal .tab-button {
+    font-size: 0.66rem;
+  }
+
+  #salesDashboardModal .sale-card-action-buttons button {
+    font-size: 0.64rem;
+  }
+}
+
 #customerDataModal.customer-modal {
   width: min(1500px, calc(100dvw - 20px));
   max-width: calc(100dvw - 20px);
@@ -5986,6 +6927,40 @@ label {
 @media (max-width: 420px) {
   #customerDataModal .customer-hygiene-chips {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  html #salesDashboardModal .sales-modal-heading {
+    padding-right: 0 !important;
+  }
+
+  html #salesDashboardModal .sales-modal-heading > div:first-child {
+    padding-right: 50px;
+  }
+
+  html #salesDashboardModal .sales-modal-heading .dashboard-actions {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    width: 100% !important;
+    margin: 6px 0 0 !important;
+    gap: 5px !important;
+  }
+
+  html #salesDashboardModal .sales-modal-heading .dashboard-actions button,
+  html #salesDashboardModal .sales-modal-heading .dashboard-actions .export-menu,
+  html #salesDashboardModal .sales-modal-heading .dashboard-actions summary {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 38px !important;
+    padding: 6px 3px !important;
+    border-radius: 10px !important;
+    font-size: 0.58rem !important;
+    line-height: 1.05 !important;
+  }
+
+  html #salesDashboardModal .sales-modal-heading .dashboard-actions .export-menu {
+    padding: 0 !important;
   }
 }
 
