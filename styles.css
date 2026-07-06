@@ -12782,9 +12782,9 @@ body.has-cart-dock .app-shell {
   bottom: max(18px, env(safe-area-inset-bottom));
   z-index: 70;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   width: min(720px, calc(100dvw - 32px));
   min-height: 64px;
   border: 1px solid color-mix(in srgb, var(--teal) 48%, var(--line));
@@ -12796,6 +12796,28 @@ body.has-cart-dock .app-shell {
   padding: 12px 16px;
   text-align: left;
   transform: translateX(-50%);
+}
+
+.cart-dock-icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 38px;
+  block-size: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.cart-dock-icon svg {
+  display: block;
+  inline-size: 21px;
+  block-size: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
 }
 
 .mobile-mini-cart[hidden] {
@@ -13028,7 +13050,19 @@ body.cart-drawer-open .mobile-mini-cart {
     width: calc(100dvw - 24px);
     min-height: 58px;
     border-radius: 14px;
-    padding: 11px 14px;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .cart-dock-icon {
+    inline-size: 34px;
+    block-size: 34px;
+    border-radius: 11px;
+  }
+
+  .cart-dock-icon svg {
+    inline-size: 19px;
+    block-size: 19px;
   }
 
   .mobile-mini-cart small {
@@ -13138,6 +13172,11 @@ body.cart-drawer-open .mobile-mini-cart {
   width: 18px;
   block-size: 18px;
   height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.15;
 }
 
 .product-card .product-edit-button .button-label,
@@ -13462,7 +13501,7 @@ body.cart-drawer-open .mobile-mini-cart {
 
   .cart-drawer-panel .cart-heading-actions .secondary-button {
     background: color-mix(in srgb, var(--yellow) 82%, #ffffff);
-    color: color-mix(in srgb, var(--ink) 82%, #5c4300);
+    color: var(--yellow-button-ink);
   }
 
   .cart-drawer-panel .cart-heading-actions .ghost-button {
