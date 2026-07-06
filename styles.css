@@ -14472,6 +14472,7 @@ body.cart-drawer-open .mobile-mini-cart {
     border-radius: 12px;
     background: var(--surface-strong);
     padding: 0;
+    transform: translateX(40px);
   }
 }
 
