@@ -6560,37 +6560,34 @@ label {
 
 @media (min-width: 1024px) {
   #salesDashboardModal .sales-list {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
   #salesDashboardModal .sale-card {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
-      "header header"
+      "heading actions"
       "info summary";
     align-items: center;
-    gap: 8px 18px;
+    gap: 8px 14px;
     padding: 10px 14px;
   }
 
   #salesDashboardModal .sale-card-header {
-    grid-area: header;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 16px;
+    display: contents;
   }
 
   #salesDashboardModal .sale-card-heading {
-    grid-template-columns: auto minmax(160px, 1fr) auto;
-    align-items: center;
-    gap: 8px 12px;
+    grid-area: heading;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 5px;
   }
 
-  #salesDashboardModal .sale-card-badges,
-  #salesDashboardModal .sale-card-action-buttons,
-  #salesDashboardModal .sale-card-actions {
-    flex-wrap: nowrap;
+  #salesDashboardModal .sale-card-badges {
+    flex-wrap: wrap;
+    gap: 4px;
   }
 
   #salesDashboardModal .sale-card-customer {
@@ -6606,13 +6603,30 @@ label {
   }
 
   #salesDashboardModal .sale-card-actions {
-    display: flex;
-    align-items: center;
+    grid-area: actions;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: end;
+    gap: 6px;
     width: auto;
   }
 
   #salesDashboardModal .sale-card-total {
-    min-width: 112px;
+    min-width: 0;
+  }
+
+  #salesDashboardModal .sale-card-action-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(54px, auto));
+    gap: 5px;
+    justify-content: end;
+  }
+
+  #salesDashboardModal .sale-card-action-buttons button {
+    min-width: 54px;
+    min-height: 30px;
+    padding: 6px 9px;
+    font-size: 0.68rem;
   }
 
   #salesDashboardModal .sale-card-item-block {
@@ -6623,7 +6637,8 @@ label {
     grid-area: info;
     display: flex;
     align-items: center;
-    gap: 8px 18px;
+    flex-wrap: wrap;
+    gap: 5px 12px;
     min-width: 0;
   }
 
@@ -6641,7 +6656,7 @@ label {
   }
 
   #salesDashboardModal .sale-card-info strong {
-    max-width: 24ch;
+    max-width: 18ch;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -6651,8 +6666,8 @@ label {
     grid-area: summary;
     align-items: center;
     justify-content: flex-end;
-    flex-wrap: nowrap;
-    gap: 8px 16px;
+    flex-wrap: wrap;
+    gap: 5px 12px;
     border-top: 0;
     padding-top: 0;
   }
@@ -6660,6 +6675,36 @@ label {
   #salesDashboardModal .sale-card-summary span,
   #salesDashboardModal .sale-card-summary strong {
     white-space: nowrap;
+  }
+}
+
+@media (min-width: 1440px) {
+  #salesDashboardModal .sale-card {
+    gap: 8px 18px;
+  }
+
+  #salesDashboardModal .sale-card-heading {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 12px;
+  }
+
+  #salesDashboardModal .sale-card-badges,
+  #salesDashboardModal .sale-card-action-buttons {
+    flex-wrap: nowrap;
+  }
+
+  #salesDashboardModal .sale-card-action-buttons {
+    display: flex;
+  }
+
+  #salesDashboardModal .sale-card-info strong {
+    max-width: 24ch;
+  }
+
+  #salesDashboardModal .sale-card-summary {
+    flex-wrap: nowrap;
+    gap: 8px 16px;
   }
 }
 
