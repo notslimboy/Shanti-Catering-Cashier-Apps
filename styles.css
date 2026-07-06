@@ -14703,7 +14703,7 @@ body.cart-drawer-open .mobile-mini-cart.is-empty {
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
-    overflow-x: scroll !important;
+    overflow-x: auto !important;
     overflow-y: hidden !important;
     overscroll-behavior-x: contain !important;
     overscroll-behavior-y: auto !important;
@@ -14713,7 +14713,10 @@ body.cart-drawer-open .mobile-mini-cart.is-empty {
     scroll-behavior: auto !important;
     scroll-snap-type: none !important;
     padding: 1px 12px 4px 1px !important;
-    touch-action: pan-x !important;
+    cursor: auto !important;
+    touch-action: auto !important;
+    user-select: auto !important;
+    -webkit-user-select: auto !important;
   }
 
   #customerDataModal .customer-filter-chip {
@@ -14722,7 +14725,21 @@ body.cart-drawer-open .mobile-mini-cart.is-empty {
     min-width: max-content !important;
     max-width: none !important;
     white-space: nowrap !important;
-    touch-action: pan-x !important;
+    touch-action: auto !important;
+  }
+
+  #customerDataModal .customer-tag-filter-chips::-webkit-scrollbar {
+    display: block !important;
+    height: 6px !important;
+  }
+
+  #customerDataModal .customer-tag-filter-chips::-webkit-scrollbar-track {
+    background: transparent !important;
+  }
+
+  #customerDataModal .customer-tag-filter-chips::-webkit-scrollbar-thumb {
+    border-radius: 999px !important;
+    background: color-mix(in srgb, var(--teal) 35%, transparent) !important;
   }
 }
 

@@ -335,6 +335,7 @@ let dailyMenuSuggestionState = {
 const modalScrollLock = {
   active: false,
   scrollY: 0,
+  touchStartX: 0,
   touchStartY: 0,
   bodyStyle: {},
 };
@@ -876,12 +877,29 @@ function getModalScrollPanel(target, dialog) {
   return panel && dialog.contains(panel) ? panel : null;
 }
 
-function shouldBlockModalScroll(target, deltaY = 0) {
+function getHorizontalScrollPanel(target, dialog) {
+  const element = getEventElement(target);
+  if (!element || !dialog.contains(element)) return null;
+
+  let current = element;
+  while (current && current !== dialog && dialog.contains(current)) {
+    const style = window.getComputedStyle(current);
+    const canScrollX = /(auto|scroll)/.test(style.overflowX) && current.scrollWidth > current.clientWidth + 1;
+    if (canScrollX) return current;
+    current = current.parentElement;
+  }
+
+  return null;
+}
+
+function shouldBlockModalScroll(target, deltaY = 0, deltaX = 0) {
   const dialog = getTopOpenDialog();
   if (!dialog) return false;
 
   const element = getEventElement(target);
   if (!element || !dialog.contains(element)) return true;
+
+  if (Math.abs(deltaX) > Math.abs(deltaY) && getHorizontalScrollPanel(element, dialog)) return false;
 
   const panel = getModalScrollPanel(element, dialog);
   if (!panel) return true;
@@ -895,19 +913,22 @@ function shouldBlockModalScroll(target, deltaY = 0) {
 }
 
 function handleModalWheel(event) {
-  if (shouldBlockModalScroll(event.target, event.deltaY)) {
+  if (shouldBlockModalScroll(event.target, event.deltaY, event.deltaX)) {
     event.preventDefault();
   }
 }
 
 function handleModalTouchStart(event) {
+  modalScrollLock.touchStartX = event.touches?.[0]?.clientX || 0;
   modalScrollLock.touchStartY = event.touches?.[0]?.clientY || 0;
 }
 
 function handleModalTouchMove(event) {
+  const currentX = event.touches?.[0]?.clientX || modalScrollLock.touchStartX;
   const currentY = event.touches?.[0]?.clientY || modalScrollLock.touchStartY;
+  const deltaX = modalScrollLock.touchStartX - currentX;
   const deltaY = modalScrollLock.touchStartY - currentY;
-  if (shouldBlockModalScroll(event.target, deltaY)) {
+  if (shouldBlockModalScroll(event.target, deltaY, deltaX)) {
     event.preventDefault();
   }
 }
@@ -11082,7 +11103,6 @@ function bindEvents() {
     state.customerSearch = els.customerSearchInput.value;
     renderCustomerDataList();
   });
-  bindHorizontalDragScroll(els.customerTagFilter, ".customer-tag-filter-chips");
   els.customerTagFilter?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-customer-tag-filter]");
     if (!button) return;
