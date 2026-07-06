@@ -4,6 +4,9 @@ const SALES_PAGE_SIZE = 10;
 const PRODUCT_RENDER_INITIAL_LIMIT = 24;
 const PRODUCT_RENDER_BATCH_SIZE = 16;
 const PRODUCT_RENDER_OBSERVER_MARGIN = "900px 0px 900px 0px";
+const CUSTOMER_RENDER_INITIAL_LIMIT = 24;
+const CUSTOMER_RENDER_BATCH_SIZE = 16;
+const CUSTOMER_RENDER_OBSERVER_MARGIN = "600px 0px 600px 0px";
 const CUSTOMER_SUGGESTION_LIMIT = 80;
 const SUPABASE_URL = "https://ddfalsclevkqhiyojngx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP";
@@ -79,6 +82,7 @@ const integerFormatter = new Intl.NumberFormat("id-ID", {
 const CART_DRAWER_ANIMATION_MS = 230;
 let cartDrawerCloseTimer = 0;
 let productListObserver = null;
+let customerListObserver = null;
 
 const productRenderState = {
   signature: "",
@@ -88,6 +92,13 @@ const productRenderState = {
     dailyIds: new Set(),
     hasDailyMenu: false,
   },
+  pendingFrame: 0,
+};
+
+const customerRenderState = {
+  signature: "",
+  rows: [],
+  renderedCount: 0,
   pendingFrame: 0,
 };
 
@@ -3127,6 +3138,147 @@ function renderCustomerHygienePanel(customers = getNormalizedCustomersForFilter(
   `;
 }
 
+function getCustomerListSignature(rows) {
+  return [
+    normalizeKey(state.customerSearch),
+    normalizeKey(state.customerTagFilter),
+    normalizeKey(state.customerHygieneFilter),
+    rows.map((customer) => customer.id).join("|"),
+  ].join("::");
+}
+
+function renderCustomerCard(customer) {
+  const tagLabel = customer.tag || "Otomatis";
+  const aliasPreview = customer.aliases.length
+    ? `<span class="customer-summary-alias">Alias: ${escapeHtml(customer.aliases[0])}${customer.aliases.length > 1 ? ` +${customer.aliases.length - 1}` : ""}</span>`
+    : "";
+  return `
+    <form class="customer-card" data-customer-id="${escapeHtml(customer.id)}" data-original-name="${escapeHtml(customer.name)}">
+      <div class="customer-card-summary">
+        <div class="customer-summary-copy">
+          <strong>${escapeHtml(customer.name)}</strong>
+          <div class="customer-summary-meta">
+            <span>${escapeHtml(tagLabel)}</span>
+            <span>Ongkir ${escapeHtml(currency.format(customer.shipping))}</span>
+            <span>Deposit ${escapeHtml(currency.format(customer.depositBalance))}</span>
+            ${aliasPreview}
+          </div>
+        </div>
+        <button class="ghost-button customer-edit-toggle" type="button" data-edit-customer="${escapeHtml(customer.id)}" aria-expanded="false">Edit</button>
+      </div>
+      <div class="customer-card-edit">
+        <label class="customer-name-field">
+          Nama customer
+          <span class="customer-wrap-editor" role="textbox" tabindex="0" contenteditable="plaintext-only" data-wrap-field="name" aria-label="Nama customer">${escapeHtml(customer.name)}</span>
+          <input name="name" type="hidden" value="${escapeHtml(customer.name)}">
+        </label>
+        <label class="customer-tag-field">
+          Tag alamat
+          <span class="customer-wrap-editor" role="textbox" tabindex="0" contenteditable="plaintext-only" data-wrap-field="tag" data-placeholder="Otomatis" aria-label="Tag alamat">${escapeHtml(customer.tag)}</span>
+          <input name="tag" type="hidden" value="${escapeHtml(customer.tag)}">
+        </label>
+        <label class="customer-shipping-field">
+          Ongkir
+          <span class="customer-money-input">
+            <span>Rp</span>
+            <input name="defaultShipping" type="text" inputmode="numeric" value="${escapeHtml(formatIntegerInput(customer.shipping))}">
+          </span>
+        </label>
+        <label class="customer-deposit-field">
+          Deposit
+          <span class="customer-money-input">
+            <span>Rp</span>
+            <input name="depositBalance" type="text" inputmode="numeric" value="${escapeHtml(formatIntegerInput(customer.depositBalance))}">
+          </span>
+        </label>
+        <button class="primary-button customer-save-button" type="submit">Simpan</button>
+        <button class="ghost-button danger customer-remove-button" type="button" data-delete-customer="${escapeHtml(customer.id)}" data-customer-name="${escapeHtml(customer.name)}" aria-label="Hapus ${escapeHtml(customer.name)}" title="Hapus customer">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
+        </button>
+      </div>
+      ${customer.aliases.length ? `<div class="customer-alias-copy"><span>${escapeHtml(customer.aliases.join(", "))}</span></div>` : ""}
+    </form>
+  `;
+}
+
+function disconnectCustomerListObserver() {
+  if (customerListObserver) customerListObserver.disconnect();
+}
+
+function clearPendingCustomerBatch() {
+  if (!customerRenderState.pendingFrame) return;
+  window.cancelAnimationFrame(customerRenderState.pendingFrame);
+  customerRenderState.pendingFrame = 0;
+}
+
+function ensureCustomerListSentinel() {
+  let sentinel = els.customerDataList.querySelector("[data-customer-list-sentinel]");
+  if (!sentinel) {
+    sentinel = document.createElement("div");
+    sentinel.className = "customer-list-sentinel";
+    sentinel.dataset.customerListSentinel = "true";
+    els.customerDataList.append(sentinel);
+  }
+  return sentinel;
+}
+
+function updateCustomerListSentinel() {
+  const remaining = customerRenderState.rows.length - customerRenderState.renderedCount;
+  const sentinel = els.customerDataList.querySelector("[data-customer-list-sentinel]");
+  if (remaining <= 0) {
+    disconnectCustomerListObserver();
+    sentinel?.remove();
+    return;
+  }
+
+  const nextCount = Math.min(CUSTOMER_RENDER_BATCH_SIZE, remaining);
+  const activeSentinel = sentinel || ensureCustomerListSentinel();
+  activeSentinel.innerHTML = `
+    <button class="ghost-button customer-list-load-more" type="button" data-customer-load-more>
+      Muat ${nextCount} customer lagi
+    </button>
+    <small>${customerRenderState.renderedCount} dari ${customerRenderState.rows.length} customer tampil</small>
+  `;
+
+  if (!("IntersectionObserver" in window)) return;
+  if (!customerListObserver) {
+    customerListObserver = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) scheduleNextCustomerBatch();
+    }, { root: els.customerScrollArea || null, rootMargin: CUSTOMER_RENDER_OBSERVER_MARGIN, threshold: 0 });
+  }
+  disconnectCustomerListObserver();
+  customerListObserver.observe(activeSentinel);
+}
+
+function appendCustomerBatch(limit = CUSTOMER_RENDER_BATCH_SIZE) {
+  if (!els.customerDataList || !customerRenderState.rows.length) return;
+  const start = customerRenderState.renderedCount;
+  if (start >= customerRenderState.rows.length) {
+    updateCustomerListSentinel();
+    return;
+  }
+
+  const end = Math.min(start + limit, customerRenderState.rows.length);
+  const html = customerRenderState.rows
+    .slice(start, end)
+    .map(renderCustomerCard)
+    .join("");
+  const sentinel = els.customerDataList.querySelector("[data-customer-list-sentinel]");
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  els.customerDataList.insertBefore(template.content, sentinel || null);
+  customerRenderState.renderedCount = end;
+  updateCustomerListSentinel();
+}
+
+function scheduleNextCustomerBatch() {
+  if (customerRenderState.pendingFrame) return;
+  customerRenderState.pendingFrame = window.requestAnimationFrame(() => {
+    customerRenderState.pendingFrame = 0;
+    appendCustomerBatch(CUSTOMER_RENDER_BATCH_SIZE);
+  });
+}
+
 function renderCustomerDataList(statusMessage = "") {
   if (!els.customerDataList) return;
 
@@ -3139,6 +3291,11 @@ function renderCustomerDataList(statusMessage = "") {
   }
   state.customerHygieneFilter = CUSTOMER_HYGIENE_FILTER_ALL;
   const rows = getEditableCustomerRows(customers);
+  const signature = getCustomerListSignature(rows);
+  const sameList = signature === customerRenderState.signature;
+  const targetLimit = sameList
+    ? Math.max(CUSTOMER_RENDER_INITIAL_LIMIT, Math.min(customerRenderState.renderedCount || CUSTOMER_RENDER_INITIAL_LIMIT, rows.length))
+    : CUSTOMER_RENDER_INITIAL_LIMIT;
 
   const totalCount = customers.length;
   const countChip = document.getElementById("customerCountChip");
@@ -3146,12 +3303,22 @@ function renderCustomerDataList(statusMessage = "") {
     countChip.textContent = `${totalCount} Customer`;
   }
   if (!state.customers.length) {
+    clearPendingCustomerBatch();
+    disconnectCustomerListObserver();
+    customerRenderState.signature = signature;
+    customerRenderState.rows = [];
+    customerRenderState.renderedCount = 0;
     els.customerDataList.innerHTML = `<div class="empty-state">Belum ada data customer.</div>`;
     setCustomerDataStatus(statusMessage || "Data customer masih kosong.");
     return;
   }
 
   if (!rows.length) {
+    clearPendingCustomerBatch();
+    disconnectCustomerListObserver();
+    customerRenderState.signature = signature;
+    customerRenderState.rows = [];
+    customerRenderState.renderedCount = 0;
     els.customerDataList.innerHTML = `<div class="empty-state">Customer tidak ditemukan.</div>`;
     const emptyMessage = state.customerHygieneFilter !== CUSTOMER_HYGIENE_FILTER_ALL
       ? "Tidak ada customer di filter cek data ini."
@@ -3160,61 +3327,14 @@ function renderCustomerDataList(statusMessage = "") {
     return;
   }
 
-  els.customerDataList.innerHTML = rows
-    .map((customer) => {
-      const tagLabel = customer.tag || "Otomatis";
-      const aliasPreview = customer.aliases.length
-        ? `<span class="customer-summary-alias">Alias: ${escapeHtml(customer.aliases[0])}${customer.aliases.length > 1 ? ` +${customer.aliases.length - 1}` : ""}</span>`
-        : "";
-      return `
-        <form class="customer-card" data-customer-id="${escapeHtml(customer.id)}" data-original-name="${escapeHtml(customer.name)}">
-          <div class="customer-card-summary">
-            <div class="customer-summary-copy">
-              <strong>${escapeHtml(customer.name)}</strong>
-              <div class="customer-summary-meta">
-                <span>${escapeHtml(tagLabel)}</span>
-                <span>Ongkir ${escapeHtml(currency.format(customer.shipping))}</span>
-                <span>Deposit ${escapeHtml(currency.format(customer.depositBalance))}</span>
-                ${aliasPreview}
-              </div>
-            </div>
-            <button class="ghost-button customer-edit-toggle" type="button" data-edit-customer="${escapeHtml(customer.id)}" aria-expanded="false">Edit</button>
-          </div>
-          <div class="customer-card-edit">
-            <label class="customer-name-field">
-              Nama customer
-              <span class="customer-wrap-editor" role="textbox" tabindex="0" contenteditable="plaintext-only" data-wrap-field="name" aria-label="Nama customer">${escapeHtml(customer.name)}</span>
-              <input name="name" type="hidden" value="${escapeHtml(customer.name)}">
-            </label>
-            <label class="customer-tag-field">
-              Tag alamat
-              <span class="customer-wrap-editor" role="textbox" tabindex="0" contenteditable="plaintext-only" data-wrap-field="tag" data-placeholder="Otomatis" aria-label="Tag alamat">${escapeHtml(customer.tag)}</span>
-              <input name="tag" type="hidden" value="${escapeHtml(customer.tag)}">
-            </label>
-            <label class="customer-shipping-field">
-              Ongkir
-              <span class="customer-money-input">
-                <span>Rp</span>
-                <input name="defaultShipping" type="text" inputmode="numeric" value="${escapeHtml(formatIntegerInput(customer.shipping))}">
-              </span>
-            </label>
-            <label class="customer-deposit-field">
-              Deposit
-              <span class="customer-money-input">
-                <span>Rp</span>
-                <input name="depositBalance" type="text" inputmode="numeric" value="${escapeHtml(formatIntegerInput(customer.depositBalance))}">
-              </span>
-            </label>
-            <button class="primary-button customer-save-button" type="submit">Simpan</button>
-            <button class="ghost-button danger customer-remove-button" type="button" data-delete-customer="${escapeHtml(customer.id)}" data-customer-name="${escapeHtml(customer.name)}" aria-label="Hapus ${escapeHtml(customer.name)}" title="Hapus customer">
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
-            </button>
-          </div>
-          ${customer.aliases.length ? `<div class="customer-alias-copy"><span>${escapeHtml(customer.aliases.join(", "))}</span></div>` : ""}
-        </form>
-      `;
-    })
-    .join("");
+  clearPendingCustomerBatch();
+  disconnectCustomerListObserver();
+  customerRenderState.signature = signature;
+  customerRenderState.rows = rows;
+  customerRenderState.renderedCount = 0;
+  els.customerDataList.classList.add("is-incremental");
+  els.customerDataList.innerHTML = "";
+  appendCustomerBatch(targetLimit);
 
   const statusText = state.customerSearch
     ? `${rows.length} customer cocok.`
@@ -10966,6 +11086,10 @@ function bindEvents() {
     renderProducts();
     saveState();
   }, 120);
+  const scheduleCustomerSearchRender = debounce(() => {
+    state.customerSearch = els.customerSearchInput.value;
+    renderCustomerDataList();
+  }, 120);
 
   els.sidebarMenuButton?.addEventListener("click", toggleSidebar);
   els.closeSidebarButton?.addEventListener("click", closeSidebar);
@@ -11139,8 +11263,7 @@ function bindEvents() {
     saveNewCustomer(event.target);
   });
   els.customerSearchInput.addEventListener("input", () => {
-    state.customerSearch = els.customerSearchInput.value;
-    renderCustomerDataList();
+    scheduleCustomerSearchRender();
   });
   els.customerTagFilter?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-customer-tag-filter]");
@@ -11186,6 +11309,11 @@ function bindEvents() {
     }
   });
   els.customerDataList.addEventListener("click", (event) => {
+    const loadMoreButton = event.target.closest("[data-customer-load-more]");
+    if (loadMoreButton) {
+      appendCustomerBatch(CUSTOMER_RENDER_BATCH_SIZE);
+      return;
+    }
     const editButton = event.target.closest("[data-edit-customer]");
     if (editButton) {
       const card = editButton.closest(".customer-card");

@@ -3906,8 +3906,29 @@ label {
   gap: 10px;
 }
 
+.customer-list-sentinel {
+  grid-column: 1 / -1;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-height: 72px;
+  padding: 8px 0 16px;
+}
+
+.customer-list-load-more {
+  width: min(280px, 100%);
+}
+
+.customer-list-sentinel small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
 .customer-card {
   --customer-control-offset: calc(0.78rem * 1.2 + 8px);
+  content-visibility: auto;
+  contain-intrinsic-size: 140px;
   display: grid;
   grid-template-columns:
     minmax(0, 1.65fr)
