@@ -33,11 +33,11 @@
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="https://unpkg.com/lenis@1.3.25/dist/lenis.css">
-    <link rel="stylesheet" href="styles.css?v=261">
+    <link rel="stylesheet" href="styles.css?v=262">
     <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="https://unpkg.com/lenis@1.3.25/dist/lenis.min.js"></script>
-    <script defer src="script.js?v=250"></script>
+    <script defer src="script.js?v=251"></script>
   </head>
   <body>
     <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
@@ -102,6 +102,16 @@
         <path d="M3.5 4h2.2l2.1 11.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.5l1.1-5.6H7"></path>
         <path d="M9.5 8.8h10.8"></path>
       </symbol>
+      <symbol id="icon-plus" viewBox="0 0 24 24">
+        <path d="M12 5v14"></path>
+        <path d="M5 12h14"></path>
+      </symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24">
+        <path d="M20 6v5h-5"></path>
+        <path d="M4 18v-5h5"></path>
+        <path d="M18.8 11A7 7 0 0 0 6.4 7.5L4 10"></path>
+        <path d="M5.2 13a7 7 0 0 0 12.4 3.5L20 14"></path>
+      </symbol>
     </svg>
     <div class="app-shell">
       <button class="sidebar-overlay" id="sidebarOverlay" type="button" aria-label="Tutup menu"></button>
@@ -111,9 +121,27 @@
           <div>
             <p class="eyebrow">Aplikasi Kasir</p>
             <strong>Kasir Shanti Catering</strong>
-            <div class="sidebar-status" id="sidebarConnectionStatus" title="Status koneksi ke server SQLite lokal">
-              <span class="status-dot offline" id="sidebarConnectionDot"></span>
-              <span class="status-text" id="sidebarConnectionText">Offline</span>
+            <div class="sidebar-system-actions">
+              <button class="icon-button theme-toggle-button" type="button" data-theme-toggle aria-label="Aktifkan mode gelap" title="Aktifkan mode gelap" aria-pressed="false">
+                <svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"></path>
+                </svg>
+                <svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="4"></circle>
+                  <path d="M12 2v2"></path>
+                  <path d="M12 20v2"></path>
+                  <path d="m4.93 4.93 1.41 1.41"></path>
+                  <path d="m17.66 17.66 1.41 1.41"></path>
+                  <path d="M2 12h2"></path>
+                  <path d="M20 12h2"></path>
+                  <path d="m6.34 17.66-1.41 1.41"></path>
+                  <path d="m19.07 4.93-1.41 1.41"></path>
+                </svg>
+              </button>
+              <div class="sidebar-status" id="sidebarConnectionStatus" title="Status koneksi ke server SQLite lokal">
+                <span class="status-dot offline" id="sidebarConnectionDot"></span>
+                <span class="status-text" id="sidebarConnectionText">Offline</span>
+              </div>
             </div>
           </div>
           <button class="icon-button sidebar-close-button" id="closeSidebarButton" type="button" aria-label="Tutup menu">×</button>
@@ -144,28 +172,6 @@
             <span class="nav-copy"><strong>Setup Printer</strong><small>Driver XP, checklist thermal, dan test print.</small></span>
           </button>
         </nav>
-        <div class="sidebar-footer">
-          <span>Mode Tampilan</span>
-          <button class="ghost-button theme-toggle-button" id="themeToggleButton" type="button" aria-label="Aktifkan mode gelap" title="Aktifkan mode gelap" aria-pressed="false">
-            <span class="nav-icon">
-              <svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"></path>
-              </svg>
-              <svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="4"></circle>
-                <path d="M12 2v2"></path>
-                <path d="M12 20v2"></path>
-                <path d="m4.93 4.93 1.41 1.41"></path>
-                <path d="m17.66 17.66 1.41 1.41"></path>
-                <path d="M2 12h2"></path>
-                <path d="M20 12h2"></path>
-                <path d="m6.34 17.66-1.41 1.41"></path>
-                <path d="m19.07 4.93-1.41 1.41"></path>
-              </svg>
-            </span>
-            <span class="nav-copy"><strong id="themeToggleTitle">Mode Gelap</strong><small id="themeToggleCopy">Nyaman untuk shift malam.</small></span>
-          </button>
-        </div>
       </aside>
 
       <div class="app-content">
@@ -182,9 +188,27 @@
               <h1>Kasir Shanti Catering</h1>
             </div>
           </div>
-          <div class="topbar-status" id="topbarConnectionStatus" title="Status koneksi ke server SQLite lokal">
-            <span class="status-dot offline" id="topbarConnectionDot"></span>
-            <span class="status-text" id="topbarConnectionText">Offline</span>
+          <div class="topbar-system-actions">
+            <button class="icon-button theme-toggle-button" id="themeToggleButton" type="button" data-theme-toggle aria-label="Aktifkan mode gelap" title="Aktifkan mode gelap" aria-pressed="false">
+              <svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"></path>
+              </svg>
+              <svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"></circle>
+                <path d="M12 2v2"></path>
+                <path d="M12 20v2"></path>
+                <path d="m4.93 4.93 1.41 1.41"></path>
+                <path d="m17.66 17.66 1.41 1.41"></path>
+                <path d="M2 12h2"></path>
+                <path d="M20 12h2"></path>
+                <path d="m6.34 17.66-1.41 1.41"></path>
+                <path d="m19.07 4.93-1.41 1.41"></path>
+              </svg>
+            </button>
+            <div class="topbar-status" id="topbarConnectionStatus" title="Status koneksi ke server SQLite lokal">
+              <span class="status-dot offline" id="topbarConnectionDot"></span>
+              <span class="status-text" id="topbarConnectionText">Offline</span>
+            </div>
           </div>
         </header>
 
@@ -504,8 +528,12 @@
             </div>
           </div>
           <div class="customer-heading-actions">
-            <button class="primary-button" id="openAddCustomerButton" type="button">Tambah Customer</button>
-            <button class="ghost-button" id="refreshCustomersButton" type="button">Muat Ulang</button>
+            <button class="primary-button customer-heading-icon-button" id="openAddCustomerButton" type="button" aria-label="Tambah customer" title="Tambah customer">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-plus"></use></svg>
+            </button>
+            <button class="ghost-button customer-heading-icon-button" id="refreshCustomersButton" type="button" aria-label="Muat ulang customer" title="Muat ulang customer">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-refresh"></use></svg>
+            </button>
           </div>
         </div>
 

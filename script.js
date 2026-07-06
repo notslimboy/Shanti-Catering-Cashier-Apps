@@ -1,6 +1,9 @@
 const STORAGE_KEY = "kasir-bento-state-v1";
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const SALES_PAGE_SIZE = 10;
+const PRODUCT_RENDER_INITIAL_LIMIT = 24;
+const PRODUCT_RENDER_BATCH_SIZE = 16;
+const PRODUCT_RENDER_OBSERVER_MARGIN = "900px 0px 900px 0px";
 const CUSTOMER_SUGGESTION_LIMIT = 80;
 const SUPABASE_URL = "https://ddfalsclevkqhiyojngx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP";
@@ -75,6 +78,18 @@ const integerFormatter = new Intl.NumberFormat("id-ID", {
 });
 const CART_DRAWER_ANIMATION_MS = 230;
 let cartDrawerCloseTimer = 0;
+let productListObserver = null;
+
+const productRenderState = {
+  signature: "",
+  products: [],
+  renderedCount: 0,
+  context: {
+    dailyIds: new Set(),
+    hasDailyMenu: false,
+  },
+  pendingFrame: 0,
+};
 
 const RECEIPT_FONT_SIZES = {
   small: { body: 11, small: 10 },
@@ -476,6 +491,7 @@ const els = {
   openBulkImportButton: document.querySelector("#openBulkImportButton"),
   openBulkImportButtonTitle: document.querySelector("#openBulkImportButton .nav-copy strong"),
   themeToggleButton: document.querySelector("#themeToggleButton"),
+  themeToggleButtons: [...document.querySelectorAll("[data-theme-toggle]")],
   themeToggleTitle: document.querySelector("#themeToggleTitle"),
   themeToggleCopy: document.querySelector("#themeToggleCopy"),
   appSidebar: document.querySelector("#appSidebar"),
@@ -742,13 +758,16 @@ function applyTheme() {
   document.documentElement.style.colorScheme = theme;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#0f1f1c" : "#0f766e");
 
-  if (els.themeToggleButton) {
+  const themeToggleButtons = els.themeToggleButtons?.length ? els.themeToggleButtons : [els.themeToggleButton].filter(Boolean);
+  if (themeToggleButtons.length) {
     const label = theme === "dark" ? "Aktifkan mode terang" : "Aktifkan mode gelap";
     const title = theme === "dark" ? "Mode Terang" : "Mode Gelap";
     const copy = theme === "dark" ? "Balik terang untuk siang hari." : "Nyaman untuk shift malam.";
-    els.themeToggleButton.setAttribute("aria-label", label);
-    els.themeToggleButton.setAttribute("title", label);
-    els.themeToggleButton.setAttribute("aria-pressed", String(theme === "dark"));
+    themeToggleButtons.forEach((button) => {
+      button.setAttribute("aria-label", label);
+      button.setAttribute("title", label);
+      button.setAttribute("aria-pressed", String(theme === "dark"));
+    });
     if (els.themeToggleTitle) els.themeToggleTitle.textContent = title;
     if (els.themeToggleCopy) els.themeToggleCopy.textContent = copy;
   }
@@ -8004,14 +8023,8 @@ function renderInventoryReview() {
   els.inventoryReviewCopy.textContent = `Contoh: ${examples}. Gabungkan akan menyimpan barang pertama, memindahkan nama lain jadi alias, dan pakai stok terbesar.`;
 }
 
-function renderProducts() {
-  const rawQuery = els.searchInput.value || "";
-  renderCategoryFilter();
-  renderInventoryReview();
-  const activeDailyMenu = isDailyMenuFilterActive();
-  const dailyIds = getDailyMenuProductIds();
-  const hasDailyMenu = dailyIds.size > 0;
-  const products = getVisibleMenuProducts()
+function getFilteredMenuProducts(rawQuery) {
+  return getVisibleMenuProducts()
     .map((product, index) => ({ product, index, searchScore: getProductSearchScore(product, rawQuery) }))
     .filter(({ product, searchScore }) => {
       const categoryMatch = state.selectedCategory === "all" || normalizeKey(getProductCategory(product)) === normalizeKey(state.selectedCategory);
@@ -8023,79 +8036,200 @@ function renderProducts() {
       return right.searchScore - left.searchScore || nameOrder;
     })
     .map(({ product }) => product);
+}
+
+function getProductListSignature(products, rawQuery, dailyIds) {
+  const productIds = products.map((product) => product.id).join("|");
+  const dailyKey = [...dailyIds].sort().join("|");
+  return [
+    normalizeKey(rawQuery),
+    normalizeKey(state.selectedCategory),
+    isDailyMenuFilterActive() ? "today" : "all",
+    dailyKey,
+    productIds,
+  ].join("::");
+}
+
+function renderProductCard(product, context = productRenderState.context) {
+  const dailyIds = context.dailyIds || new Set();
+  const hasDailyMenu = Boolean(context.hasDailyMenu);
+  const available = getAvailableStock(product);
+  const stockBadge = getStockBadge(product, available);
+  const addDisabled = !isStockUnlimited(product) && available <= 0;
+  const aliases = getProductAliases(product);
+  const displayAliases = aliases.map(formatHalfVariantDisplayText);
+  const variants = getProductVariants(product);
+  const defaultVariant = getDefaultVariant(product);
+  const variantButtons = variants
+    .map((variant) => {
+      const active = String(variant.id) === String(defaultVariant?.id);
+      const variantLabel = String(variant.name || "").toLowerCase().replace(/\s+/g, " ").trim() === "custom input" ? "Custom" : variant.name;
+      const normalizedVariantLabel = String(variantLabel || "").toLowerCase().replace(/\s+/g, " ").trim();
+      const variantShortLabel = normalizedVariantLabel === "normal" ? "Norm" : normalizedVariantLabel === "custom" ? "Cust" : variantLabel;
+      const variantPriceLabel = formatVariantChipPrice(variant.price);
+      return `
+        <button class="product-variant-chip ${active ? "default" : ""}" type="button" data-add="${escapeHtml(product.id)}" data-variant="${escapeHtml(variant.id)}" aria-label="Tambah ${escapeHtml(product.name)} varian ${escapeHtml(variantLabel)} ${escapeHtml(currency.format(variant.price))}" ${addDisabled ? "disabled" : ""}>
+          <span class="variant-label-full">${escapeHtml(variantLabel)}</span>
+          <span class="variant-label-short" aria-hidden="true">${escapeHtml(variantShortLabel)}</span>
+          <strong>${escapeHtml(variantPriceLabel)}</strong>
+        </button>
+      `;
+    })
+    .join("");
+  const daily = dailyIds.has(String(product.id));
+  const dailyBadge = hasDailyMenu
+    ? `<span class="menu-day-pill ${daily ? "today" : "outside"}">${daily ? "Menu Hari Ini" : "Di luar menu hari ini"}</span>`
+    : "";
+  const metaHtml = [
+    product.sku ? `<span>${escapeHtml(product.sku)}</span>` : "",
+    dailyBadge,
+  ].filter(Boolean).join("");
+
+  return `
+    <article class="product-card" data-product-id="${escapeHtml(product.id)}">
+      <div class="product-card-main">
+        <div class="product-info">
+          <p class="product-title" title="${escapeHtml(product.name)}">${escapeHtml(product.name)}</p>
+          ${metaHtml ? `<p class="product-meta">${metaHtml}</p>` : ""}
+          ${displayAliases.length ? `<p class="product-aliases">Alias: ${escapeHtml(displayAliases.join(", "))}</p>` : ""}
+        </div>
+        <div class="product-secondary-actions" aria-label="Kelola ${escapeHtml(product.name)}">
+          <button class="ghost-button product-small-button product-edit-button" type="button" data-edit-product="${escapeHtml(product.id)}" aria-label="Edit ${escapeHtml(product.name)}">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+            <span class="button-label">Edit</span>
+          </button>
+          <button class="ghost-button danger product-small-button product-delete-button" type="button" data-delete-product="${escapeHtml(product.id)}" aria-label="Hapus ${escapeHtml(product.name)}" title="Hapus">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
+            <span class="button-label">Hapus</span>
+          </button>
+        </div>
+        <div class="product-price-stack">
+          <strong class="product-price product-action-price">${currency.format(defaultVariant?.price || product.price)}</strong>
+          <span class="stock-pill ${stockBadge.className}">${escapeHtml(stockBadge.label)}</span>
+        </div>
+        ${variants.length > 1 ? `<div class="product-variant-chips">${variantButtons}</div>` : ""}
+        <button class="add-button product-add-primary" type="button" data-add="${escapeHtml(product.id)}" data-variant="${escapeHtml(defaultVariant?.id || "")}" aria-label="Tambah ${escapeHtml(product.name)}" ${addDisabled ? "disabled" : ""}>
+          <span class="product-add-plus" aria-hidden="true">+</span>
+          <span class="product-add-label">Tambah</span>
+        </button>
+      </div>
+    </article>
+  `;
+}
+
+function disconnectProductListObserver() {
+  if (productListObserver) productListObserver.disconnect();
+}
+
+function clearPendingProductBatch() {
+  if (!productRenderState.pendingFrame) return;
+  window.cancelAnimationFrame(productRenderState.pendingFrame);
+  productRenderState.pendingFrame = 0;
+}
+
+function ensureProductListSentinel() {
+  let sentinel = els.productList.querySelector("[data-product-list-sentinel]");
+  if (!sentinel) {
+    sentinel = document.createElement("div");
+    sentinel.className = "product-list-sentinel";
+    sentinel.dataset.productListSentinel = "true";
+    els.productList.append(sentinel);
+  }
+  return sentinel;
+}
+
+function updateProductListSentinel() {
+  const remaining = productRenderState.products.length - productRenderState.renderedCount;
+  const sentinel = els.productList.querySelector("[data-product-list-sentinel]");
+  if (remaining <= 0) {
+    disconnectProductListObserver();
+    sentinel?.remove();
+    return;
+  }
+
+  const nextCount = Math.min(PRODUCT_RENDER_BATCH_SIZE, remaining);
+  const activeSentinel = sentinel || ensureProductListSentinel();
+  activeSentinel.innerHTML = `
+    <button class="ghost-button product-list-load-more" type="button" data-product-load-more>
+      Muat ${nextCount} menu lagi
+    </button>
+    <small>${productRenderState.renderedCount} dari ${productRenderState.products.length} menu tampil</small>
+  `;
+
+  if (!("IntersectionObserver" in window)) return;
+  if (!productListObserver) {
+    productListObserver = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) scheduleNextProductBatch();
+    }, { root: null, rootMargin: PRODUCT_RENDER_OBSERVER_MARGIN, threshold: 0 });
+  }
+  disconnectProductListObserver();
+  productListObserver.observe(activeSentinel);
+}
+
+function appendProductBatch(limit = PRODUCT_RENDER_BATCH_SIZE) {
+  if (!els.productList || !productRenderState.products.length) return;
+  const start = productRenderState.renderedCount;
+  if (start >= productRenderState.products.length) {
+    updateProductListSentinel();
+    return;
+  }
+
+  const end = Math.min(start + limit, productRenderState.products.length);
+  const html = productRenderState.products
+    .slice(start, end)
+    .map((product) => renderProductCard(product, productRenderState.context))
+    .join("");
+  const sentinel = els.productList.querySelector("[data-product-list-sentinel]");
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  els.productList.insertBefore(template.content, sentinel || null);
+  productRenderState.renderedCount = end;
+  updateProductListSentinel();
+}
+
+function scheduleNextProductBatch() {
+  if (productRenderState.pendingFrame) return;
+  productRenderState.pendingFrame = window.requestAnimationFrame(() => {
+    productRenderState.pendingFrame = 0;
+    appendProductBatch(PRODUCT_RENDER_BATCH_SIZE);
+  });
+}
+
+function renderProducts() {
+  const rawQuery = els.searchInput.value || "";
+  renderCategoryFilter();
+  renderInventoryReview();
+  const activeDailyMenu = isDailyMenuFilterActive();
+  const dailyIds = getDailyMenuProductIds();
+  const hasDailyMenu = dailyIds.size > 0;
+  const products = getFilteredMenuProducts(rawQuery);
+  const signature = getProductListSignature(products, rawQuery, dailyIds);
+  const sameList = signature === productRenderState.signature;
+  const targetLimit = sameList
+    ? Math.max(PRODUCT_RENDER_INITIAL_LIMIT, Math.min(productRenderState.renderedCount || PRODUCT_RENDER_INITIAL_LIMIT, products.length))
+    : PRODUCT_RENDER_INITIAL_LIMIT;
 
   if (!products.length) {
+    clearPendingProductBatch();
+    disconnectProductListObserver();
+    productRenderState.signature = signature;
+    productRenderState.products = [];
+    productRenderState.renderedCount = 0;
     els.productList.innerHTML = activeDailyMenu
       ? `<div class="empty-state">Menu hari ini belum ada yang cocok. Klik Atur Menu, lalu paste CSV menu hari ini.</div>`
       : `<div class="empty-state">Belum ada barang. Sinkron Google Sheet, pakai data contoh, atau tambah barang manual.</div>`;
     return;
   }
 
-  els.productList.innerHTML = products
-    .map((product) => {
-      const available = getAvailableStock(product);
-      const stockBadge = getStockBadge(product, available);
-      const addDisabled = !isStockUnlimited(product) && available <= 0;
-      const aliases = getProductAliases(product);
-      const displayAliases = aliases.map(formatHalfVariantDisplayText);
-      const variants = getProductVariants(product);
-      const defaultVariant = getDefaultVariant(product);
-      const variantButtons = variants
-        .map((variant) => {
-          const active = String(variant.id) === String(defaultVariant?.id);
-          const variantLabel = String(variant.name || "").toLowerCase().replace(/\s+/g, " ").trim() === "custom input" ? "Custom" : variant.name;
-          const normalizedVariantLabel = String(variantLabel || "").toLowerCase().replace(/\s+/g, " ").trim();
-          const variantShortLabel = normalizedVariantLabel === "normal" ? "Norm" : normalizedVariantLabel === "custom" ? "Cust" : variantLabel;
-          const variantPriceLabel = formatVariantChipPrice(variant.price);
-          return `
-            <button class="product-variant-chip ${active ? "default" : ""}" type="button" data-add="${escapeHtml(product.id)}" data-variant="${escapeHtml(variant.id)}" aria-label="Tambah ${escapeHtml(product.name)} varian ${escapeHtml(variantLabel)} ${escapeHtml(currency.format(variant.price))}" ${addDisabled ? "disabled" : ""}>
-              <span class="variant-label-full">${escapeHtml(variantLabel)}</span>
-              <span class="variant-label-short" aria-hidden="true">${escapeHtml(variantShortLabel)}</span>
-              <strong>${escapeHtml(variantPriceLabel)}</strong>
-            </button>
-          `;
-        })
-        .join("");
-      const daily = dailyIds.has(String(product.id));
-      const dailyBadge = hasDailyMenu
-        ? `<span class="menu-day-pill ${daily ? "today" : "outside"}">${daily ? "Menu Hari Ini" : "Di luar menu hari ini"}</span>`
-        : "";
-      const metaHtml = [
-        product.sku ? `<span>${escapeHtml(product.sku)}</span>` : "",
-        dailyBadge,
-      ].filter(Boolean).join("");
-      return `
-        <article class="product-card" data-product-id="${escapeHtml(product.id)}">
-          <div class="product-card-main">
-            <div class="product-info">
-              <p class="product-title" title="${escapeHtml(product.name)}">${escapeHtml(product.name)}</p>
-              ${metaHtml ? `<p class="product-meta">${metaHtml}</p>` : ""}
-              ${displayAliases.length ? `<p class="product-aliases">Alias: ${escapeHtml(displayAliases.join(", "))}</p>` : ""}
-            </div>
-            <div class="product-secondary-actions" aria-label="Kelola ${escapeHtml(product.name)}">
-              <button class="ghost-button product-small-button product-edit-button" type="button" data-edit-product="${escapeHtml(product.id)}" aria-label="Edit ${escapeHtml(product.name)}">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
-                <span class="button-label">Edit</span>
-              </button>
-              <button class="ghost-button danger product-small-button product-delete-button" type="button" data-delete-product="${escapeHtml(product.id)}" aria-label="Hapus ${escapeHtml(product.name)}" title="Hapus">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
-                <span class="button-label">Hapus</span>
-              </button>
-            </div>
-            <div class="product-price-stack">
-              <strong class="product-price product-action-price">${currency.format(defaultVariant?.price || product.price)}</strong>
-              <span class="stock-pill ${stockBadge.className}">${escapeHtml(stockBadge.label)}</span>
-            </div>
-            ${variants.length > 1 ? `<div class="product-variant-chips">${variantButtons}</div>` : ""}
-            <button class="add-button product-add-primary" type="button" data-add="${escapeHtml(product.id)}" data-variant="${escapeHtml(defaultVariant?.id || "")}" aria-label="Tambah ${escapeHtml(product.name)}" ${addDisabled ? "disabled" : ""}>
-              <span class="product-add-plus" aria-hidden="true">+</span>
-              <span class="product-add-label">Tambah</span>
-            </button>
-          </div>
-        </article>
-      `;
-    })
-    .join("");
+  clearPendingProductBatch();
+  disconnectProductListObserver();
+  productRenderState.signature = signature;
+  productRenderState.products = products;
+  productRenderState.renderedCount = 0;
+  productRenderState.context = { dailyIds, hasDailyMenu };
+  els.productList.classList.add("is-incremental");
+  els.productList.innerHTML = "";
+  appendProductBatch(targetLimit);
 }
 
 function renderCartTotals() {
@@ -10785,7 +10919,8 @@ function bindEvents() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && isSidebarOpen()) closeSidebar();
   });
-  els.themeToggleButton.addEventListener("click", toggleTheme);
+  const themeToggleButtons = els.themeToggleButtons?.length ? els.themeToggleButtons : [els.themeToggleButton].filter(Boolean);
+  themeToggleButtons.forEach((button) => button.addEventListener("click", toggleTheme));
 
   els.spreadsheetInput.addEventListener("change", (event) => {
     const [file] = event.target.files;

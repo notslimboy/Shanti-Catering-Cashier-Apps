@@ -532,6 +532,23 @@ label {
   margin-bottom: 22px;
 }
 
+.topbar-system-actions,
+.sidebar-system-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.topbar-system-actions {
+  justify-self: end;
+}
+
+.sidebar-system-actions {
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
 .brand-lockup {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -581,24 +598,24 @@ label {
 }
 
 .theme-toggle-button {
-  flex: 0 0 46px;
-  inline-size: 46px;
-  min-width: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 42px;
+  inline-size: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--control-bg);
+  color: var(--teal-dark);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   padding: 0;
 }
 
-.sidebar-footer .theme-toggle-button {
-  display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
-  align-items: center;
-  justify-content: stretch;
-  gap: 12px;
-  flex: none;
-  inline-size: 100%;
-  min-width: 0;
-  min-height: 68px;
-  padding: 12px;
-  text-align: left;
+.theme-toggle-button:hover {
+  background: var(--mint);
+  color: var(--teal-dark);
 }
 
 .theme-icon {
@@ -622,6 +639,11 @@ label {
 
 :root[data-theme="dark"] .theme-sun {
   display: block;
+}
+
+:root[data-theme="dark"] .theme-toggle-button {
+  background: var(--surface-strong);
+  color: var(--teal);
 }
 
 .sidebar-menu-button {
@@ -5407,9 +5429,13 @@ label {
     display: none;
   }
 
-  .topbar .topbar-status {
+  .topbar .topbar-system-actions {
     justify-self: end;
     margin-inline-start: 0;
+    max-width: min(202px, 46vw);
+  }
+
+  .topbar .topbar-status {
     max-width: min(150px, 36vw);
     min-width: 0;
     white-space: nowrap;
@@ -5507,7 +5533,7 @@ label {
     height: 58px;
   }
 
-  .topbar .topbar-status {
+  .topbar .topbar-system-actions {
     justify-self: end;
     margin-inline-start: 0;
   }
@@ -7315,6 +7341,9 @@ label {
 }
 
 #customerDataModal .customer-heading-actions {
+  display: flex;
+  align-items: center;
+  justify-content: end;
   gap: 8px;
 }
 
@@ -7326,6 +7355,24 @@ label {
   font-size: 0.78rem;
   line-height: 1;
   white-space: nowrap;
+}
+
+#customerDataModal .customer-heading-actions .customer-heading-icon-button {
+  inline-size: 40px;
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+}
+
+.customer-heading-icon-button svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
 }
 
 #customerDataModal .customer-filter-chip {
@@ -7608,13 +7655,14 @@ label {
   }
 
   #customerDataModal .customer-heading-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(112px, auto));
+    display: flex;
+    grid-template-columns: none;
+    justify-content: end;
   }
 
   #customerDataModal .customer-heading-actions button {
     min-height: 40px;
-    padding: 8px 12px;
+    padding: 0;
     font-size: 0.76rem;
   }
 
@@ -7927,15 +7975,23 @@ label {
   }
 
   #customerDataModal .customer-heading-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 100%;
+    display: flex;
+    grid-template-columns: none;
+    justify-content: start;
+    width: auto;
   }
 
   #customerDataModal .customer-heading-actions button {
     min-height: 38px;
-    padding: 7px 8px;
+    padding: 0;
     border-radius: 10px;
     font-size: 0.66rem;
+  }
+
+  #customerDataModal .customer-heading-actions .customer-heading-icon-button {
+    inline-size: 38px;
+    width: 38px;
+    min-width: 38px;
   }
 
   #customerDataModal .customer-search-label input {
@@ -8408,6 +8464,12 @@ label {
   padding: 6px 12px;
   font-size: 0.78rem;
   margin-inline-start: auto;
+}
+
+.topbar-system-actions .topbar-status,
+.sidebar-system-actions .sidebar-status {
+  margin-inline-start: 0;
+  margin-top: 0;
 }
 
 .status-dot {
