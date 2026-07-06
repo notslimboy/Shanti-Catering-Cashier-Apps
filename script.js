@@ -694,6 +694,7 @@ function loadState() {
         lastImportAt: typeof parsed.dailyMenu.lastImportAt === "string" ? parsed.dailyMenu.lastImportAt : "",
       };
     }
+    syncDailyMenuEditorToToday();
     state.lastReceipt = parsed.lastReceipt && typeof parsed.lastReceipt === "object" ? parsed.lastReceipt : null;
     sanitizeCart();
   } catch (error) {
@@ -1755,6 +1756,13 @@ function getTodayMenuDate() {
   return getLocalDateKey();
 }
 
+function syncDailyMenuEditorToToday() {
+  const todayDate = getTodayMenuDate();
+  state.dailyMenu.date = todayDate;
+  state.dailyMenu.productIds = [...getDailyMenuProductIds(todayDate)];
+  state.dailyMenuCalendar.month = todayDate.slice(0, 7);
+}
+
 function getDailyMenuMap() {
   if (!state.dailyMenu.menusByDate || typeof state.dailyMenu.menusByDate !== "object") {
     state.dailyMenu.menusByDate = {};
@@ -1847,6 +1855,7 @@ function refreshTodayDateIfChanged() {
   if (todayKey === renderedTodayDateKey) return;
   renderedTodayDateKey = todayKey;
   state.selectedCategory = "all";
+  syncDailyMenuEditorToToday();
   render();
 }
 

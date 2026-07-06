@@ -32,10 +32,10 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=253">
+    <link rel="stylesheet" href="styles.css?v=255">
     <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script defer src="script.js?v=245"></script>
+    <script defer src="script.js?v=246"></script>
   </head>
   <body>
     <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
@@ -240,69 +240,75 @@
             </div>
 
             <div class="cart-drawer-scroll">
-              <div class="cart-customer-bar">
-                <label class="sale-customer-field">
-                  <span class="customer-field-title">Customer / Alamat</span>
-                  <input id="customerNameInput" type="text" list="customerSuggestions" autocomplete="off" placeholder="Contoh: Pantai Mentari Blok SF no. 9">
-                  <span class="customer-profile-hint" id="customerProfileHint">Customer baru. Ongkir bisa diisi manual.</span>
-                  <span class="customer-deposit-hint" id="customerDepositHint" hidden></span>
-                </label>
-                <datalist id="customerSuggestions"></datalist>
-              </div>
+              <div class="cart-drawer-layout">
+                <div class="cart-side-panel">
+                  <div class="cart-customer-bar">
+                    <label class="sale-customer-field">
+                      <span class="customer-field-title">Customer / Alamat</span>
+                      <input id="customerNameInput" type="text" list="customerSuggestions" autocomplete="off" placeholder="Contoh: Pantai Mentari Blok SF no. 9">
+                      <span class="customer-profile-hint" id="customerProfileHint">Customer baru. Ongkir bisa diisi manual.</span>
+                      <span class="customer-deposit-hint" id="customerDepositHint" hidden></span>
+                    </label>
+                    <datalist id="customerSuggestions"></datalist>
+                  </div>
 
-              <div class="cart-list" id="cartList"></div>
+                  <div class="sale-controls">
+                    <label>
+                      <span class="shipping-label">
+                        <svg class="delivery-icon" aria-hidden="true" focusable="false"><use href="#icon-delivery-rider"></use></svg>
+                        <span>Ongkir</span>
+                      </span>
+                      <input id="shippingInput" type="text" inputmode="numeric" pattern="[0-9.]*" autocomplete="off" value="0">
+                    </label>
+                    <div class="payment-field">
+                      <span class="control-label">Pembayaran</span>
+                      <div class="payment-segmented" id="paymentSelect" role="radiogroup" aria-label="Pilih pembayaran">
+                          <button class="payment-segment active" type="button" role="radio" aria-checked="true" data-payment-option="Tunai">
+                            <span class="payment-method-icon" aria-hidden="true">Rp</span>
+                            <span>Tunai</span>
+                          </button>
+                          <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="Debit">
+                            <span class="payment-method-icon" aria-hidden="true">▭</span>
+                            <span>Debit</span>
+                          </button>
+                          <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="QRIS">
+                            <span class="payment-method-icon" aria-hidden="true">▦</span>
+                            <span>QRIS</span>
+                          </button>
+                          <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="Transfer">
+                            <span class="payment-method-icon" aria-hidden="true">↗</span>
+                            <span>Transfer</span>
+                          </button>
+                        <select class="native-payment-select" id="paymentInput" tabindex="-1" aria-hidden="true">
+                          <option>Tunai</option>
+                          <option>Debit</option>
+                          <option>QRIS</option>
+                          <option>Transfer</option>
+                        </select>
+                      </div>
+                    </div>
+                    <button class="ghost-button receipt-preview-button" id="openReceiptPreviewButton" type="button">Preview Struk</button>
+                  </div>
 
-              <div class="sale-controls">
-                <label>
-                  <span class="shipping-label">
-                    <svg class="delivery-icon" aria-hidden="true" focusable="false"><use href="#icon-delivery-rider"></use></svg>
-                    <span>Ongkir</span>
-                  </span>
-                  <input id="shippingInput" type="text" inputmode="numeric" pattern="[0-9.]*" autocomplete="off" value="0">
-                </label>
-                <div class="payment-field">
-                  <span class="control-label">Pembayaran</span>
-                  <div class="payment-segmented" id="paymentSelect" role="radiogroup" aria-label="Pilih pembayaran">
-                      <button class="payment-segment active" type="button" role="radio" aria-checked="true" data-payment-option="Tunai">
-                        <span class="payment-method-icon" aria-hidden="true">Rp</span>
-                        <span>Tunai</span>
-                      </button>
-                      <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="Debit">
-                        <span class="payment-method-icon" aria-hidden="true">▭</span>
-                        <span>Debit</span>
-                      </button>
-                      <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="QRIS">
-                        <span class="payment-method-icon" aria-hidden="true">▦</span>
-                        <span>QRIS</span>
-                      </button>
-                      <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="Transfer">
-                        <span class="payment-method-icon" aria-hidden="true">↗</span>
-                        <span>Transfer</span>
-                      </button>
-                    <select class="native-payment-select" id="paymentInput" tabindex="-1" aria-hidden="true">
-                      <option>Tunai</option>
-                      <option>Debit</option>
-                      <option>QRIS</option>
-                      <option>Transfer</option>
-                    </select>
+                  <div class="checkout-validation" id="checkoutValidation" aria-live="polite" hidden></div>
+
+                  <div class="checkout-sticky">
+                    <div class="totals-card" aria-live="polite">
+                      <div><span>Subtotal</span><strong id="subtotalText">Rp0</strong></div>
+                      <div><span class="shipping-label"><svg class="delivery-icon" aria-hidden="true" focusable="false"><use href="#icon-delivery-rider"></use></svg><span>Ongkir</span></span><strong id="shippingText">Rp0</strong></div>
+                      <div class="deposit-row" id="checkoutDepositRow" hidden><span>Potongan Deposit</span><strong id="depositText">-Rp0</strong></div>
+                      <div class="grand-total"><span>Total</span><strong id="totalText">Rp0</strong></div>
+                    </div>
+                    <div class="checkout-actions">
+                      <button class="secondary-button full-width checkout-print-button" id="printReceiptButton" type="button">Cetak Struk</button>
+                      <button class="primary-button full-width checkout-complete-button" id="completeSaleButton" type="button">Selesaikan Transaksi</button>
+                    </div>
                   </div>
                 </div>
-                <button class="ghost-button receipt-preview-button" id="openReceiptPreviewButton" type="button">Preview Struk</button>
-              </div>
 
-              <div class="checkout-validation" id="checkoutValidation" aria-live="polite" hidden></div>
-            </div>
-
-            <div class="checkout-sticky">
-              <div class="totals-card" aria-live="polite">
-                <div><span>Subtotal</span><strong id="subtotalText">Rp0</strong></div>
-                <div><span class="shipping-label"><svg class="delivery-icon" aria-hidden="true" focusable="false"><use href="#icon-delivery-rider"></use></svg><span>Ongkir</span></span><strong id="shippingText">Rp0</strong></div>
-                <div class="deposit-row" id="checkoutDepositRow" hidden><span>Potongan Deposit</span><strong id="depositText">-Rp0</strong></div>
-                <div class="grand-total"><span>Total</span><strong id="totalText">Rp0</strong></div>
-              </div>
-              <div class="checkout-actions">
-                <button class="secondary-button full-width checkout-print-button" id="printReceiptButton" type="button">Cetak Struk</button>
-                <button class="primary-button full-width checkout-complete-button" id="completeSaleButton" type="button">Selesaikan Transaksi</button>
+                <div class="cart-items-panel" aria-label="Daftar item keranjang">
+                  <div class="cart-list" id="cartList"></div>
+                </div>
               </div>
             </div>
           </section>
