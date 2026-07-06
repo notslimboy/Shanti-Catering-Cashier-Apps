@@ -72,6 +72,8 @@ const currency = new Intl.NumberFormat("id-ID", {
 const integerFormatter = new Intl.NumberFormat("id-ID", {
   maximumFractionDigits: 0,
 });
+const CART_DRAWER_ANIMATION_MS = 230;
+let cartDrawerCloseTimer = 0;
 
 const RECEIPT_FONT_SIZES = {
   small: { body: 11, small: 10 },
@@ -389,6 +391,8 @@ const els = {
   categoryFilter: document.querySelector("#categoryFilter"),
   productList: document.querySelector("#productList"),
   searchInput: document.querySelector("#searchInput"),
+  cartDrawer: document.querySelector("#cartDrawer"),
+  cartDrawerCloseButton: document.querySelector("#cartDrawerCloseButton"),
   cartList: document.querySelector("#cartList"),
   cartItemBadge: document.querySelector("#cartItemBadge"),
   clearCartButton: document.querySelector("#clearCartButton"),
@@ -8046,6 +8050,47 @@ function renderCartTotals() {
   renderMobileMiniCart();
 }
 
+function setCartDrawerUiState(open = Boolean(els.cartDrawer?.open)) {
+  document.body.classList.toggle("cart-drawer-open", open);
+  if (els.mobileMiniCartButton) {
+    els.mobileMiniCartButton.setAttribute("aria-expanded", String(open));
+  }
+}
+
+function openCartDrawer() {
+  if (!state.cart.length || !els.cartDrawer) return;
+  window.clearTimeout(cartDrawerCloseTimer);
+  els.cartDrawer.classList.remove("is-closing");
+  openModal(els.cartDrawer, els.cartDrawerCloseButton || els.customerNameInput || els.cartList);
+  setCartDrawerUiState(true);
+}
+
+function finishCartDrawerClose() {
+  window.clearTimeout(cartDrawerCloseTimer);
+  els.cartDrawer?.classList.remove("is-closing");
+  if (els.cartDrawer?.open) {
+    els.cartDrawer.close();
+  }
+  setCartDrawerUiState(false);
+}
+
+function closeCartDrawer({ immediate = false } = {}) {
+  if (!els.cartDrawer?.open) {
+    setCartDrawerUiState(false);
+    return;
+  }
+
+  const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  if (immediate || reduceMotion) {
+    finishCartDrawerClose();
+    return;
+  }
+
+  if (els.cartDrawer.classList.contains("is-closing")) return;
+  els.cartDrawer.classList.add("is-closing");
+  cartDrawerCloseTimer = window.setTimeout(finishCartDrawerClose, CART_DRAWER_ANIMATION_MS);
+}
+
 function renderCart() {
   const itemCount = getCartItemCount();
   if (els.cartItemBadge) {
@@ -8120,12 +8165,17 @@ function renderMobileMiniCart() {
   const totals = getTotals();
   const hasItems = itemCount > 0;
   els.mobileMiniCartButton.hidden = !hasItems;
+  document.body.classList.toggle("has-cart-dock", hasItems);
   document.body.classList.toggle("has-mobile-mini-cart", hasItems);
-  if (!hasItems) return;
+  if (!hasItems) {
+    closeCartDrawer();
+    return;
+  }
 
-  els.mobileMiniCartCount.textContent = `${itemCount} item di keranjang`;
+  els.mobileMiniCartCount.textContent = `${itemCount} item`;
   els.mobileMiniCartTotal.textContent = currency.format(totals.total);
   els.mobileMiniCartButton.setAttribute("aria-label", `Buka keranjang, ${itemCount} item, total ${currency.format(totals.total)}`);
+  setCartDrawerUiState(Boolean(els.cartDrawer?.open));
 }
 
 function receiptCustomerHtml(customerName) {
@@ -11223,8 +11273,19 @@ function bindEvents() {
     showToast("Keranjang dikosongkan.", { title: "Keranjang", duration: 1400 });
   });
 
-  els.mobileMiniCartButton.addEventListener("click", () => {
-    document.querySelector(".panel-cart")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  els.mobileMiniCartButton.addEventListener("click", openCartDrawer);
+  els.cartDrawerCloseButton?.addEventListener("click", () => closeCartDrawer());
+  els.cartDrawer?.addEventListener("click", (event) => {
+    if (event.target === els.cartDrawer) closeCartDrawer();
+  });
+  els.cartDrawer?.addEventListener("close", () => {
+    window.clearTimeout(cartDrawerCloseTimer);
+    els.cartDrawer?.classList.remove("is-closing");
+    setCartDrawerUiState(false);
+  });
+  els.cartDrawer?.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeCartDrawer();
   });
 
   els.holdCartButton.addEventListener("click", holdCurrentCart);

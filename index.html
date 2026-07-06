@@ -32,10 +32,10 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="styles.css?v=248">
+    <link rel="stylesheet" href="styles.css?v=249">
     <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script defer src="script.js?v=242"></script>
+    <script defer src="script.js?v=243"></script>
   </head>
   <body>
     <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
@@ -211,94 +211,102 @@
           <p class="status inventory-status" id="syncStatus" role="status">Tempel link Google Sheet yang bisa dilihat publik untuk sinkron barang.</p>
         </section>
 
-        <section class="panel panel-cart" aria-labelledby="cartTitle">
-          <div class="panel-heading">
-            <div class="cart-title-row">
-              <h2 id="cartTitle">Keranjang</h2>
-              <span class="cart-item-badge" id="cartItemBadge">Kosong</span>
-            </div>
-            <div class="cart-heading-actions">
-              <button class="secondary-button" id="holdCartButton" type="button">Tahan</button>
-              <button class="ghost-button" id="openHeldCartsButton" type="button">Buka Hold</button>
-              <button class="ghost-button danger clear-cart-button" id="clearCartButton" type="button" aria-label="Kosongkan keranjang" title="Kosongkan keranjang">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3 6h18"></path>
-                  <path d="M8 6V4h8v2"></path>
-                  <path d="M6 6l1 15h10l1-15"></path>
-                  <path d="M10 11v6"></path>
-                  <path d="M14 11v6"></path>
-                </svg>
-                <span class="sr-only">Kosongkan</span>
-              </button>
-            </div>
-          </div>
+        </main>
 
-          <div class="cart-customer-bar">
-            <label class="sale-customer-field">
-              <span class="customer-field-title">Customer / Alamat</span>
-              <input id="customerNameInput" type="text" list="customerSuggestions" autocomplete="off" placeholder="Contoh: Pantai Mentari Blok SF no. 9">
-              <span class="customer-profile-hint" id="customerProfileHint">Customer baru. Ongkir bisa diisi manual.</span>
-              <span class="customer-deposit-hint" id="customerDepositHint" hidden></span>
-            </label>
-            <datalist id="customerSuggestions"></datalist>
-          </div>
-
-          <div class="cart-list" id="cartList"></div>
-
-          <div class="sale-controls">
-            <label>
-              <span class="shipping-label">
-                <svg class="delivery-icon" aria-hidden="true" focusable="false"><use href="#icon-delivery-rider"></use></svg>
-                <span>Ongkir</span>
-              </span>
-              <input id="shippingInput" type="text" inputmode="numeric" pattern="[0-9.]*" autocomplete="off" value="0">
-            </label>
-            <div class="payment-field">
-              <span class="control-label">Pembayaran</span>
-              <div class="payment-segmented" id="paymentSelect" role="radiogroup" aria-label="Pilih pembayaran">
-                  <button class="payment-segment active" type="button" role="radio" aria-checked="true" data-payment-option="Tunai">
-                    <span class="payment-method-icon" aria-hidden="true">Rp</span>
-                    <span>Tunai</span>
-                  </button>
-                  <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="Debit">
-                    <span class="payment-method-icon" aria-hidden="true">▭</span>
-                    <span>Debit</span>
-                  </button>
-                  <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="QRIS">
-                    <span class="payment-method-icon" aria-hidden="true">▦</span>
-                    <span>QRIS</span>
-                  </button>
-                  <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="Transfer">
-                    <span class="payment-method-icon" aria-hidden="true">↗</span>
-                    <span>Transfer</span>
-                  </button>
-                <select class="native-payment-select" id="paymentInput" tabindex="-1" aria-hidden="true">
-                  <option>Tunai</option>
-                  <option>Debit</option>
-                  <option>QRIS</option>
-                  <option>Transfer</option>
-                </select>
+        <dialog class="cart-drawer" id="cartDrawer" aria-labelledby="cartTitle">
+          <section class="panel panel-cart cart-drawer-panel" aria-labelledby="cartTitle">
+            <form class="cart-drawer-close-form">
+              <button class="icon-button cart-drawer-close-button" id="cartDrawerCloseButton" type="button" aria-label="Tutup keranjang">×</button>
+            </form>
+            <div class="panel-heading">
+              <div class="cart-title-row">
+                <h2 id="cartTitle">Keranjang</h2>
+                <span class="cart-item-badge" id="cartItemBadge">Kosong</span>
+              </div>
+              <div class="cart-heading-actions">
+                <button class="secondary-button" id="holdCartButton" type="button">Tahan</button>
+                <button class="ghost-button" id="openHeldCartsButton" type="button">Buka Hold</button>
+                <button class="ghost-button danger clear-cart-button" id="clearCartButton" type="button" aria-label="Kosongkan keranjang" title="Kosongkan keranjang">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 6h18"></path>
+                    <path d="M8 6V4h8v2"></path>
+                    <path d="M6 6l1 15h10l1-15"></path>
+                    <path d="M10 11v6"></path>
+                    <path d="M14 11v6"></path>
+                  </svg>
+                  <span class="sr-only">Kosongkan</span>
+                </button>
               </div>
             </div>
-            <button class="ghost-button receipt-preview-button" id="openReceiptPreviewButton" type="button">Preview Struk</button>
-          </div>
 
-          <div class="checkout-validation" id="checkoutValidation" aria-live="polite" hidden></div>
+            <div class="cart-drawer-scroll">
+              <div class="cart-customer-bar">
+                <label class="sale-customer-field">
+                  <span class="customer-field-title">Customer / Alamat</span>
+                  <input id="customerNameInput" type="text" list="customerSuggestions" autocomplete="off" placeholder="Contoh: Pantai Mentari Blok SF no. 9">
+                  <span class="customer-profile-hint" id="customerProfileHint">Customer baru. Ongkir bisa diisi manual.</span>
+                  <span class="customer-deposit-hint" id="customerDepositHint" hidden></span>
+                </label>
+                <datalist id="customerSuggestions"></datalist>
+              </div>
 
-          <div class="checkout-sticky">
-            <div class="totals-card" aria-live="polite">
-              <div><span>Subtotal</span><strong id="subtotalText">Rp0</strong></div>
-              <div><span class="shipping-label"><svg class="delivery-icon" aria-hidden="true" focusable="false"><use href="#icon-delivery-rider"></use></svg><span>Ongkir</span></span><strong id="shippingText">Rp0</strong></div>
-              <div class="deposit-row" id="checkoutDepositRow" hidden><span>Potongan Deposit</span><strong id="depositText">-Rp0</strong></div>
-              <div class="grand-total"><span>Total</span><strong id="totalText">Rp0</strong></div>
+              <div class="cart-list" id="cartList"></div>
+
+              <div class="sale-controls">
+                <label>
+                  <span class="shipping-label">
+                    <svg class="delivery-icon" aria-hidden="true" focusable="false"><use href="#icon-delivery-rider"></use></svg>
+                    <span>Ongkir</span>
+                  </span>
+                  <input id="shippingInput" type="text" inputmode="numeric" pattern="[0-9.]*" autocomplete="off" value="0">
+                </label>
+                <div class="payment-field">
+                  <span class="control-label">Pembayaran</span>
+                  <div class="payment-segmented" id="paymentSelect" role="radiogroup" aria-label="Pilih pembayaran">
+                      <button class="payment-segment active" type="button" role="radio" aria-checked="true" data-payment-option="Tunai">
+                        <span class="payment-method-icon" aria-hidden="true">Rp</span>
+                        <span>Tunai</span>
+                      </button>
+                      <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="Debit">
+                        <span class="payment-method-icon" aria-hidden="true">▭</span>
+                        <span>Debit</span>
+                      </button>
+                      <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="QRIS">
+                        <span class="payment-method-icon" aria-hidden="true">▦</span>
+                        <span>QRIS</span>
+                      </button>
+                      <button class="payment-segment" type="button" role="radio" aria-checked="false" data-payment-option="Transfer">
+                        <span class="payment-method-icon" aria-hidden="true">↗</span>
+                        <span>Transfer</span>
+                      </button>
+                    <select class="native-payment-select" id="paymentInput" tabindex="-1" aria-hidden="true">
+                      <option>Tunai</option>
+                      <option>Debit</option>
+                      <option>QRIS</option>
+                      <option>Transfer</option>
+                    </select>
+                  </div>
+                </div>
+                <button class="ghost-button receipt-preview-button" id="openReceiptPreviewButton" type="button">Preview Struk</button>
+              </div>
+
+              <div class="checkout-validation" id="checkoutValidation" aria-live="polite" hidden></div>
             </div>
-            <div class="checkout-actions">
-              <button class="secondary-button full-width checkout-print-button" id="printReceiptButton" type="button">Cetak Struk</button>
-              <button class="primary-button full-width checkout-complete-button" id="completeSaleButton" type="button">Selesaikan Transaksi</button>
+
+            <div class="checkout-sticky">
+              <div class="totals-card" aria-live="polite">
+                <div><span>Subtotal</span><strong id="subtotalText">Rp0</strong></div>
+                <div><span class="shipping-label"><svg class="delivery-icon" aria-hidden="true" focusable="false"><use href="#icon-delivery-rider"></use></svg><span>Ongkir</span></span><strong id="shippingText">Rp0</strong></div>
+                <div class="deposit-row" id="checkoutDepositRow" hidden><span>Potongan Deposit</span><strong id="depositText">-Rp0</strong></div>
+                <div class="grand-total"><span>Total</span><strong id="totalText">Rp0</strong></div>
+              </div>
+              <div class="checkout-actions">
+                <button class="secondary-button full-width checkout-print-button" id="printReceiptButton" type="button">Cetak Struk</button>
+                <button class="primary-button full-width checkout-complete-button" id="completeSaleButton" type="button">Selesaikan Transaksi</button>
+              </div>
             </div>
-          </div>
-        </section>
-        </main>
+          </section>
+        </dialog>
       </div>
     </div>
 
@@ -1227,8 +1235,11 @@
     </dialog>
 
     <div class="print-area" id="printArea" aria-hidden="true"></div>
-    <button class="mobile-mini-cart" id="mobileMiniCartButton" type="button" hidden>
-      <span id="mobileMiniCartCount">0 item</span>
+    <button class="mobile-mini-cart" id="mobileMiniCartButton" type="button" aria-controls="cartDrawer" aria-expanded="false" hidden>
+      <span class="cart-dock-copy">
+        <span id="mobileMiniCartCount">0 item</span>
+        <small>Detail keranjang</small>
+      </span>
       <strong id="mobileMiniCartTotal">Rp0</strong>
     </button>
     <div class="toast-container" id="toastContainer" popover="manual" hidden aria-live="polite" aria-atomic="true"></div>
