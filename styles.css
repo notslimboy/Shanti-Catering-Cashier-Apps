@@ -14613,3 +14613,64 @@ body.cart-drawer-open .mobile-mini-cart.is-empty {
     animation: none !important;
   }
 }
+
+/* Customer tag chips: native horizontal scroll for touch screens */
+@media (max-width: 1100px) {
+  #customerDataModal .customer-tag-filter {
+    display: grid !important;
+    grid-template-columns: max-content minmax(0, 1fr) !important;
+    grid-template-rows: auto !important;
+    align-items: center !important;
+    gap: 10px !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: hidden !important;
+    padding: 9px 10px !important;
+  }
+
+  #customerDataModal .customer-tag-filter-label {
+    align-self: center !important;
+    white-space: nowrap !important;
+  }
+
+  #customerDataModal .customer-tag-filter-chips {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    grid-template-columns: none !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: scroll !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain !important;
+    overscroll-behavior-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: thin !important;
+    scrollbar-gutter: auto !important;
+    scroll-behavior: auto !important;
+    scroll-snap-type: none !important;
+    padding: 1px 12px 4px 1px !important;
+    touch-action: pan-x !important;
+  }
+
+  #customerDataModal .customer-filter-chip {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: max-content !important;
+    max-width: none !important;
+    white-space: nowrap !important;
+    touch-action: pan-x !important;
+  }
+}
+
+@media (max-width: 430px) {
+  #customerDataModal .customer-tag-filter {
+    grid-template-columns: 1fr !important;
+    gap: 7px !important;
+  }
+
+  #customerDataModal .customer-tag-filter-chips {
+    padding-right: 16px !important;
+  }
+}
