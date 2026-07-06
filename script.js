@@ -8069,7 +8069,7 @@ function setCartDrawerUiState(open = Boolean(els.cartDrawer?.open)) {
 }
 
 function openCartDrawer() {
-  if (!state.cart.length || !els.cartDrawer) return;
+  if (!els.cartDrawer) return;
   window.clearTimeout(cartDrawerCloseTimer);
   els.cartDrawer.classList.remove("is-closing");
   openModal(els.cartDrawer, els.cartDrawerCloseButton || els.customerNameInput || els.cartList);
@@ -8199,11 +8199,16 @@ function renderMobileMiniCart() {
   const itemCount = state.cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const totals = getTotals();
   const hasItems = itemCount > 0;
-  els.mobileMiniCartButton.hidden = !hasItems;
+  els.mobileMiniCartButton.hidden = false;
+  els.mobileMiniCartButton.classList.toggle("is-empty", !hasItems);
   document.body.classList.toggle("has-cart-dock", hasItems);
   document.body.classList.toggle("has-mobile-mini-cart", hasItems);
+  document.body.classList.toggle("has-empty-cart-dock", !hasItems);
   if (!hasItems) {
-    closeCartDrawer();
+    els.mobileMiniCartCount.textContent = "0 item";
+    els.mobileMiniCartTotal.textContent = currency.format(0);
+    els.mobileMiniCartButton.setAttribute("aria-label", "Buka keranjang kosong");
+    setCartDrawerUiState(Boolean(els.cartDrawer?.open));
     return;
   }
 

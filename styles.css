@@ -12833,6 +12833,41 @@ body.has-cart-dock .app-shell {
   box-shadow: 0 18px 50px rgba(4, 18, 16, 0.28), 0 0 0 4px var(--teal-ring);
 }
 
+.mobile-mini-cart.is-empty {
+  left: auto;
+  right: max(22px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  grid-template-columns: 1fr;
+  place-items: center;
+  inline-size: 58px;
+  width: 58px;
+  min-height: 58px;
+  border-radius: 18px;
+  padding: 0;
+  transform: none;
+}
+
+.mobile-mini-cart.is-empty:hover {
+  transform: translateY(-2px);
+}
+
+.mobile-mini-cart.is-empty .cart-dock-copy,
+.mobile-mini-cart.is-empty #mobileMiniCartTotal {
+  display: none;
+}
+
+.mobile-mini-cart.is-empty .cart-dock-icon {
+  inline-size: 42px;
+  block-size: 42px;
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.mobile-mini-cart.is-empty .cart-dock-icon svg {
+  inline-size: 23px;
+  block-size: 23px;
+}
+
 .cart-dock-copy {
   display: grid;
   gap: 2px;
@@ -12869,6 +12904,10 @@ body.cart-drawer-open .mobile-mini-cart {
   transform: translateX(-50%) translateY(16px);
 }
 
+body.cart-drawer-open .mobile-mini-cart.is-empty {
+  transform: translateY(16px);
+}
+
 #piutangModal .piutang-list {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
@@ -12901,6 +12940,10 @@ body.cart-drawer-open .mobile-mini-cart {
 }
 
 @media (max-width: 760px) {
+  .mobile-mini-cart.is-empty {
+    display: none;
+  }
+
   body.has-cart-dock .app-shell {
     padding-bottom: max(102px, calc(env(safe-area-inset-bottom) + 94px));
   }
