@@ -455,14 +455,68 @@ label {
   min-height: 48px;
 }
 
-:root[data-theme="dark"] .kasir-tom-dropdown {
-  background: #12201c;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.44);
+:root[data-theme="dark"] .kasir-tom-select.single .kasir-tom-control,
+:root[data-theme="dark"] .kasir-tom-select.multi .kasir-tom-control {
+  border-color: #315044;
+  background: rgba(18, 32, 28, 0.96) !important;
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .kasir-tom-select.focus .kasir-tom-control,
+:root[data-theme="dark"] .kasir-tom-select.dropdown-active .kasir-tom-control {
+  border-color: rgba(45, 212, 191, 0.76);
+  background: #13241f !important;
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.18);
+}
+
+:root[data-theme="dark"] .kasir-tom-select .kasir-tom-control > input {
+  color: var(--ink) !important;
+  caret-color: var(--teal);
+  -webkit-text-fill-color: var(--ink);
+}
+
+:root[data-theme="dark"] .kasir-tom-select .kasir-tom-control > input::placeholder {
+  color: #86a59a;
 }
 
 :root[data-theme="dark"] .kasir-tom-item {
-  background: color-mix(in srgb, var(--teal) 13%, transparent);
+  background: rgba(45, 212, 191, 0.14);
   color: var(--ink);
+}
+
+:root[data-theme="dark"] .kasir-tom-dropdown {
+  border-color: #315044;
+  background: #10201b !important;
+  color: var(--ink);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.48);
+}
+
+:root[data-theme="dark"] .kasir-tom-dropdown .ts-dropdown-content {
+  background: #10201b;
+}
+
+:root[data-theme="dark"] .kasir-tom-option {
+  background: transparent;
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .kasir-tom-option.active,
+:root[data-theme="dark"] .kasir-tom-option:hover {
+  background: rgba(45, 212, 191, 0.16) !important;
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .kasir-tom-option-inner strong {
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .kasir-tom-option-inner span,
+:root[data-theme="dark"] .kasir-tom-empty {
+  color: #9db4aa;
+}
+
+:root[data-theme="dark"] .kasir-tom-option-inner.is-create strong {
+  color: var(--teal-dark);
 }
 
 .app-icon-sprite {
