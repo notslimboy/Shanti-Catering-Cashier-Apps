@@ -13247,6 +13247,8 @@ body.cart-drawer-open .mobile-mini-cart.is-empty {
 /* Approved product menu card layout */
 .product-card {
   display: block;
+  content-visibility: auto;
+  contain-intrinsic-size: 220px;
   gap: 0;
   min-width: 0;
   border-color: color-mix(in srgb, var(--line) 74%, transparent);
@@ -13254,6 +13256,25 @@ body.cart-drawer-open .mobile-mini-cart.is-empty {
   background: var(--surface-strong);
   padding: 14px;
   box-shadow: 0 1px 2px rgba(7, 20, 18, 0.035);
+}
+
+.product-list-sentinel {
+  grid-column: 1 / -1;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-height: 74px;
+  padding: 8px 0 18px;
+}
+
+.product-list-load-more {
+  width: min(280px, 100%);
+}
+
+.product-list-sentinel small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
 }
 
 .product-card:hover {

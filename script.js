@@ -1402,9 +1402,42 @@ function formatClockTime(value) {
 
 function getToastVariant(message, fallback = "info") {
   const normalized = normalizeKey(message);
-  if (/(gagal|error|tidak|belum|kosong|valid|hilang|dilewati|offline)/.test(normalized)) return "error";
-  if (/(selesai|tersimpan|berhasil|sudah|masuk|diexport|aktif|dibuka)/.test(normalized)) return "success";
+  if (/(gagal|error|tidak|belum|kosong|valid|hilang|dilewati|offline|dihapus|hapus|dibatalkan|batal)/.test(normalized)) return "error";
+  if (/(selesai|tersimpan|berhasil|sudah|masuk|diexport|aktif|dibuka|dipilih|dimuat|dibaca|cocok|sukses)/.test(normalized)) return "success";
+  if (/(menghubungkan|memuat|menyimpan|menggabungkan|menunggu|perlu|cek)/.test(normalized)) return "warning";
   return fallback;
+}
+
+function normalizeToastVariant(value) {
+  const variant = String(value || "info").trim().toLowerCase();
+  if (variant === "danger") return "error";
+  if (["success", "error", "warning"].includes(variant)) return variant;
+  return "warning";
+}
+
+function getToastIconMarkup(variant) {
+  if (variant === "success") {
+    return `
+      <svg class="toast-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M5 11.917 9.724 16.5 19 7.5"></path>
+      </svg>
+      <span class="sr-only">Success</span>
+    `;
+  }
+  if (variant === "error") {
+    return `
+      <svg class="toast-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M6 18 17.94 6M18 18 6.06 6"></path>
+      </svg>
+      <span class="sr-only">Error</span>
+    `;
+  }
+  return `
+    <svg class="toast-icon-svg" aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M12 13V8m0 8h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"></path>
+    </svg>
+    <span class="sr-only">Warning</span>
+  `;
 }
 
 function getActiveDialog() {
@@ -1525,7 +1558,7 @@ function showToast(message, options = {}) {
   const text = String(message || "").trim();
   if (!text || !els.toastContainer) return;
 
-  const variant = options.variant || getToastVariant(text);
+  const variant = normalizeToastVariant(options.variant || getToastVariant(text));
   const title = options.title || (variant === "error" ? "Perlu dicek" : "Notifikasi");
   const duration = Number(options.duration) > 0 ? Number(options.duration) : 3200;
   const signature = getToastSignature(title, text, variant);
@@ -1544,12 +1577,14 @@ function showToast(message, options = {}) {
   toast.dataset.toastSignature = signature;
   toast.setAttribute("role", variant === "error" ? "alert" : "status");
   toast.innerHTML = `
-    <span class="toast-accent" aria-hidden="true"></span>
-    <span class="toast-body">
-      <strong>${escapeHtml(title)}</strong>
-      <span>${escapeHtml(text)}</span>
-    </span>
-    <button class="toast-close" type="button" aria-label="Tutup notifikasi">×</button>
+    <span class="toast-icon">${getToastIconMarkup(variant)}</span>
+    <span class="toast-message">${escapeHtml(text)}</span>
+    <button class="toast-close" type="button" aria-label="Tutup notifikasi">
+      <span class="sr-only">Tutup</span>
+      <svg class="toast-close-icon" aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M6 18 17.94 6M18 18 6.06 6"></path>
+      </svg>
+    </button>
   `;
   toast.querySelector(".toast-close")?.addEventListener("click", () => dismissToast(toast));
   activeToastBySignature.set(signature, toast);
@@ -3280,7 +3315,7 @@ async function removeCustomerData(button) {
     renderCustomerSuggestions();
     renderCustomerProfileHint();
     renderCustomerDataList("Data customer dihapus.");
-    showToast("Data customer dihapus.", { title: "Data Customer", variant: "success" });
+    showToast("Data customer dihapus.", { title: "Data Customer", variant: "error" });
   } catch (error) {
     setCustomerDataStatus(error.message || "Data customer gagal dihapus.", { toast: true, variant: "error" });
   } finally {
@@ -4613,7 +4648,7 @@ function setPaymentMethod(value, options = {}) {
   resetCheckoutWarnings();
   updatePaymentSelectUI();
   setPaymentDropdownOpen(false);
-  if (options.toast !== false) showToast(`Pembayaran dipilih: ${state.sale.payment}.`, { title: "Pembayaran", duration: 1200 });
+  if (options.toast !== false) showToast(`Pembayaran ${state.sale.payment} dipilih.`, { title: "Pembayaran", duration: 1200 });
   if (options.render !== false) render();
 }
 
@@ -9866,7 +9901,7 @@ function removeFromCart(cartItemId) {
   state.cart = state.cart.filter((item) => item.id !== cartItemId);
   resetCheckoutWarnings();
   render();
-  if (product) showToast(`${product.name} dihapus dari keranjang.`, { title: "Keranjang", duration: 1200 });
+  if (product) showToast(`${product.name} dihapus dari keranjang.`, { title: "Keranjang", variant: "error", duration: 1200 });
 }
 
 function getBlankVariant(overrides = {}) {
@@ -10927,6 +10962,10 @@ function bindEvents() {
     renderSalesDashboard();
     saveState();
   }, 180);
+  const scheduleProductSearchRender = debounce(() => {
+    renderProducts();
+    saveState();
+  }, 120);
 
   els.sidebarMenuButton?.addEventListener("click", toggleSidebar);
   els.closeSidebarButton?.addEventListener("click", closeSidebar);
@@ -11515,13 +11554,19 @@ function bindEvents() {
     const button = event.target.closest("[data-category]");
     if (!button) return;
     state.selectedCategory = button.dataset.category;
-    render();
+    renderProducts();
+    saveState();
   });
 
   els.productList.addEventListener("click", (event) => {
+    const loadMoreButton = event.target.closest("[data-product-load-more]");
     const addButton = event.target.closest("[data-add]");
     const editButton = event.target.closest("[data-edit-product]");
     const deleteButton = event.target.closest("[data-delete-product]");
+    if (loadMoreButton) {
+      appendProductBatch(PRODUCT_RENDER_BATCH_SIZE);
+      return;
+    }
     if (addButton) addToCart(addButton.dataset.add, addButton.dataset.variant || "");
     if (editButton) startEditProduct(editButton.dataset.editProduct);
     if (deleteButton) openDeleteProductModal(deleteButton.dataset.deleteProduct);
@@ -11575,14 +11620,14 @@ function bindEvents() {
     }
   });
 
-  els.searchInput.addEventListener("input", renderProducts);
+  els.searchInput.addEventListener("input", scheduleProductSearchRender);
 
   els.clearCartButton.addEventListener("click", () => {
     state.cart = [];
     state.sale = getDefaultSaleState();
     renderSettings();
     render();
-    showToast("Keranjang dikosongkan.", { title: "Keranjang", duration: 1400 });
+    showToast("Keranjang dikosongkan.", { title: "Keranjang", variant: "error", duration: 1400 });
   });
 
   els.mobileMiniCartButton.addEventListener("click", openCartDrawer);
@@ -11915,7 +11960,7 @@ async function loadPiutangData(options = {}) {
   } catch (error) {
     console.error("Error loading piutang data:", error);
     setPiutangStatus(`Gagal memuat data piutang: ${error.message}`);
-    if (toast) showToast(`Gagal memuat: ${error.message}`);
+    if (toast) showToast(`Data piutang gagal dimuat: ${error.message}`, { variant: "error" });
   }
 }
 
@@ -12342,7 +12387,7 @@ async function submitPiutangPayment(form) {
     }
   } catch (error) {
     console.error("Error submitting piutang payment:", error);
-    showToast(`Gagal menyimpan: ${error.message}`);
+    showToast(`Pembayaran cicilan gagal disimpan: ${error.message}`, { variant: "error" });
     setPiutangStatus(`Error: ${error.message}`);
   } finally {
     submitBtn.disabled = false;
@@ -12366,14 +12411,14 @@ async function revokePiutangPayment(saleId) {
     const response = await dbRevokePiutangPayment(saleId);
 
     if (response.ok) {
-      showToast("Status pembayaran dikembalikan ke Belum Lunas.");
+      showToast("Status pembayaran dikembalikan ke Belum Lunas.", { variant: "warning" });
       await loadPiutangData();
       await loadSalesDashboard();
       await loadCustomers({ toast: false });
     }
   } catch (error) {
     console.error("Error revoking piutang payment:", error);
-    showToast(`Gagal membatalkan lunas: ${error.message}`);
+    showToast(`Status lunas gagal dibatalkan: ${error.message}`, { variant: "error" });
     setPiutangStatus(`Error: ${error.message}`);
   } finally {
     setPiutangStatus("");
@@ -12393,7 +12438,7 @@ async function migrateDataToSupabase() {
   if (!confirmed) return;
   
   console.log("Memulai migrasi database ke Supabase Cloud...");
-  showToast("Menghubungkan Supabase...", { duration: 2000 });
+  showToast("Menghubungkan Supabase.", { variant: "warning", duration: 2000 });
   
   try {
     const supabase = getSupabaseClient();
@@ -12623,10 +12668,10 @@ async function migrateDataToSupabase() {
       }
     }
     
-    showToast("Migrasi data ke Supabase Cloud sukses total! Selamat database cloud kamu sudah terisi.", { variant: "success" });
+    showToast("Migrasi Supabase selesai. Database cloud sudah terisi.", { variant: "success" });
   } catch (error) {
     console.error("Migration error:", error);
-    showToast(`Migrasi gagal di tengah jalan: ${error.message}`, { variant: "error" });
+    showToast(`Migrasi Supabase gagal: ${error.message}`, { variant: "error" });
   }
 }
 
