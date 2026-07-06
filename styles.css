@@ -6558,6 +6558,111 @@ label {
   }
 }
 
+@media (min-width: 1024px) {
+  #salesDashboardModal .sales-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  #salesDashboardModal .sale-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "header header"
+      "info summary";
+    align-items: center;
+    gap: 8px 18px;
+    padding: 10px 14px;
+  }
+
+  #salesDashboardModal .sale-card-header {
+    grid-area: header;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+  }
+
+  #salesDashboardModal .sale-card-heading {
+    grid-template-columns: auto minmax(160px, 1fr) auto;
+    align-items: center;
+    gap: 8px 12px;
+  }
+
+  #salesDashboardModal .sale-card-badges,
+  #salesDashboardModal .sale-card-action-buttons,
+  #salesDashboardModal .sale-card-actions {
+    flex-wrap: nowrap;
+  }
+
+  #salesDashboardModal .sale-card-customer {
+    min-width: 0;
+    overflow: hidden;
+    overflow-wrap: normal;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #salesDashboardModal .sale-card-receipt {
+    white-space: nowrap;
+  }
+
+  #salesDashboardModal .sale-card-actions {
+    display: flex;
+    align-items: center;
+    width: auto;
+  }
+
+  #salesDashboardModal .sale-card-total {
+    min-width: 112px;
+  }
+
+  #salesDashboardModal .sale-card-item-block {
+    display: none;
+  }
+
+  #salesDashboardModal .sale-card-info {
+    grid-area: info;
+    display: flex;
+    align-items: center;
+    gap: 8px 18px;
+    min-width: 0;
+  }
+
+  #salesDashboardModal .sale-card-info p {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  #salesDashboardModal .sale-card-info span {
+    font-size: 0.66rem;
+    line-height: 1;
+  }
+
+  #salesDashboardModal .sale-card-info strong {
+    max-width: 24ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #salesDashboardModal .sale-card-summary {
+    grid-area: summary;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 8px 16px;
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  #salesDashboardModal .sale-card-summary span,
+  #salesDashboardModal .sale-card-summary strong {
+    white-space: nowrap;
+  }
+}
+
 @media (max-width: 760px) {
   #salesDashboardModal.sales-modal {
     width: 100dvw;
