@@ -53,6 +53,7 @@
   --toast-warning-bg: #fff7ed;
   --toast-warning-fg: #9a3412;
   --modal-backdrop: rgba(20, 33, 39, 0.46);
+  --z-floating-dropdown: 10030;
   --radius: 8px;
   --receipt-width: 80mm;
   --receipt-print-width: 72mm;
@@ -279,6 +280,189 @@ label {
   color: var(--muted);
   font-size: 0.88rem;
   font-weight: 700;
+}
+
+.tom-search-source.ts-hidden-accessible {
+  opacity: 0;
+}
+
+.kasir-tom-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.kasir-tom-select.single .kasir-tom-control,
+.kasir-tom-select.multi .kasir-tom-control {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--control-bg);
+  color: var(--ink);
+  box-shadow: none;
+  padding: 6px 10px;
+  align-items: center;
+  gap: 6px;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.kasir-tom-select.focus .kasir-tom-control,
+.kasir-tom-select.dropdown-active .kasir-tom-control {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-ring);
+  background: var(--surface-strong);
+}
+
+.kasir-tom-select .kasir-tom-control > input {
+  min-width: 6rem !important;
+  min-height: 30px;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--ink);
+  padding: 0 !important;
+  box-shadow: none !important;
+  font-weight: 700;
+}
+
+.kasir-tom-select .kasir-tom-control > input::placeholder {
+  color: var(--muted);
+  opacity: 0.72;
+}
+
+.kasir-tom-item {
+  max-width: 100%;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--teal) 9%, transparent);
+  color: var(--ink);
+  padding: 4px 7px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.kasir-tom-item-inner {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kasir-tom-dropdown {
+  z-index: var(--z-floating-dropdown);
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.kasir-tom-dropdown .ts-dropdown-content {
+  max-height: min(360px, 54vh);
+  padding: 6px;
+}
+
+.kasir-tom-option {
+  border-radius: 9px;
+  padding: 0;
+  color: var(--ink);
+}
+
+.kasir-tom-option.active,
+.kasir-tom-option:hover {
+  background: color-mix(in srgb, var(--teal) 13%, transparent);
+  color: var(--ink);
+}
+
+.kasir-tom-option-inner {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+}
+
+.kasir-tom-option-inner strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 850;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kasir-tom-option-inner span,
+.kasir-tom-empty {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.kasir-tom-empty {
+  padding: 12px;
+}
+
+.kasir-tom-option-inner.is-create strong {
+  color: var(--teal-dark);
+}
+
+.panel-products .search-label .kasir-tom-select {
+  display: block;
+}
+
+.panel-products .search-label .kasir-tom-control {
+  min-height: 46px;
+  padding-left: 44px;
+}
+
+.sales-search-control .kasir-tom-select,
+.customer-search-control .kasir-tom-select {
+  min-width: 0;
+}
+
+.sales-search-control .kasir-tom-select.single .kasir-tom-control,
+.customer-search-control .kasir-tom-select.single .kasir-tom-control {
+  min-height: 42px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.sales-search-control .kasir-tom-select.focus .kasir-tom-control,
+.customer-search-control .kasir-tom-select.focus .kasir-tom-control,
+.sales-search-control .kasir-tom-select.dropdown-active .kasir-tom-control,
+.customer-search-control .kasir-tom-select.dropdown-active .kasir-tom-control {
+  box-shadow: none;
+}
+
+.bulk-search-label .kasir-tom-control {
+  min-height: 46px;
+  padding-left: 46px;
+}
+
+.inventory-search-container .kasir-tom-select {
+  flex: 1 1 auto;
+}
+
+.inventory-search-container .kasir-tom-control {
+  min-height: 46px;
+}
+
+.sale-customer-field .kasir-tom-select {
+  width: 100%;
+}
+
+.sale-customer-field .kasir-tom-control {
+  min-height: 48px;
+}
+
+:root[data-theme="dark"] .kasir-tom-dropdown {
+  background: #12201c;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.44);
+}
+
+:root[data-theme="dark"] .kasir-tom-item {
+  background: color-mix(in srgb, var(--teal) 13%, transparent);
+  color: var(--ink);
 }
 
 .app-icon-sprite {

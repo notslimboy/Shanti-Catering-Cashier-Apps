@@ -350,6 +350,7 @@ const modalScrollLock = {
   touchStartY: 0,
   bodyStyle: {},
 };
+const tomSelectControls = new Map();
 
 const els = {
   sheetUrlInput: document.querySelector("#sheetUrlInput"),
@@ -819,7 +820,71 @@ function hasOpenDialog() {
   return Boolean(document.querySelector("dialog[open]"));
 }
 
+function stopSmoothScrollForModal() {
+  try {
+    window.kasirSmoothScroll?.stop?.();
+  } catch (error) {
+    console.warn("Gagal menghentikan smooth scroll saat modal dibuka:", error);
+  }
+}
+
+function clearSmoothScrollStopState() {
+  document.documentElement.classList.remove("lenis-stopped");
+  document.documentElement.style.overflow = "";
+}
+
+function resumeSmoothScrollAfterModal() {
+  const canResumePageScroll = !hasOpenDialog() && !isSidebarOpen();
+  try {
+    const smoothScroll = window.kasirSmoothScroll;
+    smoothScroll?.start?.();
+    smoothScroll?.resize?.();
+  } catch (error) {
+    console.warn("Gagal mengaktifkan lagi smooth scroll:", error);
+  }
+  if (!canResumePageScroll) return;
+  clearSmoothScrollStopState();
+  requestAnimationFrame(() => {
+    if (hasOpenDialog() || isSidebarOpen()) return;
+    try {
+      window.kasirSmoothScroll?.start?.();
+      window.kasirSmoothScroll?.resize?.();
+    } catch (error) {
+      console.warn("Gagal memastikan smooth scroll aktif:", error);
+    }
+    clearSmoothScrollStopState();
+  });
+}
+
+function restoreWindowScrollInstantly(scrollY) {
+  const targetY = Number.isFinite(scrollY) ? Math.max(0, scrollY) : 0;
+  const rootStyle = document.documentElement.style;
+  const bodyStyle = document.body.style;
+  const previousRootScrollBehavior = rootStyle.scrollBehavior;
+  const previousBodyScrollBehavior = bodyStyle.scrollBehavior;
+
+  rootStyle.scrollBehavior = "auto";
+  bodyStyle.scrollBehavior = "auto";
+
+  try {
+    window.kasirSmoothScroll?.scrollTo?.(targetY, { immediate: true, force: true });
+  } catch (error) {
+    console.warn("Gagal restore scroll lewat smooth scroll:", error);
+  }
+
+  window.scrollTo({ top: targetY, left: 0, behavior: "auto" });
+  if (Math.abs((window.scrollY || 0) - targetY) > 1) {
+    window.scrollTo(0, targetY);
+  }
+
+  requestAnimationFrame(() => {
+    rootStyle.scrollBehavior = previousRootScrollBehavior;
+    bodyStyle.scrollBehavior = previousBodyScrollBehavior;
+  });
+}
+
 function lockPageScroll() {
+  stopSmoothScrollForModal();
   if (modalScrollLock.active) return;
 
   modalScrollLock.active = true;
@@ -844,7 +909,10 @@ function lockPageScroll() {
 }
 
 function unlockPageScroll() {
-  if (!modalScrollLock.active) return;
+  if (!modalScrollLock.active) {
+    resumeSmoothScrollAfterModal();
+    return;
+  }
 
   const restoreY = modalScrollLock.scrollY;
   document.documentElement.classList.remove("modal-open");
@@ -855,7 +923,8 @@ function unlockPageScroll() {
   modalScrollLock.active = false;
   modalScrollLock.scrollY = 0;
   modalScrollLock.bodyStyle = {};
-  window.scrollTo(0, restoreY);
+  restoreWindowScrollInstantly(restoreY);
+  resumeSmoothScrollAfterModal();
 }
 
 function updateModalScrollLock() {
@@ -9955,6 +10024,7 @@ function render() {
   renderDailyMenuSuggestions();
   if (els.heldCartsModal?.open) renderHeldCarts();
   renderInventoryProductsList();
+  refreshTomSelectOptions();
   saveState();
 }
 
@@ -12001,7 +12071,7 @@ function initSmoothScrolling() {
 
   const lenis = new window.Lenis({
     autoRaf: true,
-    autoToggle: true,
+    autoToggle: false,
     anchors: true,
     allowNestedScroll: true,
     lerp: 0.13,
@@ -12013,6 +12083,343 @@ function initSmoothScrolling() {
   });
 
   window.kasirSmoothScroll = lenis;
+}
+
+function makeTomOption(value, text = value, meta = "", keywords = "", type = "suggestion") {
+  const cleanValue = String(value || "").trim();
+  if (!cleanValue) return null;
+  return {
+    value: cleanValue,
+    text: String(text || cleanValue).trim(),
+    meta: String(meta || "").trim(),
+    keywords: String(keywords || "").trim(),
+    type,
+  };
+}
+
+function addTomOption(options, seen, value, text = value, meta = "", keywords = "", type = "suggestion") {
+  const option = makeTomOption(value, text, meta, keywords, type);
+  if (!option) return;
+  const key = normalizeKey(option.value);
+  if (!key || seen.has(key)) return;
+  seen.add(key);
+  options.push(option);
+}
+
+function getProductTomOptions() {
+  const options = [];
+  const seen = new Set();
+  state.products
+    .filter((product) => product.source !== "virtual")
+    .slice()
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "id-ID", { sensitivity: "base", numeric: true }))
+    .forEach((product) => {
+      const aliases = getProductAliases(product);
+      const variants = getProductVariants(product);
+      const variantNames = variants.map((variant) => variant.name).filter(Boolean).join(" ");
+      const category = getProductCategory(product);
+      const meta = [category, product.sku, aliases.length ? `${aliases.length} alias` : "", variants.length > 1 ? `${variants.length} varian` : ""].filter(Boolean).join(" · ");
+      const keywords = [product.name, product.sku, category, aliases.join(" "), variantNames].filter(Boolean).join(" ");
+      addTomOption(options, seen, product.name, product.name, meta, keywords, "menu");
+      aliases.slice(0, 4).forEach((alias) => addTomOption(options, seen, alias, alias, `Alias untuk ${product.name}`, keywords, "alias"));
+      variants
+        .filter((variant) => variant.name && normalizeKey(variant.name) !== "normal")
+        .slice(0, 4)
+        .forEach((variant) => addTomOption(options, seen, `${product.name} ${variant.name}`, `${product.name} · ${variant.name}`, currency.format(variant.price), keywords, "variant"));
+    });
+  return options.slice(0, 360);
+}
+
+function getCustomerTomOptions() {
+  const options = [];
+  const seen = new Set();
+  getCustomerProfiles()
+    .slice()
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0) || String(a.name || "").localeCompare(String(b.name || ""), "id-ID"))
+    .forEach((profile) => {
+      const aliases = Array.isArray(profile.aliases) ? profile.aliases : [];
+      const meta = [profile.tag, Number(profile.shipping || 0) ? `Ongkir ${currency.format(profile.shipping)}` : "", aliases.length ? `${aliases.length} alias` : ""].filter(Boolean).join(" · ");
+      addTomOption(options, seen, profile.name, profile.name, meta, [profile.name, profile.tag, aliases.join(" ")].join(" "), "customer");
+      aliases.slice(0, 3).forEach((alias) => addTomOption(options, seen, alias, alias, `Alias untuk ${profile.name}`, [profile.name, profile.tag, aliases.join(" ")].join(" "), "alias"));
+    });
+  return options.slice(0, 420);
+}
+
+function getSalesTomOptions() {
+  const options = [];
+  const seen = new Set();
+  state.sales
+    .slice()
+    .sort((a, b) => new Date(b.completedAt || b.completed_at || 0) - new Date(a.completedAt || a.completed_at || 0))
+    .slice(0, 500)
+    .forEach((sale) => {
+      const receiptNo = sale.receiptNo || sale.receipt_no || "";
+      const customer = sale.customerName || sale.customer_name || "";
+      const itemNames = (sale.items || []).map((item) => getReceiptItemDisplayName(item)).filter(Boolean);
+      const total = currency.format(Number(sale.total || 0));
+      const meta = [receiptNo, total, sale.payment].filter(Boolean).join(" · ");
+      const keywords = [receiptNo, customer, sale.chatDate || sale.chat_date, itemNames.join(" "), sale.orderNote || sale.order_note].filter(Boolean).join(" ");
+      addTomOption(options, seen, receiptNo, receiptNo, [customer, total].filter(Boolean).join(" · "), keywords, "receipt");
+      addTomOption(options, seen, customer, customer, meta, keywords, "customer");
+      itemNames.slice(0, 4).forEach((name) => addTomOption(options, seen, name, name, meta, keywords, "item"));
+    });
+  return options.slice(0, 360);
+}
+
+function getPiutangTomOptions() {
+  const unpaidSales = state.sales.filter((sale) => {
+    const total = Number(sale.total || 0);
+    const paid = Number(sale.paidAmount || sale.paid_amount || 0);
+    return total - paid > 0;
+  });
+  const sourceSales = unpaidSales.length ? unpaidSales : state.sales;
+  const options = [];
+  const seen = new Set();
+  sourceSales.slice(0, 500).forEach((sale) => {
+    const receiptNo = sale.receiptNo || sale.receipt_no || "";
+    const customer = sale.customerName || sale.customer_name || "";
+    const total = Number(sale.total || 0);
+    const paid = Number(sale.paidAmount || sale.paid_amount || 0);
+    const remaining = Math.max(0, total - paid);
+    const meta = remaining ? `Sisa ${currency.format(remaining)}` : currency.format(total);
+    const keywords = [receiptNo, customer, sale.chatDate || sale.chat_date].filter(Boolean).join(" ");
+    addTomOption(options, seen, customer, customer, [receiptNo, meta].filter(Boolean).join(" · "), keywords, "customer");
+    addTomOption(options, seen, receiptNo, receiptNo, [customer, meta].filter(Boolean).join(" · "), keywords, "receipt");
+  });
+  return options.slice(0, 320);
+}
+
+function getBulkDraftTomOptions() {
+  const options = [];
+  const seen = new Set();
+  state.importDrafts.forEach((draft) => {
+    const items = (draft.items || []).map((item) => item.name).filter(Boolean);
+    const meta = [draft.status === "ready" ? "Siap" : "Perlu review", items.length ? `${items.length} item` : ""].filter(Boolean).join(" · ");
+    const keywords = [draft.customer, draft.chatDate, items.join(" ")].filter(Boolean).join(" ");
+    addTomOption(options, seen, draft.customer, draft.customer, meta, keywords, "draft");
+    items.slice(0, 4).forEach((item) => addTomOption(options, seen, item, item, draft.customer, keywords, "item"));
+  });
+  return options.slice(0, 260);
+}
+
+function getTomOptionSignature(options) {
+  return options.map((option) => `${option.value}\u0001${option.text}\u0001${option.meta}`).join("\u0002");
+}
+
+function syncEnhancedInput(input, value, eventName = "input") {
+  if (!input) return;
+  const nextValue = String(value || "");
+  if (input.value !== nextValue) input.value = nextValue;
+  input.dispatchEvent(new Event(eventName, { bubbles: true }));
+}
+
+function getTomDropdownParent() {
+  return "body";
+}
+
+function positionTomSelectDropdown(control) {
+  if (!control?.isOpen || !control.wrapper || !control.dropdown) return;
+  const rect = control.wrapper.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+
+  const gap = 8;
+  const minHeight = 180;
+  const maxHeight = Math.min(360, window.innerHeight * 0.54);
+  const spaceBelow = window.innerHeight - rect.bottom - gap;
+  const spaceAbove = rect.top - gap;
+  const shouldDropUp = spaceBelow < minHeight && spaceAbove > spaceBelow;
+  const availableHeight = Math.max(minHeight, Math.min(maxHeight, (shouldDropUp ? spaceAbove : spaceBelow) - gap));
+  const top = shouldDropUp
+    ? rect.top + window.scrollY - availableHeight - gap
+    : rect.bottom + window.scrollY + gap;
+
+  control.dropdown.classList.toggle("drop-up", shouldDropUp);
+  control.dropdown.style.left = `${rect.left + window.scrollX}px`;
+  control.dropdown.style.top = `${Math.max(8, top)}px`;
+  control.dropdown.style.width = `${rect.width}px`;
+  control.dropdown.style.maxHeight = `${availableHeight}px`;
+  const content = control.dropdown.querySelector(".ts-dropdown-content");
+  if (content) content.style.maxHeight = `${availableHeight}px`;
+}
+
+function scheduleTomSelectDropdownPosition(control) {
+  window.requestAnimationFrame(() => positionTomSelectDropdown(control));
+}
+
+function enhanceTomSearchInput(config) {
+  const input = config.input;
+  if (!input || input.tomselect || typeof window.TomSelect !== "function") return;
+
+  input.removeAttribute("list");
+  input.setAttribute("autocomplete", "off");
+  input.classList.add("tom-search-source");
+
+  const control = new window.TomSelect(input, {
+    options: config.optionsGetter(),
+    valueField: "value",
+    labelField: "text",
+    searchField: ["text", "meta", "keywords"],
+    maxItems: 1,
+    create: (value) => makeTomOption(value, value, "Pencarian manual", value, "custom"),
+    persist: false,
+    createOnBlur: true,
+    openOnFocus: true,
+    closeAfterSelect: true,
+    hideSelected: false,
+    preload: "focus",
+    maxOptions: 48,
+    dropdownParent: getTomDropdownParent(input),
+    wrapperClass: `ts-wrapper kasir-tom-select ${config.className || ""}`.trim(),
+    controlClass: "ts-control kasir-tom-control",
+    dropdownClass: "ts-dropdown kasir-tom-dropdown",
+    optionClass: "option kasir-tom-option",
+    itemClass: "item kasir-tom-item",
+    render: {
+      option(data, escape) {
+        return `
+          <div class="kasir-tom-option-inner">
+            <strong>${escape(data.text)}</strong>
+            ${data.meta ? `<span>${escape(data.meta)}</span>` : ""}
+          </div>
+        `;
+      },
+      item(data, escape) {
+        return `<div class="kasir-tom-item-inner">${escape(data.text)}</div>`;
+      },
+      option_create(data, escape) {
+        return `<div class="kasir-tom-option-inner is-create"><strong>Cari "${escape(data.input)}"</strong><span>Tekan Enter untuk pakai kata ini</span></div>`;
+      },
+      no_results(data, escape) {
+        return `<div class="kasir-tom-empty">Tidak ada hasil untuk "${escape(data.input)}"</div>`;
+      },
+    },
+    onType(value) {
+      config.onType?.(value);
+      scheduleTomSelectDropdownPosition(this);
+    },
+    onChange(value) {
+      config.onCommit?.(value || "");
+      scheduleTomSelectDropdownPosition(this);
+    },
+    onClear() {
+      config.onCommit?.("");
+      scheduleTomSelectDropdownPosition(this);
+    },
+    onFocus() {
+      scheduleTomSelectDropdownPosition(this);
+    },
+    onDropdownOpen() {
+      scheduleTomSelectDropdownPosition(this);
+    },
+  });
+
+  tomSelectControls.set(config.key, {
+    input,
+    control,
+    optionsGetter: config.optionsGetter,
+    lastSignature: "",
+    syncDisplay: config.syncDisplay !== false,
+  });
+}
+
+function refreshTomSelectOptions() {
+  if (!tomSelectControls.size) return;
+  tomSelectControls.forEach((entry) => {
+    const options = entry.optionsGetter();
+    const signature = getTomOptionSignature(options);
+    if (signature !== entry.lastSignature) {
+      const currentValue = String(entry.input.value || entry.control.getValue() || "");
+      entry.control.clearOptions();
+      entry.control.addOptions(options);
+      if (currentValue && !entry.control.options[currentValue]) {
+        entry.control.addOption(makeTomOption(currentValue, currentValue, "Pencarian aktif", currentValue, "active"));
+      }
+      entry.control.refreshOptions(false);
+      entry.lastSignature = signature;
+    }
+
+    if (!entry.syncDisplay) return;
+    const value = String(entry.input.value || "");
+    const activeInside = entry.control.wrapper?.contains(document.activeElement) || entry.control.dropdown?.contains(document.activeElement);
+    if (activeInside || String(entry.control.getValue() || "") === value) return;
+    if (value && !entry.control.options[value]) {
+      entry.control.addOption(makeTomOption(value, value, "Pencarian aktif", value, "active"));
+    }
+    entry.control.setValue(value, true);
+  });
+}
+
+function initTomSelectEnhancements() {
+  if (typeof window.TomSelect !== "function") return;
+
+  enhanceTomSearchInput({
+    key: "productSearch",
+    input: els.searchInput,
+    optionsGetter: getProductTomOptions,
+    className: "kasir-product-search",
+    onType: (value) => syncEnhancedInput(els.searchInput, value),
+    onCommit: (value) => syncEnhancedInput(els.searchInput, value),
+  });
+  enhanceTomSearchInput({
+    key: "cartCustomer",
+    input: els.customerNameInput,
+    optionsGetter: getCustomerTomOptions,
+    className: "kasir-customer-combobox",
+    onType: (value) => {
+      if (els.customerNameInput.value !== String(value || "")) els.customerNameInput.value = String(value || "");
+      updateSaleCustomerName(value);
+    },
+    onCommit: (value) => {
+      if (els.customerNameInput.value !== String(value || "")) els.customerNameInput.value = String(value || "");
+      updateSaleCustomerName(value, { forceDefaults: true });
+    },
+  });
+  enhanceTomSearchInput({
+    key: "salesSearch",
+    input: els.salesSearchInput,
+    optionsGetter: getSalesTomOptions,
+    className: "kasir-modal-search",
+    onType: (value) => syncEnhancedInput(els.salesSearchInput, value),
+    onCommit: (value) => syncEnhancedInput(els.salesSearchInput, value),
+  });
+  enhanceTomSearchInput({
+    key: "customerSearch",
+    input: els.customerSearchInput,
+    optionsGetter: getCustomerTomOptions,
+    className: "kasir-modal-search",
+    onType: (value) => syncEnhancedInput(els.customerSearchInput, value),
+    onCommit: (value) => syncEnhancedInput(els.customerSearchInput, value),
+  });
+  enhanceTomSearchInput({
+    key: "piutangSearch",
+    input: els.piutangSearchInput,
+    optionsGetter: getPiutangTomOptions,
+    className: "kasir-modal-search",
+    onType: (value) => syncEnhancedInput(els.piutangSearchInput, value),
+    onCommit: (value) => syncEnhancedInput(els.piutangSearchInput, value),
+  });
+  enhanceTomSearchInput({
+    key: "bulkSearch",
+    input: els.bulkSearchInput,
+    optionsGetter: getBulkDraftTomOptions,
+    className: "kasir-bulk-search",
+    onType: (value) => syncEnhancedInput(els.bulkSearchInput, value),
+    onCommit: (value) => syncEnhancedInput(els.bulkSearchInput, value),
+  });
+  enhanceTomSearchInput({
+    key: "inventorySearch",
+    input: els.inventorySearchInput,
+    optionsGetter: getProductTomOptions,
+    className: "kasir-inventory-search",
+    onType: (value) => syncEnhancedInput(els.inventorySearchInput, value),
+    onCommit: (value) => syncEnhancedInput(els.inventorySearchInput, value),
+  });
+
+  refreshTomSelectOptions();
+  window.kasirTomSelect = {
+    controls: tomSelectControls,
+    refresh: refreshTomSelectOptions,
+  };
 }
 
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
@@ -12048,6 +12455,7 @@ setupModalScrollLock();
 initSmoothScrolling();
 syncManualStockInputState();
 bindEvents();
+initTomSelectEnhancements();
 render();
 renderSalesDashboard();
 updateConnectionUI();
