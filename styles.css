@@ -12410,7 +12410,7 @@ label {
   .toast-container.is-dialog-mounted,
   .toast-container.is-popover-fallback,
   .toast-container.is-dialog-mounted:popover-open {
-    top: max(14px, calc(env(safe-area-inset-top) + 8px));
+    top: max(84px, calc(env(safe-area-inset-top) + 78px));
     width: min(360px, calc(100dvw - 22px));
     max-height: min(34dvh, 220px);
     gap: 8px;
@@ -12443,7 +12443,7 @@ label {
   }
 
   .toast-message {
-    font-size: 0.88rem;
+    font-size: 0.92rem;
     line-height: 1.28;
   }
 
