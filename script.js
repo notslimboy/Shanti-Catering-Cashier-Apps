@@ -11667,6 +11667,26 @@ function bindEvents() {
   window.setInterval(checkBackendConnection, 15000);
 }
 
+function initSmoothScrolling() {
+  const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  if (prefersReducedMotion || typeof window.Lenis !== "function") return;
+
+  const lenis = new window.Lenis({
+    autoRaf: true,
+    autoToggle: true,
+    anchors: true,
+    allowNestedScroll: true,
+    lerp: 0.13,
+    wheelMultiplier: 0.82,
+    touchMultiplier: 1,
+    smoothWheel: true,
+    syncTouch: false,
+    stopInertiaOnNavigate: true,
+  });
+
+  window.kasirSmoothScroll = lenis;
+}
+
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   navigator.serviceWorker.register("service-worker.js").then((reg) => {
     reg.addEventListener("updatefound", () => {
@@ -11697,6 +11717,7 @@ loadState();
 applyTheme();
 renderSettings();
 setupModalScrollLock();
+initSmoothScrolling();
 syncManualStockInputState();
 bindEvents();
 render();
