@@ -9790,6 +9790,39 @@ function renderVariantEditorList() {
     .join("");
 }
 
+function syncEditingProductToCurrentProduct(options = {}) {
+  if (!state.editingProductId) return false;
+  const product = getProduct(state.editingProductId);
+  if (!product) return false;
+
+  const name = els.itemNameInput?.value.trim() || product.name;
+  const category = els.itemCategoryInput?.value.trim() || product.category || DEFAULT_CATEGORY;
+  const stockUnlimited = Boolean(els.itemUnlimitedInput?.checked);
+  const stock = stockUnlimited ? 0 : parseStock(els.itemStockInput?.value);
+  const sku = els.itemSkuInput?.value.trim() || "";
+  const aliases = mergeAliasLists(els.itemAliasInput?.value || "").filter((alias) => normalizeKey(alias) !== normalizeKey(name));
+  const draftVariants = state.editingProductVariants.map((variant, index) => normalizeVariantRecord(variant, { id: product.id }, index));
+  const normalVariant = draftVariants.find((variant) => getBaseVariantKind(variant, product.id) === "normal") || draftVariants.find((variant) => variant.isDefault) || draftVariants[0];
+  const price = Number(normalVariant?.price || product.price || 0);
+  const variants = ensureProductVariants({ id: product.id, price, stock, stockUnlimited, variants: draftVariants });
+
+  Object.assign(product, {
+    name,
+    price,
+    category,
+    stock,
+    stockUnlimited,
+    sku,
+    aliases,
+    variants: variants.map((variant) => ({ ...variant, productId: product.id, product_client_id: product.id })),
+    source: product.source || "manual",
+  });
+  sanitizeCart();
+  render();
+  if (options.persist !== false) saveProductsToDatabase({ toast: false });
+  return true;
+}
+
 function updateEditingVariant(index, field, value, inputType = "text", shouldRender = true) {
   ensureEditingVariants();
   const variant = state.editingProductVariants[index];
@@ -9993,6 +10026,10 @@ function applyVariantEdit() {
   renderVariantEditorList();
   cleanupVariantEditor({ revertNew: false });
   if (els.variantEditorModal?.open) els.variantEditorModal.close();
+  if (state.editingProductId) {
+    syncEditingProductToCurrentProduct();
+    setSyncStatus("Variasi tersimpan.");
+  }
 }
 
 function addEditingVariant() {
@@ -10011,6 +10048,10 @@ function removeEditingVariant(index) {
   state.editingProductVariants.splice(index, 1);
   if (removedDefault && state.editingProductVariants[0]) state.editingProductVariants[0].isDefault = true;
   renderVariantEditorList();
+  if (state.editingProductId) {
+    syncEditingProductToCurrentProduct();
+    setSyncStatus("Variasi dihapus.");
+  }
 }
 
 function resetProductForm() {
