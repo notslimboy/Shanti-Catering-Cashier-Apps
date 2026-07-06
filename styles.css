@@ -9094,6 +9094,114 @@ label {
   font-weight: 950;
 }
 
+@media (min-width: 760px) {
+  .piutang-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .piutang-list > .empty-state,
+  .piutang-load-more {
+    grid-column: 1 / -1;
+  }
+
+  .piutang-card {
+    align-self: start;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .piutang-card-header {
+    gap: 8px;
+  }
+
+  .piutang-card-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .piutang-card-main {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .piutang-debt-highlight {
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-items: stretch;
+    align-items: center;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .piutang-debt-highlight strong {
+    text-align: right;
+  }
+
+  .piutang-item-preview {
+    overflow: hidden;
+  }
+
+  .piutang-item-chip {
+    max-width: 100%;
+  }
+
+  .piutang-financial-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .piutang-card-detail summary {
+    align-items: flex-start;
+  }
+
+  .piutang-card-detail summary strong {
+    text-align: right;
+  }
+
+  .piutang-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .piutang-pay-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .piutang-pay-form button,
+  .piutang-revoke-button {
+    width: 100%;
+  }
+}
+
+@media (min-width: 1180px) {
+  .piutang-list {
+    gap: 12px;
+  }
+
+  .piutang-card {
+    padding: 14px;
+  }
+
+  .piutang-card-main {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .piutang-debt-highlight {
+    grid-template-columns: 1fr;
+    justify-items: end;
+    min-width: 112px;
+    text-align: right;
+  }
+
+  .piutang-pay-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .piutang-pay-form button,
+  .piutang-revoke-button {
+    width: auto;
+  }
+}
+
 @media (max-width: 900px) {
   #piutangModal .piutang-panel {
     padding: 24px 34px 20px;
