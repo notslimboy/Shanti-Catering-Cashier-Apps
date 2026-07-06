@@ -8008,24 +8008,26 @@ function renderProducts() {
               ${metaHtml ? `<p class="product-meta">${metaHtml}</p>` : ""}
               ${displayAliases.length ? `<p class="product-aliases">Alias: ${escapeHtml(displayAliases.join(", "))}</p>` : ""}
             </div>
-            <div class="product-actions">
-              <div class="product-price-stack">
-                <strong class="product-price product-action-price">${currency.format(defaultVariant?.price || product.price)}</strong>
-                <span class="stock-pill ${stockBadge.className}">${escapeHtml(stockBadge.label)}</span>
-              </div>
-              <div class="product-action-buttons" aria-label="Aksi ${escapeHtml(product.name)}">
-                <button class="add-button" type="button" data-add="${escapeHtml(product.id)}" data-variant="${escapeHtml(defaultVariant?.id || "")}" aria-label="Tambah ${escapeHtml(product.name)}" ${addDisabled ? "disabled" : ""}>+</button>
-                <button class="ghost-button product-small-button product-edit-button" type="button" data-edit-product="${product.id}" aria-label="Edit ${escapeHtml(product.name)}">
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
-                  <span class="button-label">Edit</span>
-                </button>
-                <button class="ghost-button danger product-small-button product-delete-button" type="button" data-delete-product="${product.id}" aria-label="Hapus ${escapeHtml(product.name)}" title="Hapus">
-                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
-                </button>
-              </div>
+            <div class="product-secondary-actions" aria-label="Kelola ${escapeHtml(product.name)}">
+              <button class="ghost-button product-small-button product-edit-button" type="button" data-edit-product="${escapeHtml(product.id)}" aria-label="Edit ${escapeHtml(product.name)}">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-edit"></use></svg>
+                <span class="button-label">Edit</span>
+              </button>
+              <button class="ghost-button danger product-small-button product-delete-button" type="button" data-delete-product="${escapeHtml(product.id)}" aria-label="Hapus ${escapeHtml(product.name)}" title="Hapus">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-trash"></use></svg>
+                <span class="button-label">Hapus</span>
+              </button>
             </div>
+            <div class="product-price-stack">
+              <strong class="product-price product-action-price">${currency.format(defaultVariant?.price || product.price)}</strong>
+              <span class="stock-pill ${stockBadge.className}">${escapeHtml(stockBadge.label)}</span>
+            </div>
+            ${variants.length > 1 ? `<div class="product-variant-chips">${variantButtons}</div>` : ""}
+            <button class="add-button product-add-primary" type="button" data-add="${escapeHtml(product.id)}" data-variant="${escapeHtml(defaultVariant?.id || "")}" aria-label="Tambah ${escapeHtml(product.name)}" ${addDisabled ? "disabled" : ""}>
+              <span class="product-add-plus" aria-hidden="true">+</span>
+              <span class="product-add-label">Tambah</span>
+            </button>
           </div>
-          ${variants.length > 1 ? `<div class="product-variant-chips">${variantButtons}</div>` : ""}
         </article>
       `;
     })
