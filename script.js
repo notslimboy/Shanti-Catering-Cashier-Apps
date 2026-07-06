@@ -1200,6 +1200,24 @@ function removeInternalTestProductsFromState() {
   return true;
 }
 
+async function cleanupInternalTestProductsFromSupabase(supabase) {
+  if (!supabase) return;
+  try {
+    const clientIds = [...INTERNAL_TEST_PRODUCT_CLIENT_IDS];
+    const names = [...INTERNAL_TEST_PRODUCT_NAMES];
+    if (clientIds.length) {
+      const { error } = await supabase.from("products").delete().in("client_id", clientIds);
+      if (error) throw error;
+    }
+    if (names.length) {
+      const { error } = await supabase.from("products").delete().in("name", names);
+      if (error) throw error;
+    }
+  } catch (error) {
+    console.warn("Gagal membersihkan produk test internal dari Supabase:", error);
+  }
+}
+
 function debounce(callback, delay = 180) {
   let timeoutId;
   return (...args) => {
@@ -7098,6 +7116,7 @@ async function saveProductsToDatabase(options = {}) {
         throw variantSchemaError;
       }
       removeInternalTestProductsFromState();
+      await cleanupInternalTestProductsFromSupabase(supabase);
       const dbProducts = state.products.map(p => ({
         client_id: p.id,
         sku: p.sku || "",
@@ -7187,6 +7206,9 @@ async function loadProductsFromDatabase(options = {}) {
 	      const supabase = getSupabaseClient();
 	      const { data, error } = await supabase.from("products").select("*");
 	      if (error) throw error;
+      if (Array.isArray(data) && data.some(isInternalTestProduct)) {
+        await cleanupInternalTestProductsFromSupabase(supabase);
+      }
       const { data: variantData, error: variantError } = await supabase.from("product_variants").select("*");
       if (variantError) {
         if (!isSupabaseMissingTableError(variantError, "product_variants")) throw variantError;
