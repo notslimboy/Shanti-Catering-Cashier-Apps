@@ -2,6 +2,8 @@ const STORAGE_KEY = "kasir-bento-state-v1";
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const SALES_PAGE_SIZE = 10;
 const PRODUCT_RENDER_INITIAL_LIMIT = 24;
+const INTERNAL_TEST_PRODUCT_CLIENT_IDS = new Set(["codex-live-ui-variant-test"]);
+const INTERNAL_TEST_PRODUCT_NAMES = new Set(["__Codex Live Variant Test__"]);
 const PRODUCT_RENDER_BATCH_SIZE = 16;
 const PRODUCT_RENDER_OBSERVER_MARGIN = "900px 0px 900px 0px";
 const CUSTOMER_RENDER_INITIAL_LIMIT = 24;
@@ -726,6 +728,7 @@ function loadState() {
     }
     syncDailyMenuEditorToToday();
     state.lastReceipt = parsed.lastReceipt && typeof parsed.lastReceipt === "object" ? parsed.lastReceipt : null;
+    removeInternalTestProductsFromState();
     sanitizeCart();
   } catch (error) {
     console.warn("Data kasir tersimpan tidak bisa dibuka", error);
@@ -757,6 +760,7 @@ function getLocalStateSnapshot() {
 }
 
 function saveState() {
+  removeInternalTestProductsFromState();
   const snapshot = getLocalStateSnapshot();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
 }
@@ -1158,6 +1162,42 @@ function normalizeKey(value) {
     .trim()
     .toLowerCase()
     .replace(/[\s_-]+/g, "");
+}
+
+function isInternalTestProduct(product) {
+  if (!product) return false;
+  const productId = normalizeKey(product.id || product.client_id || product.clientId || "");
+  const productName = normalizeKey(product.name || "");
+  return [...INTERNAL_TEST_PRODUCT_CLIENT_IDS].some((id) => normalizeKey(id) === productId)
+    || [...INTERNAL_TEST_PRODUCT_NAMES].some((name) => normalizeKey(name) === productName);
+}
+
+function removeInternalTestProductsFromState() {
+  const staleProductIds = new Set();
+  state.products = state.products.filter((product) => {
+    if (!isInternalTestProduct(product)) return true;
+    staleProductIds.add(String(product.id || product.client_id || product.clientId || ""));
+    return false;
+  });
+  if (!staleProductIds.size) return false;
+
+  state.cart = state.cart.filter((item) => !staleProductIds.has(String(item.productId || item.product_id || "")));
+  state.heldCarts = state.heldCarts
+    .map((heldCart) => ({
+      ...heldCart,
+      cart: Array.isArray(heldCart.cart)
+        ? heldCart.cart.filter((item) => !staleProductIds.has(String(item.productId || item.product_id || "")))
+        : [],
+    }))
+    .filter((heldCart) => heldCart.cart.length);
+
+  state.dailyMenu.productIds = state.dailyMenu.productIds.filter((id) => !staleProductIds.has(String(id)));
+  Object.keys(state.dailyMenu.menusByDate || {}).forEach((dateKey) => {
+    state.dailyMenu.menusByDate[dateKey] = (state.dailyMenu.menusByDate[dateKey] || [])
+      .filter((id) => !staleProductIds.has(String(id)));
+  });
+  if (staleProductIds.has(String(state.editingProductId || ""))) state.editingProductId = null;
+  return true;
 }
 
 function debounce(callback, delay = 180) {
@@ -7057,6 +7097,7 @@ async function saveProductsToDatabase(options = {}) {
       if (variantSchemaError && !isSupabaseMissingTableError(variantSchemaError, "product_variants")) {
         throw variantSchemaError;
       }
+      removeInternalTestProductsFromState();
       const dbProducts = state.products.map(p => ({
         client_id: p.id,
         sku: p.sku || "",
@@ -7158,10 +7199,10 @@ async function loadProductsFromDatabase(options = {}) {
 	        variantsByProduct[productId].push(variant);
 	      });
 	      const sqlProducts = normalizeProductsCollection(
-	        Array.isArray(data)
-	          ? data.map((product) => normalizeProductFromDatabase({ ...product, variants: variantsByProduct[String(product.client_id || product.id)] || [] }))
-	          : []
-      );
+        Array.isArray(data)
+          ? data.map((product) => normalizeProductFromDatabase({ ...product, variants: variantsByProduct[String(product.client_id || product.id)] || [] }))
+          : []
+      ).filter((product) => !isInternalTestProduct(product));
       if (sqlProducts.length) {
         state.products = sqlProducts;
         const draftsChanged = refreshImportDraftMatches({ save: false, render: false });
