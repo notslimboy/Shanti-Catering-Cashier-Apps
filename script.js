@@ -5,6 +5,7 @@ const CUSTOMER_SUGGESTION_LIMIT = 80;
 const SUPABASE_URL = "https://ddfalsclevkqhiyojngx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP";
 const CUSTOMER_TAG_ALIAS_PREFIX = "tagalamat:";
+const PRODUCT_VARIANTS_ALIAS_PREFIX = "__kasir_product_variants_v1:";
 const CUSTOMER_TAG_FILTER_ALL = "all";
 const CUSTOMER_TAG_FILTER_OTHER = "__other";
 const CUSTOMER_TAG_FILTER_OTHER_LABEL = "Lainnya";
@@ -1102,6 +1103,54 @@ function parseAliasList(value) {
   return aliases;
 }
 
+function isProductVariantsAlias(alias) {
+  return String(alias ?? "").trim().startsWith(PRODUCT_VARIANTS_ALIAS_PREFIX);
+}
+
+function decodeProductVariantsAlias(alias) {
+  const text = String(alias ?? "").trim();
+  if (!isProductVariantsAlias(text)) return [];
+  try {
+    const decoded = decodeURIComponent(text.slice(PRODUCT_VARIANTS_ALIAS_PREFIX.length));
+    const variants = JSON.parse(decoded);
+    return Array.isArray(variants) ? variants : [];
+  } catch (error) {
+    console.warn("Gagal membaca metadata varian produk:", error);
+    return [];
+  }
+}
+
+function splitProductVariantAliases(aliases) {
+  const visibleAliases = [];
+  let variants = [];
+  parseAliasList(aliases).forEach((alias) => {
+    if (isProductVariantsAlias(alias)) {
+      const decodedVariants = decodeProductVariantsAlias(alias);
+      if (decodedVariants.length) variants = decodedVariants;
+      return;
+    }
+    visibleAliases.push(alias);
+  });
+  return { aliases: visibleAliases, variants };
+}
+
+function encodeProductVariantsAlias(product) {
+  try {
+    const variants = getPersistableProductVariants(product);
+    if (!variants.length) return "";
+    return `${PRODUCT_VARIANTS_ALIAS_PREFIX}${encodeURIComponent(JSON.stringify(variants))}`;
+  } catch (error) {
+    console.warn("Gagal menyiapkan metadata varian produk:", error);
+    return "";
+  }
+}
+
+function serializeProductAliasesForDatabase(product) {
+  const aliases = getProductAliases(product);
+  const variantsAlias = encodeProductVariantsAlias(product);
+  return JSON.stringify(variantsAlias ? [...aliases, variantsAlias] : aliases);
+}
+
 function isCustomerTagAlias(alias) {
   return String(alias ?? "").trim().toLowerCase().startsWith(CUSTOMER_TAG_ALIAS_PREFIX);
 }
@@ -1139,7 +1188,7 @@ function mergeAliasLists(...values) {
 }
 
 function getProductAliases(product) {
-  return parseAliasList(product?.aliases ?? product?.alias ?? product?.menuAliases ?? product?.menu_aliases ?? "");
+  return splitProductVariantAliases(product?.aliases ?? product?.alias ?? product?.menuAliases ?? product?.menu_aliases ?? "").aliases;
 }
 
 function getProductMatchTerms(product) {
@@ -4255,6 +4304,9 @@ function normalizeProductRecord(product = {}) {
   const id = String(product.id || product.client_id || makeId("product")).trim();
   const rawName = String(product.name || "").trim();
   const productName = formatHalfVariantDisplayText(rawName);
+  const rawAliases = product.aliases ?? product.alias ?? product.menuAliases ?? product.menu_aliases ?? [];
+  const splitAliases = splitProductVariantAliases(rawAliases);
+  const productVariants = Array.isArray(product.variants) && product.variants.length ? product.variants : splitAliases.variants;
   const base = {
     ...product,
     id,
@@ -4265,10 +4317,10 @@ function normalizeProductRecord(product = {}) {
     stock: parseStock(product.stock),
     stockUnlimited: Boolean(product.stockUnlimited || product.stock_unlimited || product.unlimitedStock),
     category: String(product.category || "").trim() || DEFAULT_CATEGORY,
-    aliases: mergeAliasLists(product.aliases || product.alias || [], productName && productName !== rawName ? [rawName] : []),
+    aliases: mergeAliasLists(splitAliases.aliases, productName && productName !== rawName ? [rawName] : []),
     source: String(product.source || "manual").trim() || "manual",
   };
-  base.variants = ensureProductVariants(base);
+  base.variants = ensureProductVariants({ ...base, variants: productVariants });
   const defaultVariant = getDefaultVariant(base);
   if (defaultVariant?.price > 0) base.price = defaultVariant.price;
   return base;
@@ -4359,6 +4411,30 @@ function getProductVariants(product) {
   if (!product) return [];
   product.variants = ensureProductVariants(product);
   return product.variants.filter((variant) => variant.active !== false);
+}
+
+function getPersistableProductVariants(product) {
+  if (!product) return [];
+  return getProductVariants(product).map((variant, index) => ({
+    client_id: variant.id,
+    product_client_id: product.id,
+    name: variant.name || "Normal",
+    pricing_type: normalizePricingType(variant.pricingType),
+    price: Number(variant.price || 0),
+    unit_name: variant.unitName || "porsi",
+    package_quantity: Number(variant.packageQuantity || 1),
+    package_unit: variant.packageUnit || variant.unitName || "porsi",
+    receipt_label: variant.receiptLabel || "",
+    is_default: variant.isDefault ? 1 : 0,
+    allow_quantity_override: variant.allowQuantityOverride ? 1 : 0,
+    allow_price_override: variant.allowPriceOverride ? 1 : 0,
+    stock: Number(variant.stock || 0),
+    stock_unlimited: variant.stockUnlimited ? 1 : 0,
+    aliases: JSON.stringify(variant.aliases || []),
+    sort_order: index,
+    active: variant.active === false ? 0 : 1,
+    updated_at: new Date().toISOString()
+  }));
 }
 
 function getDefaultVariant(product) {
@@ -6725,7 +6801,7 @@ async function saveProductsToDatabase(options = {}) {
         stock: p.stock || 0,
         stock_unlimited: p.stockUnlimited ? 1 : 0,
         category: p.category || "",
-        aliases: JSON.stringify(p.aliases || []),
+        aliases: serializeProductAliasesForDatabase(p),
         source: p.source || "manual",
         updated_at: new Date().toISOString()
       }));
@@ -6738,28 +6814,7 @@ async function saveProductsToDatabase(options = {}) {
 	          const { error: deleteVariantError } = await supabase.from("product_variants").delete().in("product_client_id", productIds);
 	          if (deleteVariantError) throw deleteVariantError;
 	        }
-	        const dbVariants = state.products.flatMap((product) =>
-	          getProductVariants(product).map((variant, index) => ({
-	            client_id: variant.id,
-	            product_client_id: product.id,
-	            name: variant.name || "Normal",
-	            pricing_type: normalizePricingType(variant.pricingType),
-	            price: Number(variant.price || 0),
-	            unit_name: variant.unitName || "porsi",
-	            package_quantity: Number(variant.packageQuantity || 1),
-	            package_unit: variant.packageUnit || variant.unitName || "porsi",
-	            receipt_label: variant.receiptLabel || "",
-	            is_default: variant.isDefault ? 1 : 0,
-	            allow_quantity_override: variant.allowQuantityOverride ? 1 : 0,
-	            allow_price_override: variant.allowPriceOverride ? 1 : 0,
-	            stock: Number(variant.stock || 0),
-	            stock_unlimited: variant.stockUnlimited ? 1 : 0,
-	            aliases: JSON.stringify(variant.aliases || []),
-	            sort_order: index,
-	            active: variant.active === false ? 0 : 1,
-	            updated_at: new Date().toISOString()
-	          }))
-	        );
+        const dbVariants = state.products.flatMap(getPersistableProductVariants);
 	        if (dbVariants.length) {
 	          const { error: variantError } = await supabase.from("product_variants").upsert(dbVariants, { onConflict: "client_id" });
 	          if (variantError) throw variantError;
@@ -6769,7 +6824,7 @@ async function saveProductsToDatabase(options = {}) {
 	      if (options.toast) {
 	        const message = canPersistVariants
 	          ? `${state.products.length} barang tersimpan ke Supabase Cloud.`
-	          : `${state.products.length} barang tersimpan. Varian belum tersimpan karena Supabase REST belum bisa akses product_variants.`;
+	          : `${state.products.length} barang tersimpan. Varian disimpan di metadata produk karena Supabase REST belum bisa akses product_variants.`;
 	        setSyncStatus(message, { toast: true });
 	      }
     } else {
@@ -6827,11 +6882,11 @@ async function loadProductsFromDatabase(options = {}) {
 	      const supabase = getSupabaseClient();
 	      const { data, error } = await supabase.from("products").select("*");
 	      if (error) throw error;
-	      const { data: variantData, error: variantError } = await supabase.from("product_variants").select("*");
-	      if (variantError) {
-	        if (!isSupabaseMissingTableError(variantError, "product_variants")) throw variantError;
-	        setSyncStatus("Supabase REST belum bisa akses product_variants. Produk tetap dibaca dengan varian otomatis; jalankan docs/supabase-menu-variants.sql lalu reload schema agar varian tersimpan.", { toast: false });
-	      }
+      const { data: variantData, error: variantError } = await supabase.from("product_variants").select("*");
+      if (variantError) {
+        if (!isSupabaseMissingTableError(variantError, "product_variants")) throw variantError;
+        setSyncStatus("Supabase REST belum bisa akses product_variants. Varian dibaca dari metadata produk sementara; jalankan docs/supabase-menu-variants.sql lalu reload schema untuk tabel varian resmi.", { toast: false });
+      }
 	      const variantsByProduct = {};
 	      (Array.isArray(variantData) ? variantData : []).forEach((variant) => {
 	        const productId = String(variant.product_client_id || "");
