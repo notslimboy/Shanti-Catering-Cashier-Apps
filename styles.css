@@ -3372,8 +3372,14 @@ label {
 
 .modal-panel h2 {
   margin: 0;
-  font-size: clamp(1.7rem, 5vw, 2.45rem);
+  font-size: 1.72rem;
   line-height: 1.05;
+}
+
+@media (min-width: 761px) {
+  .modal-panel h2 {
+    font-size: 2rem;
+  }
 }
 
 .receipt-preview-panel {
@@ -3470,16 +3476,16 @@ label {
 }
 
 .customer-heading h2 {
-  font-size: clamp(1.9rem, 4vw, 2.5rem);
-  line-height: 1.02;
+  font-size: 2rem;
+  line-height: 1.05;
 }
 
 .customer-title-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .customer-count-badge {
@@ -3489,22 +3495,22 @@ label {
   background: var(--mint);
   color: var(--teal-dark);
   border-radius: 99px;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 800;
-  padding: 4px 12px;
-  min-height: 24px;
+  padding: 3px 10px;
+  min-height: 22px;
   white-space: nowrap;
 }
 
 .customer-heading button {
   align-self: start;
-  min-height: 44px;
+  min-height: 40px;
 }
 
 .customer-heading-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
   justify-content: end;
 }
 
@@ -4634,8 +4640,8 @@ label {
 .sales-modal-heading h2 {
   grid-area: title;
   max-width: none;
-  font-size: clamp(2.1rem, 4vw, 2.75rem);
-  line-height: 1.02;
+  font-size: 2rem;
+  line-height: 1.05;
   white-space: normal;
 }
 
@@ -6284,7 +6290,7 @@ label {
 }
 
 #salesDashboardModal .sales-modal-heading h2 {
-  font-size: clamp(1.9rem, 4vw, 2.55rem);
+  font-size: 2rem;
 }
 
 #salesDashboardModal .dashboard-actions {
@@ -6602,7 +6608,7 @@ label {
   }
 
   #salesDashboardModal .sales-modal-heading h2 {
-    font-size: clamp(1.52rem, 7vw, 1.84rem);
+    font-size: 1.64rem;
     line-height: 1.04;
     white-space: nowrap;
   }
@@ -7132,6 +7138,12 @@ label {
 }
 
 #customerDataModal .customer-heading-actions button {
+  min-height: 40px;
+  border-radius: 9px;
+  box-shadow: none;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -7148,8 +7160,11 @@ label {
 }
 
 #customerDataModal .modal-close-button {
-  inline-size: 44px;
-  min-height: 44px;
+  inline-size: 40px;
+  min-height: 40px;
+  border-radius: 10px;
+  box-shadow: none;
+  font-size: 1.2rem;
 }
 
 @media (min-width: 1101px) {
@@ -7403,7 +7418,7 @@ label {
   }
 
   #customerDataModal .customer-heading h2 {
-    font-size: clamp(1.55rem, 3.2vw, 2rem);
+    font-size: 1.75rem;
   }
 
   #customerDataModal .customer-title-row {
