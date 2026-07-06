@@ -8093,6 +8093,12 @@ function closeCartDrawer({ immediate = false } = {}) {
   cartDrawerCloseTimer = window.setTimeout(finishCartDrawerClose, CART_DRAWER_ANIMATION_MS);
 }
 
+function closeCartVariantMenus(exceptMenu = null) {
+  els.cartList?.querySelectorAll(".cart-variant-menu[open]").forEach((menu) => {
+    if (menu !== exceptMenu) menu.removeAttribute("open");
+  });
+}
+
 function renderCart() {
   const itemCount = getCartItemCount();
   if (els.cartItemBadge) {
@@ -8117,15 +8123,33 @@ function renderCart() {
         
         let variantSelectHtml = "";
         if (variants.length > 1) {
+          const variantOptions = variants.map(v => {
+            const selected = String(v.id) === String(activeVariant?.id);
+            return `
+              <button class="cart-variant-option ${selected ? "active" : ""}" type="button" role="option" aria-selected="${selected ? "true" : "false"}" data-change-variant-option="${escapeHtml(cartItem.id)}" data-variant="${escapeHtml(v.id)}">
+                <span class="cart-variant-option-copy">
+                  <strong>${escapeHtml(v.name)}</strong>
+                  <small>${currency.format(v.price)}</small>
+                </span>
+                ${selected ? `<span class="cart-variant-check" aria-hidden="true">✓</span>` : ""}
+              </button>
+            `;
+          }).join("");
+          const activeVariantName = activeVariant?.name || "Varian";
+          const activeVariantPrice = activeVariant?.price ?? product.price;
           variantSelectHtml = `
-            <div class="cart-variant-select">
-              <select class="cart-variant-dropdown" data-change-variant="${cartItem.id}">
-                ${variants.map(v => {
-                  const selected = String(v.id) === String(activeVariant?.id) ? "selected" : "";
-                  return `<option value="${escapeHtml(v.id)}" ${selected}>${escapeHtml(v.name)} (${currency.format(v.price)})</option>`;
-                }).join("")}
-              </select>
-            </div>
+            <details class="cart-variant-menu" data-variant-menu="${escapeHtml(cartItem.id)}">
+              <summary class="cart-variant-trigger" aria-label="Pilih varian ${escapeHtml(product.name)}">
+                <span class="cart-variant-trigger-copy">
+                  <span>${escapeHtml(activeVariantName)}</span>
+                  <strong>${currency.format(activeVariantPrice)}</strong>
+                </span>
+                <span class="cart-variant-chevron" aria-hidden="true">⌄</span>
+              </summary>
+              <div class="cart-variant-popover" role="listbox" aria-label="Varian ${escapeHtml(product.name)}">
+                ${variantOptions}
+              </div>
+            </details>
           `;
         }
         const customPriceHtml = activeVariant?.allowPriceOverride
@@ -11239,13 +11263,34 @@ function bindEvents() {
   });
 
   els.cartList.addEventListener("click", (event) => {
+    const variantOption = event.target.closest("[data-change-variant-option]");
+    const variantTrigger = event.target.closest(".cart-variant-trigger");
     const decrease = event.target.closest("[data-decrease]");
     const increase = event.target.closest("[data-increase]");
     const remove = event.target.closest("[data-remove]");
 
+    if (variantOption) {
+      changeCartItemVariant(variantOption.dataset.changeVariantOption, variantOption.dataset.variant || "");
+      return;
+    }
+
+    if (variantTrigger) {
+      const menu = variantTrigger.closest(".cart-variant-menu");
+      window.requestAnimationFrame(() => closeCartVariantMenus(menu?.open ? menu : null));
+      return;
+    }
+
     if (decrease) changeCartQuantity(decrease.dataset.decrease, -1);
     if (increase) changeCartQuantity(increase.dataset.increase, 1);
     if (remove) removeFromCart(remove.dataset.remove);
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".cart-variant-menu")) closeCartVariantMenus();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeCartVariantMenus();
   });
 
   els.cartList.addEventListener("input", (event) => {
