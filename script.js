@@ -661,7 +661,7 @@ function loadState() {
     state.selectedCategory = typeof parsed.selectedCategory === "string" ? parsed.selectedCategory : "all";
     state.salesSearch = typeof parsed.salesSearch === "string" ? parsed.salesSearch : "";
     const parsedSalesRange = String(parsed.salesRange || "day");
-    state.salesRange = parsedSalesRange === "7" ? "week" : parsedSalesRange === "30" ? "custom" : ["day", "week", "all", "custom"].includes(parsedSalesRange) ? parsedSalesRange : "day";
+    state.salesRange = parsedSalesRange === "7" ? "week" : parsedSalesRange === "30" ? "custom" : parsedSalesRange === "all" ? "month" : ["day", "week", "month", "custom"].includes(parsedSalesRange) ? parsedSalesRange : "day";
     state.salesStatus = ["active", "deleted", "all"].includes(String(parsed.salesStatus)) ? String(parsed.salesStatus) : "active";
     state.salesSort = ["newest", "oldest"].includes(String(parsed.salesSort)) ? String(parsed.salesSort) : "newest";
     state.salesPage = Math.max(1, Number.parseInt(parsed.salesPage, 10) || 1);
@@ -1604,6 +1604,13 @@ function addDaysToDateKey(dateKey, days) {
   return getLocalDateKey(date);
 }
 
+function addMonthsToDateKey(dateKey, months) {
+  const date = parseLocalDateKey(dateKey || getLocalDateKey());
+  date.setDate(1);
+  date.setMonth(date.getMonth() + months);
+  return getLocalDateKey(date);
+}
+
 function compareDateKeys(left, right) {
   return String(left || "").localeCompare(String(right || ""));
 }
@@ -1628,9 +1635,16 @@ function getAllSalesDateRange() {
   return { start: dates[0], end: dates[dates.length - 1] };
 }
 
+function getMonthSalesDateRange(dateKey = state.salesEndDate || state.salesDate || getLocalDateKey()) {
+  const date = parseLocalDateKey(dateKey || getLocalDateKey());
+  const start = new Date(date.getFullYear(), date.getMonth(), 1);
+  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  return { start: getLocalDateKey(start), end: getLocalDateKey(end) };
+}
+
 function getSalesRangeDates() {
-  if (state.salesRange === "all") {
-    return getAllSalesDateRange();
+  if (state.salesRange === "month" || state.salesRange === "all") {
+    return getMonthSalesDateRange();
   }
 
   if (state.salesRange === "week" || state.salesRange === "7" || state.salesRange === "30") {
@@ -1698,7 +1712,10 @@ function formatVariantChipPrice(value) {
 }
 
 function formatSalesDateLabel() {
-  if (state.salesRange === "all") return "Semua tanggal";
+  if (state.salesRange === "month" || state.salesRange === "all") {
+    const range = getSalesRangeDates();
+    return formatCalendarMonthLabel(range.start.slice(0, 7));
+  }
   const range = getSalesRangeDates();
   if (range.start === range.end) return formatDateLabel(range.start);
   return `${formatDateLabel(range.start)} - ${formatDateLabel(range.end)}`;
@@ -1707,7 +1724,7 @@ function formatSalesDateLabel() {
 function getSalesRangeCopy() {
   if (state.salesRange === "week" || state.salesRange === "7") return "mingguan";
   if (state.salesRange === "30") return "30 hari";
-  if (state.salesRange === "all") return "semua tanggal";
+  if (state.salesRange === "month" || state.salesRange === "all") return "bulanan";
   if (state.salesRange === "custom") return "custom";
   return "tanggal ini";
 }
@@ -3580,13 +3597,12 @@ function setSalesCalendarMonthFromDate(dateKey) {
 }
 
 function renderSalesDateControls(range = getSalesRangeDates()) {
-  const allMode = state.salesRange === "all";
   const showDateMeta = !window.matchMedia("(max-width: 1100px)").matches;
-  const startMeta = allMode ? `${getSelectedSales().length} transaksi` : getSalesDateMeta(range.start, false);
-  const endMeta = allMode || range.start === range.end ? startMeta : getSalesDateMeta(range.end, false);
+  const startMeta = getSalesDateMeta(range.start, false);
+  const endMeta = range.start === range.end ? startMeta : getSalesDateMeta(range.end, false);
 
-  if (els.salesStartDateText) els.salesStartDateText.textContent = allMode ? "Semua tanggal" : formatShortDateLabel(range.start);
-  if (els.salesEndDateText) els.salesEndDateText.textContent = allMode ? "Semua tanggal" : formatShortDateLabel(range.end);
+  if (els.salesStartDateText) els.salesStartDateText.textContent = formatShortDateLabel(range.start);
+  if (els.salesEndDateText) els.salesEndDateText.textContent = formatShortDateLabel(range.end);
   if (els.salesStartDateMeta) {
     els.salesStartDateMeta.textContent = showDateMeta ? startMeta : "";
     els.salesStartDateMeta.hidden = !showDateMeta;
@@ -3598,12 +3614,12 @@ function renderSalesDateControls(range = getSalesRangeDates()) {
 
   [els.salesStartDateButton, els.salesEndDateButton].forEach((button) => {
     if (!button) return;
-    button.disabled = allMode;
-    button.setAttribute("aria-expanded", String(!els.salesCalendarPopover?.hidden && !allMode));
+    button.disabled = false;
+    button.setAttribute("aria-expanded", String(!els.salesCalendarPopover?.hidden));
   });
 
-  if (els.previousSalesDateButton) els.previousSalesDateButton.disabled = allMode;
-  if (els.nextSalesDateButton) els.nextSalesDateButton.disabled = allMode;
+  if (els.previousSalesDateButton) els.previousSalesDateButton.disabled = false;
+  if (els.nextSalesDateButton) els.nextSalesDateButton.disabled = false;
 }
 
 function getSalesSortLabel(sortKey = state.salesSort) {
@@ -7800,16 +7816,16 @@ function setSalesDate(dateKey) {
 }
 
 function setSalesRange(rangeName) {
-  const nextRange = String(rangeName) === "7" ? "week" : String(rangeName);
-  state.salesRange = ["day", "week", "all", "custom"].includes(nextRange) ? nextRange : "day";
+  const nextRange = String(rangeName) === "7" ? "week" : String(rangeName) === "all" ? "month" : String(rangeName);
+  state.salesRange = ["day", "week", "month", "custom"].includes(nextRange) ? nextRange : "day";
   if (state.salesRange === "day") {
     state.salesDate = state.salesEndDate || state.salesDate || getLocalDateKey();
     state.salesStartDate = state.salesDate;
     state.salesEndDate = state.salesDate;
   } else if (state.salesRange === "week") {
     state.salesEndDate = state.salesEndDate || state.salesDate || getLocalDateKey();
-  } else if (state.salesRange === "all") {
-    const range = getAllSalesDateRange();
+  } else if (state.salesRange === "month") {
+    const range = getMonthSalesDateRange(state.salesEndDate || state.salesDate || getLocalDateKey());
     state.salesStartDate = range.start;
     state.salesEndDate = range.end;
     state.salesDate = range.end;
@@ -7842,11 +7858,21 @@ function setSalesStatus(status) {
 }
 
 function shiftSalesDate(dayDelta) {
-  if (state.salesRange === "all") return;
-
   if (state.salesRange === "custom") {
     state.salesStartDate = addDaysToDateKey(state.salesStartDate, dayDelta);
     state.salesEndDate = addDaysToDateKey(state.salesEndDate, dayDelta);
+    resetSalesPage();
+    renderSalesDashboard();
+    saveState();
+    return;
+  }
+
+  if (state.salesRange === "month" || state.salesRange === "all") {
+    const monthDate = addMonthsToDateKey(state.salesEndDate || state.salesDate || getLocalDateKey(), dayDelta);
+    const range = getMonthSalesDateRange(monthDate);
+    state.salesStartDate = range.start;
+    state.salesEndDate = range.end;
+    state.salesDate = range.end;
     resetSalesPage();
     renderSalesDashboard();
     saveState();

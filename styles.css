@@ -6561,115 +6561,108 @@ label {
 @media (min-width: 1024px) {
   #salesDashboardModal .sales-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 12px;
   }
 
   #salesDashboardModal .sale-card {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "heading actions"
-      "info summary";
-    align-items: center;
-    gap: 8px 14px;
-    padding: 10px 14px;
+    gap: 10px;
+    padding: 14px;
   }
 
   #salesDashboardModal .sale-card-header {
-    display: contents;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 10px;
   }
 
   #salesDashboardModal .sale-card-heading {
-    grid-area: heading;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-    gap: 5px;
+    display: grid;
+    gap: 6px;
   }
 
   #salesDashboardModal .sale-card-badges {
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 6px;
   }
 
   #salesDashboardModal .sale-card-customer {
-    min-width: 0;
+    font-size: clamp(1.02rem, 1.35vw, 1.18rem);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  #salesDashboardModal .sale-card-receipt {
     overflow: hidden;
-    overflow-wrap: normal;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  #salesDashboardModal .sale-card-receipt {
-    white-space: nowrap;
-  }
-
   #salesDashboardModal .sale-card-actions {
-    grid-area: actions;
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: end;
-    gap: 6px;
-    width: auto;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    width: 100%;
   }
 
   #salesDashboardModal .sale-card-total {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    justify-items: stretch;
     min-width: 0;
   }
 
   #salesDashboardModal .sale-card-action-buttons {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(54px, auto));
-    gap: 5px;
-    justify-content: end;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px;
   }
 
   #salesDashboardModal .sale-card-action-buttons button {
-    min-width: 54px;
-    min-height: 30px;
-    padding: 6px 9px;
-    font-size: 0.68rem;
+    width: auto;
+    min-width: 56px;
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 0.7rem;
   }
 
   #salesDashboardModal .sale-card-item-block {
-    display: none;
+    display: grid;
+    gap: 7px;
   }
 
   #salesDashboardModal .sale-card-info {
-    grid-area: info;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 5px 12px;
-    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px 16px;
   }
 
   #salesDashboardModal .sale-card-info p {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
+    display: block;
     min-width: 0;
-    white-space: nowrap;
+    white-space: normal;
   }
 
   #salesDashboardModal .sale-card-info span {
-    font-size: 0.66rem;
-    line-height: 1;
+    font-size: 0.68rem;
+    line-height: 1.2;
   }
 
   #salesDashboardModal .sale-card-info strong {
-    max-width: 18ch;
+    display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   #salesDashboardModal .sale-card-summary {
-    grid-area: summary;
-    align-items: center;
-    justify-content: flex-end;
+    justify-content: space-between;
     flex-wrap: wrap;
-    gap: 5px 12px;
-    border-top: 0;
-    padding-top: 0;
+    gap: 7px 14px;
+    border-top: 1px solid var(--line);
+    padding-top: 9px;
   }
 
   #salesDashboardModal .sale-card-summary span,
@@ -6680,30 +6673,18 @@ label {
 
 @media (min-width: 1440px) {
   #salesDashboardModal .sale-card {
+    padding: 16px;
+  }
+
+  #salesDashboardModal .sale-card-info {
     gap: 8px 18px;
   }
 
-  #salesDashboardModal .sale-card-heading {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 8px 12px;
-  }
-
-  #salesDashboardModal .sale-card-badges,
-  #salesDashboardModal .sale-card-action-buttons {
-    flex-wrap: nowrap;
-  }
-
-  #salesDashboardModal .sale-card-action-buttons {
-    display: flex;
-  }
-
-  #salesDashboardModal .sale-card-info strong {
-    max-width: 24ch;
+  #salesDashboardModal .sale-card-item-block {
+    padding: 9px;
   }
 
   #salesDashboardModal .sale-card-summary {
-    flex-wrap: nowrap;
     gap: 8px 16px;
   }
 }
