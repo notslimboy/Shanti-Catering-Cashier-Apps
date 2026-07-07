@@ -9021,12 +9021,18 @@ body.sidebar-open .sidebar-overlay {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--soft-surface);
   padding: 8px;
+}
+
+.piutang-bulk-toolbar.is-processing {
+  border-color: color-mix(in srgb, var(--teal) 34%, var(--line));
+  background: color-mix(in srgb, var(--soft-teal) 42%, var(--soft-surface));
 }
 
 .piutang-bulk-toolbar[hidden] {
@@ -9071,6 +9077,46 @@ body.sidebar-open .sidebar-overlay {
   font-size: 0.75rem;
   font-weight: 950;
   line-height: 1;
+}
+
+.piutang-bulk-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  flex: 1 0 100%;
+  min-width: 0;
+}
+
+.piutang-bulk-progress[hidden] {
+  display: none !important;
+}
+
+.piutang-bulk-progress-track {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  block-size: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.piutang-bulk-progress-track span {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--teal), var(--yellow));
+  transition: inline-size 0.22s ease;
+}
+
+.piutang-bulk-progress > span {
+  color: var(--teal-dark);
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 #piutangScrollArea {

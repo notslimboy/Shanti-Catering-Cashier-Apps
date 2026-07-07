@@ -453,6 +453,10 @@ const els = {
   piutangBulkToolbar: document.querySelector("#piutangBulkToolbar"),
   piutangSelectAllInput: document.querySelector("#piutangSelectAllInput"),
   piutangSelectionText: document.querySelector("#piutangSelectionText"),
+  piutangBulkProgress: document.querySelector("#piutangBulkProgress"),
+  piutangBulkProgressTrack: document.querySelector("#piutangBulkProgressTrack"),
+  piutangBulkProgressFill: document.querySelector("#piutangBulkProgressFill"),
+  piutangBulkProgressText: document.querySelector("#piutangBulkProgressText"),
   bulkPiutangLunasButton: document.querySelector("#bulkPiutangLunasButton"),
   bulkPiutangBelumLunasButton: document.querySelector("#bulkPiutangBelumLunasButton"),
   tabPiutangBelumLunas: document.querySelector("#tabPiutangBelumLunas"),
@@ -12693,6 +12697,23 @@ function updatePiutangBulkToolbar(visibleSales = []) {
   });
 }
 
+function setPiutangBulkProgress(current = 0, total = 0, label = "Memproses") {
+  if (!els.piutangBulkProgress || !els.piutangBulkProgressFill || !els.piutangBulkProgressText) return;
+
+  const active = total > 0;
+  const safeCurrent = Math.max(0, Math.min(Number(current) || 0, Number(total) || 0));
+  const safeTotal = Math.max(0, Number(total) || 0);
+  const percent = active ? Math.round((safeCurrent / safeTotal) * 100) : 0;
+
+  els.piutangBulkProgress.hidden = !active;
+  els.piutangBulkToolbar?.classList.toggle("is-processing", active);
+  els.piutangBulkProgressFill.style.inlineSize = `${percent}%`;
+  els.piutangBulkProgressTrack?.setAttribute("aria-valuenow", String(percent));
+  els.piutangBulkProgressText.textContent = active
+    ? `${label} ${safeCurrent}/${safeTotal}`
+    : "Memproses 0/0";
+}
+
 function togglePiutangSelection(saleId, selected) {
   const selectedIds = new Set(getPiutangSelectedIds());
   const id = String(saleId || "");
@@ -13161,6 +13182,8 @@ async function runBulkPiutangAction(action) {
   const actionButtons = [els.bulkPiutangLunasButton, els.bulkPiutangBelumLunasButton, els.piutangSelectAllInput].filter(Boolean);
   actionButtons.forEach(control => { control.disabled = true; });
   const errors = [];
+  const progressLabel = isMarkPaid ? "Melunaskan" : "Mengubah status";
+  setPiutangBulkProgress(0, targetSales.length, progressLabel);
 
   try {
     for (let index = 0; index < targetSales.length; index += 1) {
@@ -13178,6 +13201,8 @@ async function runBulkPiutangAction(action) {
         }
       } catch (error) {
         errors.push(error);
+      } finally {
+        setPiutangBulkProgress(index + 1, targetSales.length, progressLabel);
       }
     }
 
@@ -13192,6 +13217,7 @@ async function runBulkPiutangAction(action) {
       });
     }
   } finally {
+    setPiutangBulkProgress(0, 0);
     actionButtons.forEach(control => { control.disabled = false; });
     setPiutangStatus(errors.length ? `Ada ${errors.length} transaksi gagal diproses.` : "");
   }
