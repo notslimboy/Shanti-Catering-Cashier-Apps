@@ -567,9 +567,7 @@ label {
 }
 
 .app-shell {
-  display: grid;
-  grid-template-columns: clamp(300px, 16vw, 420px) minmax(0, 1fr);
-  gap: clamp(18px, 1.1vw, 28px);
+  display: block;
   width: 100%;
   margin: 0 auto;
   padding: clamp(20px, 1.25vw, 34px);
@@ -580,30 +578,51 @@ label {
 }
 
 .sidebar-overlay {
-  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 115;
+  display: block;
+  border-radius: 0;
+  background: var(--modal-backdrop);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
 }
 
 .app-sidebar {
-  position: sticky;
-  top: 24px;
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 120;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  height: calc(100dvh - 48px);
-  min-height: 620px;
+  width: min(348px, calc(100vw - 42px));
+  height: 100dvh;
+  min-height: 0;
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: 0 var(--radius) var(--radius) 0;
   background: var(--panel-bg);
   box-shadow: var(--shadow);
-  padding: 16px;
+  padding: 18px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  transform: translateX(-104%);
+  transition: transform 180ms ease;
+}
+
+body.sidebar-open .app-sidebar {
+  transform: translateX(0);
+}
+
+body.sidebar-open .sidebar-overlay {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sidebar-brand {
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
+  grid-template-columns: 54px minmax(0, 1fr) 42px;
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -630,7 +649,9 @@ label {
 }
 
 .sidebar-close-button {
-  display: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sidebar-nav {
@@ -775,11 +796,21 @@ label {
 }
 
 .topbar {
-  display: none;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 22px;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.topbar .brand-lockup {
+  gap: 12px;
+}
+
+.topbar .brand-logo {
+  width: 58px;
+  height: 58px;
 }
 
 .topbar-system-actions,
@@ -826,7 +857,7 @@ label {
 }
 
 .topbar h1 {
-  font-size: clamp(2rem, 4vw, 3.4rem);
+  font-size: clamp(1.2rem, 1.35vw, 1.65rem);
 }
 
 .eyebrow {
@@ -897,7 +928,7 @@ label {
 }
 
 .sidebar-menu-button {
-  display: none;
+  display: inline-flex;
   flex: 0 0 48px;
   inline-size: 48px;
   min-width: 48px;
@@ -5007,6 +5038,54 @@ label {
   white-space: nowrap;
 }
 
+.sales-modal-heading .dashboard-actions .dashboard-icon-action {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  gap: 0;
+  border-radius: 12px;
+}
+
+.sales-modal-heading .dashboard-actions .dashboard-icon-action svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 auto;
+}
+
+.sales-modal-heading .dashboard-actions .dashboard-print-action {
+  width: 54px;
+  min-width: 54px;
+  padding-right: 14px;
+}
+
+.dashboard-keycap {
+  position: absolute;
+  right: 7px;
+  bottom: 6px;
+  min-width: 18px;
+  height: 14px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--yellow-button-ink) 12%, transparent);
+  color: currentColor;
+  font-size: 0.55rem;
+  font-weight: 950;
+  line-height: 14px;
+  letter-spacing: 0;
+  text-align: center;
+}
+
 .report-print-button {
   background: var(--yellow);
   color: var(--yellow-button-ink);
@@ -5015,6 +5094,7 @@ label {
 .export-menu {
   position: relative;
   z-index: 8;
+  display: inline-flex;
 }
 
 .export-menu summary {
@@ -5039,6 +5119,14 @@ label {
   content: "⌄";
   color: var(--muted);
   font-size: 0.9em;
+}
+
+.export-menu summary.dashboard-icon-action::after {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  font-size: 0.72rem;
+  line-height: 1;
 }
 
 .export-menu[open] summary {
@@ -5652,10 +5740,6 @@ label {
 }
 
 @media (min-width: 1680px) {
-  .app-shell {
-    grid-template-columns: clamp(340px, 17vw, 460px) minmax(0, 1fr);
-  }
-
   .bento-grid {
     grid-template-columns: repeat(16, minmax(0, 1fr));
   }
