@@ -228,6 +228,7 @@ const state = {
     tab: "belum_lunas",
     search: "",
     visibleLimit: 40,
+    selectedIds: [],
   },
   editingProductId: null,
   editingProductVariants: [],
@@ -449,6 +450,11 @@ const els = {
   piutangStatus: document.querySelector("#piutangStatus"),
   piutangTotalBadge: document.querySelector("#piutangTotalBadge"),
   refreshPiutangButton: document.querySelector("#refreshPiutangButton"),
+  piutangBulkToolbar: document.querySelector("#piutangBulkToolbar"),
+  piutangSelectAllInput: document.querySelector("#piutangSelectAllInput"),
+  piutangSelectionText: document.querySelector("#piutangSelectionText"),
+  bulkPiutangLunasButton: document.querySelector("#bulkPiutangLunasButton"),
+  bulkPiutangBelumLunasButton: document.querySelector("#bulkPiutangBelumLunasButton"),
   tabPiutangBelumLunas: document.querySelector("#tabPiutangBelumLunas"),
   tabPiutangLunas: document.querySelector("#tabPiutangLunas"),
   tabPiutangSemua: document.querySelector("#tabPiutangSemua"),
@@ -11476,7 +11482,17 @@ function bindEvents() {
   els.piutangSearchInput.addEventListener("input", () => {
     state.piutang.search = els.piutangSearchInput.value;
     state.piutang.visibleLimit = PIUTANG_BATCH_SIZE;
+    clearPiutangSelection();
     renderPiutangList();
+  });
+  els.piutangSelectAllInput.addEventListener("change", () => {
+    togglePiutangSelectAll(els.piutangSelectAllInput.checked);
+  });
+  els.bulkPiutangLunasButton.addEventListener("click", () => {
+    runBulkPiutangAction("lunas");
+  });
+  els.bulkPiutangBelumLunasButton.addEventListener("click", () => {
+    runBulkPiutangAction("belum_lunas");
   });
   els.tabPiutangBelumLunas.addEventListener("click", () => {
     switchPiutangTab("belum_lunas", els.tabPiutangBelumLunas);
@@ -11498,11 +11514,21 @@ function bindEvents() {
     event.preventDefault();
     submitPiutangPayment(event.target);
   });
+  els.piutangList.addEventListener("change", (event) => {
+    const selectInput = event.target.closest("[data-piutang-select]");
+    if (!selectInput) return;
+    togglePiutangSelection(selectInput.dataset.piutangSelect, selectInput.checked);
+  });
   els.piutangList.addEventListener("click", (event) => {
     const loadMoreButton = event.target.closest("[data-piutang-load-more]");
     if (loadMoreButton) {
       state.piutang.visibleLimit += PIUTANG_BATCH_SIZE;
       renderPiutangList();
+      return;
+    }
+    const markLunasButton = event.target.closest("[data-mark-piutang-lunas]");
+    if (markLunasButton) {
+      markPiutangSaleLunas(markLunasButton.dataset.markPiutangLunas, markLunasButton);
       return;
     }
     const revokeButton = event.target.closest("[data-revoke-sale-id]");
@@ -12534,6 +12560,7 @@ function openPiutangManager() {
     state.piutang.search = "";
   }
   state.piutang.visibleLimit = PIUTANG_BATCH_SIZE;
+  clearPiutangSelection();
 
   switchPiutangTab("belum_lunas", els.tabPiutangBelumLunas);
   openModal(els.piutangModal, els.piutangSearchInput);
@@ -12572,6 +12599,7 @@ function setPiutangStatus(message) {
 function switchPiutangTab(tabName, activeBtn) {
   state.piutang.tab = tabName;
   state.piutang.visibleLimit = PIUTANG_BATCH_SIZE;
+  clearPiutangSelection();
 
   [els.tabPiutangBelumLunas, els.tabPiutangLunas, els.tabPiutangSemua].forEach(btn => {
     if (btn) btn.classList.remove("active");
@@ -12581,16 +12609,41 @@ function switchPiutangTab(tabName, activeBtn) {
   renderPiutangList();
 }
 
-function renderPiutangList() {
-  if (!els.piutangList) return;
+function getPiutangPaidAmount(sale) {
+  return Number(sale?.paid_amount ?? sale?.paidAmount ?? 0) || 0;
+}
 
+function getPiutangRemainingAmount(sale) {
+  return Number(sale?.total || 0) - getPiutangPaidAmount(sale);
+}
+
+function getPiutangSaleId(sale) {
+  return String(sale?.id || "");
+}
+
+function getPiutangSelectedIds() {
+  return Array.isArray(state.piutang.selectedIds)
+    ? state.piutang.selectedIds.map(String).filter(Boolean)
+    : [];
+}
+
+function setPiutangSelectedIds(ids = []) {
+  const uniqueIds = [...new Set(ids.map(String).filter(Boolean))];
+  state.piutang.selectedIds = uniqueIds;
+}
+
+function clearPiutangSelection() {
+  setPiutangSelectedIds([]);
+}
+
+function getFilteredPiutangSales() {
   const tab = state.piutang.tab;
   const search = (state.piutang.search || "").trim().toLowerCase();
 
   let filtered = state.sales.filter(sale => {
     if (sale.deleted_at || sale.deletedAt) return false;
 
-    const remaining = Number(sale.total || 0) - Number(sale.paid_amount || 0);
+    const remaining = getPiutangRemainingAmount(sale);
     const isLunas = remaining <= 0;
 
     if (tab === "belum_lunas" && isLunas) return false;
@@ -12607,13 +12660,69 @@ function renderPiutangList() {
     });
   }
 
+  return filtered;
+}
+
+function getVisiblePiutangSales(filtered = getFilteredPiutangSales()) {
+  const visibleLimit = Math.max(PIUTANG_BATCH_SIZE, Number(state.piutang.visibleLimit || PIUTANG_BATCH_SIZE));
+  return filtered.slice(0, visibleLimit);
+}
+
+function updatePiutangBulkToolbar(visibleSales = []) {
+  if (!els.piutangBulkToolbar || !els.piutangSelectAllInput) return;
+
+  const visibleIds = visibleSales.map(getPiutangSaleId).filter(Boolean);
+  const selectedIds = getPiutangSelectedIds().filter(id => visibleIds.includes(id));
+  const selectedCount = selectedIds.length;
+  const canSelect = visibleIds.length > 0;
+
+  if (selectedIds.length !== getPiutangSelectedIds().length) {
+    setPiutangSelectedIds(selectedIds);
+  }
+
+  els.piutangBulkToolbar.hidden = !canSelect;
+  els.piutangSelectAllInput.checked = canSelect && selectedCount === visibleIds.length;
+  els.piutangSelectAllInput.indeterminate = selectedCount > 0 && selectedCount < visibleIds.length;
+  els.piutangSelectionText.textContent = selectedCount
+    ? `${selectedCount} dipilih`
+    : `Pilih semua (${visibleIds.length})`;
+
+  [els.bulkPiutangLunasButton, els.bulkPiutangBelumLunasButton].forEach(button => {
+    if (!button) return;
+    button.disabled = selectedCount <= 0;
+  });
+}
+
+function togglePiutangSelection(saleId, selected) {
+  const selectedIds = new Set(getPiutangSelectedIds());
+  const id = String(saleId || "");
+  if (!id) return;
+
+  if (selected) selectedIds.add(id);
+  else selectedIds.delete(id);
+
+  setPiutangSelectedIds([...selectedIds]);
+  renderPiutangList();
+}
+
+function togglePiutangSelectAll(selected) {
+  const visibleIds = getVisiblePiutangSales().map(getPiutangSaleId).filter(Boolean);
+  setPiutangSelectedIds(selected ? visibleIds : []);
+  renderPiutangList();
+}
+
+function renderPiutangList() {
+  if (!els.piutangList) return;
+
+  const filtered = getFilteredPiutangSales();
+
   const allBelumLunasSales = state.sales.filter(sale => {
     if (sale.deleted_at || sale.deletedAt) return false;
-    return (Number(sale.total || 0) - Number(sale.paid_amount || 0)) > 0;
+    return getPiutangRemainingAmount(sale) > 0;
   });
 
   const totalPiutangAmount = allBelumLunasSales.reduce((acc, sale) => {
-    return acc + (Number(sale.total || 0) - Number(sale.paid_amount || 0));
+    return acc + getPiutangRemainingAmount(sale);
   }, 0);
 
   if (els.piutangTotalBadge) {
@@ -12622,6 +12731,7 @@ function renderPiutangList() {
   }
 
   if (!filtered.length) {
+    updatePiutangBulkToolbar([]);
     els.piutangList.innerHTML = `
       <div class="empty-state">
         <p>Tidak ada data piutang yang cocok.</p>
@@ -12632,6 +12742,7 @@ function renderPiutangList() {
 
   const visibleLimit = Math.max(PIUTANG_BATCH_SIZE, Number(state.piutang.visibleLimit || PIUTANG_BATCH_SIZE));
   const visibleSales = filtered.slice(0, visibleLimit);
+  updatePiutangBulkToolbar(visibleSales);
   const hiddenCount = Math.max(0, filtered.length - visibleSales.length);
   const listSummaryHtml = hiddenCount ? `
     <div class="piutang-load-more">
@@ -12646,11 +12757,13 @@ function renderPiutangList() {
 
   els.piutangList.innerHTML = visibleSales.map(sale => {
     const total = Number(sale.total || 0);
-    const paid = Number(sale.paid_amount || 0);
-    const remaining = total - paid;
+    const paid = getPiutangPaidAmount(sale);
+    const remaining = getPiutangRemainingAmount(sale);
     const isLunas = remaining <= 0;
     const items = Array.isArray(sale.items) ? sale.items : [];
     const payments = Array.isArray(sale.payments) ? sale.payments : [];
+    const saleId = getPiutangSaleId(sale);
+    const isSelected = getPiutangSelectedIds().includes(saleId);
 
     const dateStr = sale.completed_at || sale.completedAt || "";
     const formattedDate = dateStr ? new Date(dateStr).toLocaleString("id-ID", {
@@ -12727,28 +12840,38 @@ function renderPiutangList() {
     const payFormHtml = isLunas ? `
       <div class="piutang-revoke-action">
         <button class="ghost-button danger piutang-revoke-button" type="button" data-revoke-sale-id="${sale.id}">
-          Ubah ke Belum Lunas
+          Belum lunas
         </button>
       </div>
     ` : `
-      <details class="piutang-payment-action">
-        <summary>
-          <span>Catat bayar</span>
+      <div class="piutang-payment-stack">
+        <details class="piutang-payment-action">
+          <summary>
+            <span>Catat bayar</span>
+            <strong>${currency.format(remaining)}</strong>
+          </summary>
+          <form class="piutang-pay-form" data-sale-id="${sale.id}">
+            <label>
+              <span>Nominal bayar</span>
+              <input class="piutang-payment-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="50.000" autocomplete="off" required>
+            </label>
+            <button class="primary-button" type="submit">Simpan</button>
+          </form>
+        </details>
+        <button class="secondary-button piutang-mark-lunas-button" type="button" data-mark-piutang-lunas="${sale.id}" aria-label="Tandai transaksi ${escapeHtml(sale.receipt_no || sale.receiptNo || "")} lunas">
+          <span>Lunas</span>
           <strong>${currency.format(remaining)}</strong>
-        </summary>
-        <form class="piutang-pay-form" data-sale-id="${sale.id}">
-          <label>
-            <span>Nominal bayar</span>
-            <input class="piutang-payment-input" type="text" inputmode="numeric" pattern="[0-9.]*" placeholder="50.000" autocomplete="off" required>
-          </label>
-          <button class="primary-button" type="submit">Simpan</button>
-        </form>
-      </details>
+        </button>
+      </div>
     `;
 
     return `
-      <article class="piutang-card" id="piutangCard-${sale.id}">
+      <article class="piutang-card${isSelected ? " selected" : ""}" id="piutangCard-${sale.id}">
         <div class="piutang-card-header">
+          <label class="piutang-card-select" title="Pilih transaksi">
+            <input type="checkbox" data-piutang-select="${sale.id}" ${isSelected ? "checked" : ""}>
+            <span class="sr-only">Pilih ${escapeHtml(sale.receipt_no || sale.receiptNo || "transaksi")}</span>
+          </label>
           <div class="piutang-card-title-group">
             <h3 class="piutang-card-title">${escapeHtml(sale.receipt_no || sale.receiptNo || "")}</h3>
             <span class="piutang-card-date">${formattedDate}</span>
@@ -12818,9 +12941,10 @@ function renderPiutangList() {
   });
 }
 
-async function dbSubmitPiutangPayment(saleId, amount) {
+async function dbSubmitPiutangPayment(saleId, amount, options = {}) {
   if (state.settings.dbMode === "supabase") {
     const supabase = getSupabaseClient();
+    const trackingNote = String(options.note || "Pembayaran Cicilan");
     
     const { data: sale, error: getSaleError } = await supabase
       .from("sales")
@@ -12839,9 +12963,9 @@ async function dbSubmitPiutangPayment(saleId, amount) {
     const depositToAdd = amount - amountToApply;
     const newPaidAmount = Number(sale.paid_amount || 0) + amountToApply;
     
-    let note = "Pembayaran Cicilan";
+    let note = trackingNote;
     if (depositToAdd > 0) {
-      note = `Bayar Rp ${amount.toLocaleString('id-ID')} (Kelebihan Rp ${depositToAdd.toLocaleString('id-ID')} masuk deposit)`;
+      note = `${trackingNote}: Bayar Rp ${amount.toLocaleString('id-ID')} (Kelebihan Rp ${depositToAdd.toLocaleString('id-ID')} masuk deposit)`;
     }
     
     const { error: paymentError } = await supabase
@@ -12961,6 +13085,118 @@ async function dbRevokePiutangPayment(saleId) {
   }
 }
 
+async function reloadPiutangRelatedData() {
+  await loadPiutangData();
+  await loadSalesDashboard();
+  await loadCustomers({ toast: false });
+}
+
+async function markPiutangSaleLunas(saleId, button, options = {}) {
+  const id = String(saleId || "");
+  const sale = state.sales.find(item => getPiutangSaleId(item) === id);
+  const remaining = Math.max(0, sale ? getPiutangRemainingAmount(sale) : 0);
+
+  if (!sale || remaining <= 0) {
+    showToast("Transaksi sudah lunas atau tidak ditemukan.");
+    return false;
+  }
+
+  if (button) button.disabled = true;
+  setPiutangStatus(options.status || "Menandai transaksi lunas...");
+
+  try {
+    const response = await dbSubmitPiutangPayment(id, remaining, {
+      note: options.note || "Pelunasan cepat",
+    });
+
+    if (response.ok) {
+      showToast(options.toast || "Transaksi ditandai lunas.");
+      clearPiutangSelection();
+      await reloadPiutangRelatedData();
+      return true;
+    }
+  } catch (error) {
+    console.error("Error marking piutang as paid:", error);
+    showToast(`Transaksi gagal ditandai lunas: ${error.message}`, { variant: "error" });
+    setPiutangStatus(`Error: ${error.message}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+
+  return false;
+}
+
+async function runBulkPiutangAction(action) {
+  const selectedIds = getPiutangSelectedIds();
+  if (!selectedIds.length) {
+    showToast("Pilih transaksi dulu.");
+    return;
+  }
+
+  const selectedSales = selectedIds
+    .map(id => state.sales.find(sale => getPiutangSaleId(sale) === id))
+    .filter(Boolean);
+  const isMarkPaid = action === "lunas";
+  const targetSales = isMarkPaid
+    ? selectedSales.filter(sale => getPiutangRemainingAmount(sale) > 0)
+    : selectedSales.filter(sale => getPiutangPaidAmount(sale) > 0);
+
+  if (!targetSales.length) {
+    showToast(isMarkPaid ? "Semua pilihan sudah lunas." : "Tidak ada pembayaran yang perlu dibatalkan.");
+    return;
+  }
+
+  if (!isMarkPaid) {
+    const confirmed = await openAppConfirm({
+      eyebrow: "Bulk Piutang",
+      title: "Ubah Pilihan ke Belum Lunas?",
+      message: `Akan menghapus riwayat pembayaran dari ${targetSales.length} transaksi pilihan.`,
+      note: "Saldo deposit customer akan disesuaikan otomatis kalau ada pembayaran deposit terkait.",
+      confirmText: "Belum lunas",
+      variant: "danger",
+    });
+    if (!confirmed) return;
+  }
+
+  const actionButtons = [els.bulkPiutangLunasButton, els.bulkPiutangBelumLunasButton, els.piutangSelectAllInput].filter(Boolean);
+  actionButtons.forEach(control => { control.disabled = true; });
+  const errors = [];
+
+  try {
+    for (let index = 0; index < targetSales.length; index += 1) {
+      const sale = targetSales[index];
+      const id = getPiutangSaleId(sale);
+      setPiutangStatus(`Memproses ${index + 1}/${targetSales.length} transaksi...`);
+
+      try {
+        if (isMarkPaid) {
+          await dbSubmitPiutangPayment(id, Math.max(0, getPiutangRemainingAmount(sale)), {
+            note: "Pelunasan bulk",
+          });
+        } else {
+          await dbRevokePiutangPayment(id);
+        }
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+
+    clearPiutangSelection();
+    await reloadPiutangRelatedData();
+
+    if (errors.length) {
+      showToast(`${targetSales.length - errors.length} transaksi berhasil, ${errors.length} gagal.`, { variant: "warning" });
+    } else {
+      showToast(isMarkPaid ? "Transaksi pilihan ditandai lunas." : "Transaksi pilihan diubah ke Belum Lunas.", {
+        variant: isMarkPaid ? "success" : "warning",
+      });
+    }
+  } finally {
+    actionButtons.forEach(control => { control.disabled = false; });
+    setPiutangStatus(errors.length ? `Ada ${errors.length} transaksi gagal diproses.` : "");
+  }
+}
+
 async function submitPiutangPayment(form) {
   const saleId = form.dataset.saleId;
   const input = form.querySelector(".piutang-payment-input");
@@ -12976,13 +13212,13 @@ async function submitPiutangPayment(form) {
   setPiutangStatus("Menyimpan pembayaran...");
 
   try {
-    const response = await dbSubmitPiutangPayment(saleId, amount);
+    const response = await dbSubmitPiutangPayment(saleId, amount, {
+      note: "Pembayaran cicilan manual",
+    });
 
     if (response.ok) {
       showToast("Pembayaran cicilan berhasil disimpan.");
-      await loadPiutangData();
-      await loadSalesDashboard();
-      await loadCustomers({ toast: false });
+      await reloadPiutangRelatedData();
     }
   } catch (error) {
     console.error("Error submitting piutang payment:", error);

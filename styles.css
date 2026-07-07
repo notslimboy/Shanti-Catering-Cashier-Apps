@@ -8865,7 +8865,7 @@ body.sidebar-open .sidebar-overlay {
 /* Catatan Piutang & Deposit Styles */
 
 .customer-panel.piutang-panel {
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto !important;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto !important;
   gap: 12px;
 }
 
@@ -8874,6 +8874,7 @@ body.sidebar-open .sidebar-overlay {
 .customer-panel.piutang-panel > :nth-child(3) { grid-row: 3 !important; }
 .customer-panel.piutang-panel > :nth-child(4) { grid-row: 4 !important; }
 .customer-panel.piutang-panel > :nth-child(5) { grid-row: 5 !important; }
+.customer-panel.piutang-panel > :nth-child(6) { grid-row: 6 !important; }
 
 .customer-deposit-hint {
   display: block;
@@ -8943,6 +8944,24 @@ body.sidebar-open .sidebar-overlay {
   text-align: center;
 }
 
+.piutang-refresh-button {
+  inline-size: 42px;
+  min-inline-size: 42px;
+  min-height: 42px;
+  border-radius: 10px;
+  padding: 0;
+}
+
+.piutang-refresh-button svg {
+  inline-size: 19px;
+  block-size: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .piutang-filters {
   display: grid;
   gap: 8px;
@@ -8998,6 +9017,62 @@ body.sidebar-open .sidebar-overlay {
   color: var(--teal-dark);
 }
 
+.piutang-bulk-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft-surface);
+  padding: 8px;
+}
+
+.piutang-bulk-toolbar[hidden] {
+  display: none !important;
+}
+
+.piutang-select-all-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.piutang-select-all-control input,
+.piutang-card-select input {
+  inline-size: 18px;
+  block-size: 18px;
+  min-height: 18px;
+  accent-color: var(--teal);
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+}
+
+.piutang-bulk-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.piutang-bulk-actions button {
+  min-height: 34px;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
 #piutangScrollArea {
   min-height: min(420px, 52dvh);
   overflow: auto;
@@ -9022,6 +9097,11 @@ body.sidebar-open .sidebar-overlay {
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
+.piutang-card.selected {
+  border-color: color-mix(in srgb, var(--teal) 56%, var(--line));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--teal) 15%, transparent);
+}
+
 .piutang-card:hover {
   border-color: color-mix(in srgb, var(--teal) 28%, var(--line));
   box-shadow: 0 4px 14px rgba(5, 16, 14, 0.07);
@@ -9030,10 +9110,22 @@ body.sidebar-open .sidebar-overlay {
 .piutang-card-header,
 .piutang-card-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
   gap: 10px;
   min-width: 0;
+}
+
+.piutang-card-main {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.piutang-card-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 26px;
+  padding-top: 1px;
 }
 
 .piutang-card-title-group {
@@ -9453,9 +9545,15 @@ body.sidebar-open .sidebar-overlay {
   padding-top: 10px;
 }
 
-.piutang-payment-action {
+.piutang-payment-stack {
+  display: grid;
+  gap: 7px;
   border-top: 1px dashed var(--line);
   padding-top: 8px;
+}
+
+.piutang-payment-action {
+  min-width: 0;
 }
 
 .piutang-payment-action summary {
@@ -9521,12 +9619,29 @@ body.sidebar-open .sidebar-overlay {
 }
 
 .piutang-pay-form button,
-.piutang-revoke-button {
+.piutang-revoke-button,
+.piutang-mark-lunas-button {
   min-height: 44px;
   border-radius: 8px;
   font-size: 0.84rem;
   font-weight: 950;
   padding: 8px 14px;
+}
+
+.piutang-mark-lunas-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  justify-self: stretch;
+  min-height: 40px;
+  padding: 7px 11px;
+}
+
+.piutang-mark-lunas-button strong {
+  font-size: 0.82rem;
+  font-weight: 950;
+  white-space: nowrap;
 }
 
 .piutang-revoke-action {
@@ -9635,7 +9750,8 @@ body.sidebar-open .sidebar-overlay {
   }
 
   .piutang-pay-form button,
-  .piutang-revoke-button {
+  .piutang-revoke-button,
+  .piutang-mark-lunas-button {
     width: 100%;
   }
 }
@@ -9665,7 +9781,8 @@ body.sidebar-open .sidebar-overlay {
   }
 
   .piutang-pay-form button,
-  .piutang-revoke-button {
+  .piutang-revoke-button,
+  .piutang-mark-lunas-button {
     width: auto;
   }
 }
@@ -9726,8 +9843,10 @@ body.sidebar-open .sidebar-overlay {
   }
 
   #piutangModal #refreshPiutangButton {
+    inline-size: 42px;
+    min-inline-size: 42px;
     min-height: 42px;
-    padding-inline: 12px;
+    padding: 0;
   }
 
   .piutang-summary-badge {
@@ -9740,6 +9859,19 @@ body.sidebar-open .sidebar-overlay {
     min-height: 44px;
     padding-inline: 6px;
     font-size: 0.78rem;
+  }
+
+  .piutang-bulk-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .piutang-bulk-actions {
+    justify-content: stretch;
+  }
+
+  .piutang-bulk-actions button {
+    flex: 1 1 0;
   }
 
   #piutangScrollArea {
@@ -9758,7 +9890,7 @@ body.sidebar-open .sidebar-overlay {
   }
 
   .piutang-card-header {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 8px;
   }
 
@@ -9817,7 +9949,8 @@ body.sidebar-open .sidebar-overlay {
   }
 
   .piutang-pay-form button,
-  .piutang-revoke-button {
+  .piutang-revoke-button,
+  .piutang-mark-lunas-button {
     width: 100%;
   }
 }
