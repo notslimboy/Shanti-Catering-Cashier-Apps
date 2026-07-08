@@ -12473,14 +12473,28 @@ function syncEnhancedInput(input, value, eventName = "input") {
   input.dispatchEvent(new Event(eventName, { bubbles: true }));
 }
 
-function getTomDropdownParent() {
-  return "body";
+function getTomDropdownParent(input) {
+  const dialog = input?.closest?.("dialog");
+  if (!dialog) return "body";
+
+  let layer = dialog.querySelector(":scope > .tom-select-floating-layer");
+  if (!layer) {
+    layer = document.createElement("div");
+    layer.className = "tom-select-floating-layer";
+    dialog.appendChild(layer);
+  }
+  return layer;
 }
 
 function positionTomSelectDropdown(control) {
   if (!control?.isOpen || !control.wrapper || !control.dropdown) return;
   const rect = control.wrapper.getBoundingClientRect();
   if (!rect.width || !rect.height) return;
+  const parent = control.dropdown.parentElement;
+  const parentRect = parent?.classList?.contains("tom-select-floating-layer")
+    ? parent.getBoundingClientRect()
+    : { left: 0, top: 0 };
+  const isFloatingLayer = parent?.classList?.contains("tom-select-floating-layer");
 
   const gap = 8;
   const minHeight = 180;
@@ -12489,12 +12503,14 @@ function positionTomSelectDropdown(control) {
   const spaceAbove = rect.top - gap;
   const shouldDropUp = spaceBelow < minHeight && spaceAbove > spaceBelow;
   const availableHeight = Math.max(minHeight, Math.min(maxHeight, (shouldDropUp ? spaceAbove : spaceBelow) - gap));
-  const top = shouldDropUp
+  const viewportTop = shouldDropUp
     ? rect.top + window.scrollY - availableHeight - gap
     : rect.bottom + window.scrollY + gap;
+  const top = isFloatingLayer ? viewportTop - window.scrollY - parentRect.top : viewportTop;
+  const left = isFloatingLayer ? rect.left - parentRect.left : rect.left + window.scrollX;
 
   control.dropdown.classList.toggle("drop-up", shouldDropUp);
-  control.dropdown.style.left = `${rect.left + window.scrollX}px`;
+  control.dropdown.style.left = `${left}px`;
   control.dropdown.style.top = `${Math.max(8, top)}px`;
   control.dropdown.style.width = `${rect.width}px`;
   control.dropdown.style.maxHeight = `${availableHeight}px`;

@@ -355,6 +355,17 @@ label {
   overflow: hidden;
 }
 
+.tom-select-floating-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-floating-dropdown);
+  pointer-events: none;
+}
+
+.tom-select-floating-layer .kasir-tom-dropdown {
+  pointer-events: auto;
+}
+
 .kasir-tom-dropdown .ts-dropdown-content {
   max-height: min(360px, 54vh);
   padding: 6px;
