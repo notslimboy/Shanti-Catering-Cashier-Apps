@@ -4905,6 +4905,15 @@ body.sidebar-open .sidebar-overlay {
   gap: 12px;
 }
 
+.bulk-queue-field input[readonly] {
+  color: var(--teal);
+  background: color-mix(in srgb, var(--teal) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--teal) 42%, var(--line));
+  cursor: default;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
 .bulk-draft-items {
   display: grid;
   gap: 10px;

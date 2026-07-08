@@ -152,6 +152,8 @@ function getDefaultSaleState(overrides = {}) {
     dueText: "",
     orderNote: "",
     sourceDraftId: "",
+    queueNo: null,
+    queueDate: "",
     ...overrides,
   };
 }
@@ -4151,6 +4153,8 @@ function saleToReceiptPayload(sale) {
     customerName: sale.customerName || sale.customer_name || sale.customerAddress || sale.customer_address || "",
     customerAddress: "",
     chatDate: sale.chatDate || sale.chat_date || "",
+    queueNo: sale.queueNo || sale.queue_no || null,
+    queueDate: sale.queueDate || sale.queue_date || "",
     orderNote: sale.orderNote || sale.order_note || "",
     dueText: sale.dueText || sale.due_text || "",
     subtotal: Number(sale.subtotal || 0),
@@ -5341,6 +5345,109 @@ function getDraftDisplayName(draft) {
   return String(draft?.customerName || "Draft pesanan").trim();
 }
 
+function normalizeQueueDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const isoMatch = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+
+  const numericMatch = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/);
+  if (numericMatch) {
+    const [, day, month, yearValue] = numericMatch;
+    const year = yearValue.length === 2 ? `20${yearValue}` : yearValue;
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+
+  const monthNames = {
+    jan: "01", januari: "01", january: "01",
+    feb: "02", februari: "02", february: "02",
+    mar: "03", maret: "03", march: "03",
+    apr: "04", april: "04",
+    mei: "05", may: "05",
+    jun: "06", juni: "06", june: "06",
+    jul: "07", juli: "07", july: "07",
+    agu: "08", agustus: "08", aug: "08", august: "08",
+    sep: "09", september: "09",
+    okt: "10", oktober: "10", oct: "10", october: "10",
+    nov: "11", november: "11",
+    des: "12", desember: "12", dec: "12", december: "12",
+  };
+  const textMatch = raw.toLowerCase().match(/^(\d{1,2})\s+([a-z]+)\s+(\d{2,4})/i);
+  if (textMatch) {
+    const [, day, monthText, yearValue] = textMatch;
+    const month = monthNames[monthText];
+    if (month) {
+      const year = yearValue.length === 2 ? `20${yearValue}` : yearValue;
+      return `${year}-${month}-${String(day).padStart(2, "0")}`;
+    }
+  }
+
+  return "";
+}
+
+function getDraftQueueDate(draft) {
+  return normalizeQueueDate(draft?.queueDate || draft?.queue_date || draft?.chatDate || draft?.chat_date || "");
+}
+
+function getSaleQueueDate(sale) {
+  return normalizeQueueDate(sale?.queueDate || sale?.queue_date || "");
+}
+
+function getSaleQueueNo(sale) {
+  const value = Number(sale?.queueNo ?? sale?.queue_no ?? 0);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+function buildUsedQueueNumbersByDate(sales = state.sales) {
+  const usedByDate = new Map();
+  (Array.isArray(sales) ? sales : []).forEach((sale) => {
+    const queueDate = getSaleQueueDate(sale);
+    const queueNo = getSaleQueueNo(sale);
+    if (!queueDate || !queueNo) return;
+    if (!usedByDate.has(queueDate)) usedByDate.set(queueDate, new Set());
+    usedByDate.get(queueDate).add(queueNo);
+  });
+  return usedByDate;
+}
+
+function getNextQueueNumberForDate(queueDate, usedByDate) {
+  const used = usedByDate.get(queueDate) || new Set();
+  let queueNo = 1;
+  while (used.has(queueNo)) queueNo += 1;
+  used.add(queueNo);
+  usedByDate.set(queueDate, used);
+  return queueNo;
+}
+
+function buildDraftQueueSnapshot(drafts = state.importDrafts, sales = state.sales) {
+  const usedByDate = buildUsedQueueNumbersByDate(sales);
+  const snapshot = new Map();
+  (Array.isArray(drafts) ? drafts : []).forEach((draft) => {
+    const queueDate = getDraftQueueDate(draft);
+    if (!queueDate) return;
+    snapshot.set(draft.id, {
+      queueDate,
+      queueNo: getNextQueueNumberForDate(queueDate, usedByDate),
+    });
+  });
+  return snapshot;
+}
+
+function getDraftQueueSnapshot(draft, snapshot = buildDraftQueueSnapshot()) {
+  if (!draft?.id) return null;
+  return snapshot.get(draft.id) || null;
+}
+
+function getQueueInfoFromSale(sale) {
+  const queueNo = getSaleQueueNo(sale);
+  const queueDate = getSaleQueueDate(sale);
+  return queueNo ? { queueNo, queueDate } : null;
+}
+
 function getDraftIssues(draft) {
   const issues = [];
   if (!String(draft.customerName || "").trim()) issues.push({ message: "Customer/alamat kosong", blocking: false });
@@ -5580,8 +5687,11 @@ function renderBulkDrafts() {
     return;
   }
 
+  const queueSnapshot = buildDraftQueueSnapshot(state.importDrafts);
   els.bulkDraftList.innerHTML = filteredDrafts
     .map((draft, draftIndex) => {
+      const queueInfo = getDraftQueueSnapshot(draft, queueSnapshot);
+      const queueLabel = queueInfo ? `NO: ${queueInfo.queueNo}` : "-";
       const issues = getDraftIssues(draft);
       const blocking = issues.some((issue) => issue.blocking);
       const subtotal = getDraftSubtotal(draft);
@@ -5632,6 +5742,10 @@ function renderBulkDrafts() {
               Customer
               <input type="text" list="customerSuggestions" data-draft-field="customerName" value="${escapeHtml(draft.customerName)}">
             </label>
+            <label class="bulk-queue-field">
+              Nomor urut
+              <input type="text" value="${escapeHtml(queueLabel)}" readonly aria-readonly="true">
+            </label>
             <label>
               Tanggal chat
               <input type="text" data-draft-field="chatDate" value="${escapeHtml(draft.chatDate || "")}">
@@ -5671,7 +5785,7 @@ function importBulkSummaryText() {
   try {
     const drafts = parseBulkSummaryCsv(els.bulkSummaryInput.value);
     const summary = getBulkImportValidation(drafts);
-    state.importDrafts = [...drafts, ...state.importDrafts].slice(0, 100);
+    state.importDrafts = [...state.importDrafts, ...drafts].slice(0, 100);
     els.bulkSummaryInput.value = "";
     renderBulkDrafts();
     saveState();
@@ -5804,11 +5918,12 @@ function getSaleItemsFromDraft(draft) {
     .filter(Boolean);
 }
 
-function buildSalePayloadFromDraft(draft, completedAt = new Date()) {
+function buildSalePayloadFromDraft(draft, completedAt = new Date(), options = {}) {
   const items = getSaleItemsFromDraft(draft);
   const subtotal = items.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
   const shipping = Math.max(0, Number(draft.shipping || 0));
   const tax = 0;
+  const queueInfo = options.queueInfo || getDraftQueueSnapshot(draft);
   return {
     receiptNo: makeReceiptNumber(completedAt),
     receiptDateKey: getLocalDateKey(completedAt),
@@ -5823,6 +5938,8 @@ function buildSalePayloadFromDraft(draft, completedAt = new Date()) {
     customerName: String(draft.customerName || "").trim(),
     customerAddress: "",
     chatDate: String(draft.chatDate || "").trim(),
+    queueNo: queueInfo?.queueNo || null,
+    queueDate: queueInfo?.queueDate || "",
     orderNote: "",
     dueText: "",
     subtotal,
@@ -5860,6 +5977,7 @@ async function loadDraftToCart(draftId) {
     if (!confirmed) return;
   }
 
+  const queueInfo = getDraftQueueSnapshot(draft);
   state.cart = getDraftCartItems(draft);
   state.sale = getDefaultSaleState({
     shipping: Number(draft.shipping || 0),
@@ -5870,6 +5988,8 @@ async function loadDraftToCart(draftId) {
     dueText: "",
     orderNote: "",
     sourceDraftId: draft.id,
+    queueNo: queueInfo?.queueNo || null,
+    queueDate: queueInfo?.queueDate || "",
   });
   renderSettings();
   render();
@@ -5883,8 +6003,12 @@ async function previewPrintReadyDrafts() {
     setBulkImportStatus("Belum ada draft siap untuk dipreview.", { variant: "error" });
     return;
   }
+  await refreshSalesForQueueNumbers();
+  const queueSnapshot = buildDraftQueueSnapshot(state.importDrafts);
   const salePayloads = readyDrafts.map((draft) => {
-    const salePayload = buildSalePayloadFromDraft(draft, new Date());
+    const salePayload = buildSalePayloadFromDraft(draft, new Date(), {
+      queueInfo: getDraftQueueSnapshot(draft, queueSnapshot),
+    });
     salePayload.receiptNo = "PREVIEW-DRAFT";
     return salePayload;
   });
@@ -5918,10 +6042,12 @@ async function processReadyImportDrafts(options = {}) {
   bulkBatchInFlight = true;
   renderBulkDrafts();
   setBulkImportStatus(shouldPrint ? "Memproses draft siap dan menyiapkan cetak batch..." : "Memproses draft siap jadi transaksi...");
+  await refreshSalesForQueueNumbers();
 
   const processed = [];
   const skipped = [];
   let doneCopy = "";
+  const queueSnapshot = buildDraftQueueSnapshot(state.importDrafts);
 
   if (els.bulkLoadingOverlay) {
     els.bulkLoadingOverlay.hidden = false;
@@ -5946,7 +6072,9 @@ async function processReadyImportDrafts(options = {}) {
         continue;
       }
 
-      const salePayload = buildSalePayloadFromDraft(draft, new Date());
+      const salePayload = buildSalePayloadFromDraft(draft, new Date(), {
+        queueInfo: getDraftQueueSnapshot(draft, queueSnapshot),
+      });
       try {
         const savedSale = await saveSaleToDatabase(salePayload);
         if (savedSale.receiptNo) salePayload.receiptNo = savedSale.receiptNo;
@@ -6001,13 +6129,25 @@ async function copyAiPrompt() {
   }
 }
 
-function openBulkImport() {
+async function refreshSalesForQueueNumbers() {
+  try {
+    const data = await dbFetchSales({ limit: 1000, includeDeleted: true });
+    state.sales = prepareSalesForSearch(Array.isArray(data.sales) ? data.sales : []);
+    invalidateCustomerProfilesCache();
+  } catch (error) {
+    setBulkImportStatus(`Nomor urut memakai data sales terakhir. ${error.message}`, { variant: "error" });
+  }
+}
+
+async function openBulkImport() {
   state.bulkDraftSearch = "";
   if (els.bulkSearchInput) {
     els.bulkSearchInput.value = "";
   }
   renderBulkDrafts();
   openModal(els.bulkImportModal, els.bulkSummaryInput);
+  await refreshSalesForQueueNumbers();
+  renderBulkDrafts();
 }
 
 function updateBulkDraftFromTarget(target, rerender = false) {
@@ -6136,6 +6276,8 @@ function buildSalePayload() {
     customerName: String(state.sale.customerName || "").trim(),
     customerAddress: "",
     chatDate: String(state.sale.chatDate || "").trim(),
+    queueNo: state.sale.queueNo || null,
+    queueDate: state.sale.queueDate || "",
     orderNote: "",
     dueText: "",
     subtotal: totals.subtotal,
@@ -6364,6 +6506,10 @@ async function dbFetchSales(options = {}) {
         dueText: sale.due_text || "",
         chat_date: sale.chat_date || "",
         chatDate: sale.chat_date || "",
+        queue_no: sale.queue_no || null,
+        queueNo: sale.queue_no || null,
+        queue_date: sale.queue_date || "",
+        queueDate: sale.queue_date || "",
         deleted_at: sale.deleted_at || null,
         deletedAt: sale.deleted_at || null,
         stock_restored_on_delete: Number(sale.stock_restored_on_delete || 0),
@@ -6611,28 +6757,40 @@ async function saveSaleToDatabase(payload) {
     
     payload.receiptNo = receiptNo;
     
+    const saleRecord = {
+      receipt_no: receiptNo,
+      completed_at: payload.completedAt,
+      store_name: payload.storeName,
+      payment: payload.payment,
+      subtotal: payload.subtotal || 0,
+      discount: payload.discount || 0,
+      tax: payload.tax || 0,
+      total: payload.total || 0,
+      customer_name: payload.customerName || "",
+      customer_address: payload.customerAddress || "",
+      order_note: payload.orderNote || "",
+      due_text: payload.dueText || "",
+      chat_date: payload.chatDate || "",
+      paid_amount: payload.paidAmount || 0
+    };
+    if (payload.queueNo && payload.queueDate) {
+      saleRecord.queue_no = Number(payload.queueNo);
+      saleRecord.queue_date = payload.queueDate;
+    }
+
     const { data: saleData, error: saleError } = await supabase
       .from("sales")
-      .insert({
-        receipt_no: receiptNo,
-        completed_at: payload.completedAt,
-        store_name: payload.storeName,
-        payment: payload.payment,
-        subtotal: payload.subtotal || 0,
-        discount: payload.discount || 0,
-        tax: payload.tax || 0,
-        total: payload.total || 0,
-        customer_name: payload.customerName || "",
-        customer_address: payload.customerAddress || "",
-        order_note: payload.orderNote || "",
-        due_text: payload.dueText || "",
-        chat_date: payload.chatDate || "",
-        paid_amount: payload.paidAmount || 0
-      })
+      .insert(saleRecord)
       .select()
       .single();
       
-    if (saleError) throw saleError;
+    if (saleError) {
+      const missingColumn = getSupabaseMissingSchemaColumn(saleError, "sales");
+      if (payload.queueNo && ["queue_no", "queue_date"].includes(missingColumn)) {
+        throw new Error("Supabase belum punya kolom nomor urut import. Jalankan SQL migration: alter table public.sales add column if not exists queue_no integer; alter table public.sales add column if not exists queue_date date;");
+      }
+      throw saleError;
+    }
     
     if (Array.isArray(payload.items) && payload.items.length > 0) {
       const dbItems = payload.items.map(item => buildSupabaseSaleItem(item, saleData.id));
@@ -6811,6 +6969,10 @@ async function updateSaleInDatabase(saleId, payload) {
         dueText: updatedSales.due_text || "",
         chat_date: updatedSales.chat_date || "",
         chatDate: updatedSales.chat_date || "",
+        queue_no: updatedSales.queue_no || null,
+        queueNo: updatedSales.queue_no || null,
+        queue_date: updatedSales.queue_date || "",
+        queueDate: updatedSales.queue_date || "",
         deleted_at: updatedSales.deleted_at || null,
         deletedAt: updatedSales.deleted_at || null,
         stock_restored_on_delete: Number(updatedSales.stock_restored_on_delete || 0),
@@ -8741,10 +8903,13 @@ function receiptHtmlFromSale(sale) {
   const usedDeposit = Number(sale.usedDeposit || 0);
   const customerName = String(sale.customerName || sale.customer_name || sale.customerAddress || sale.customer_address || "").trim();
   const chatDate = String(sale.chatDate || sale.chat_date || "").trim();
+  const queueInfo = getQueueInfoFromSale(sale);
   const compact = (sale.receiptMode || state.settings.receiptMode || "compact") === "compact";
   const orderInfo = [
     receiptCustomerHtml(customerName),
-    chatDate ? `<div class="receipt-info receipt-small">${escapeHtml(chatDate)}</div>` : "",
+    queueInfo
+      ? `<div class="receipt-info receipt-small">NO: ${escapeHtml(queueInfo.queueNo)}</div>`
+      : (chatDate ? `<div class="receipt-info receipt-small">${escapeHtml(chatDate)}</div>` : ""),
   ].filter(Boolean).join("");
   const itemHtml = items
     .map((item) => {
@@ -8814,6 +8979,8 @@ function getCurrentReceiptPayload() {
     customerName: String(state.sale.customerName || "").trim(),
     customerAddress: "",
     chatDate: String(state.sale.chatDate || "").trim(),
+    queueNo: state.sale.queueNo || null,
+    queueDate: state.sale.queueDate || "",
     orderNote: "",
     dueText: "",
     subtotal: totals.subtotal,

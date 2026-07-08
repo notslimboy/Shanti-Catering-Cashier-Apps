@@ -170,6 +170,8 @@ def init_database():
             "order_note": "TEXT NOT NULL DEFAULT ''",
             "due_text": "TEXT NOT NULL DEFAULT ''",
             "chat_date": "TEXT NOT NULL DEFAULT ''",
+            "queue_no": "INTEGER",
+            "queue_date": "TEXT NOT NULL DEFAULT ''",
             "deleted_at": "TEXT NOT NULL DEFAULT ''",
             "stock_restored_on_delete": "INTEGER NOT NULL DEFAULT 0",
             "paid_amount": "INTEGER NOT NULL DEFAULT 0",
@@ -179,6 +181,7 @@ def init_database():
                 connection.execute(f"ALTER TABLE sales ADD COLUMN {column} {column_type}")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_sales_deleted_completed_at ON sales(deleted_at, completed_at DESC)")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_sales_customer_name_nocase ON sales(customer_name COLLATE NOCASE)")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_sales_queue_date_no ON sales(queue_date, queue_no)")
 
         customer_columns = {
             row["name"]
@@ -1342,7 +1345,7 @@ class CashierHandler(SimpleHTTPRequestHandler):
             sales_rows = connection.execute(
                 """
                 SELECT id, receipt_no, completed_at, store_name, payment, subtotal, discount, tax, total,
-                       customer_name, customer_address, order_note, due_text, chat_date,
+                       customer_name, customer_address, order_note, due_text, chat_date, queue_no, queue_date,
                        deleted_at, stock_restored_on_delete, paid_amount
                 FROM sales
                 WHERE (? OR COALESCE(deleted_at, '') = '')
@@ -1730,6 +1733,8 @@ class CashierHandler(SimpleHTTPRequestHandler):
                 customer_name = str(payload.get("customerName") or payload.get("customer") or payload.get("customerAddress") or payload.get("address") or "").strip()
                 total_amount = rupiah_number(payload.get("total"))
                 paid_amount = rupiah_number(payload.get("paidAmount", 0))
+                queue_no = rupiah_number(payload.get("queueNo") or payload.get("queue_no"))
+                queue_date = str(payload.get("queueDate") or payload.get("queue_date") or "").strip()
 
                 used_deposit = 0
                 customer_id_for_deposit = None
@@ -1754,6 +1759,8 @@ class CashierHandler(SimpleHTTPRequestHandler):
                     "",
                     "",
                     str(payload.get("chatDate") or "").strip(),
+                    queue_no if queue_no > 0 and queue_date else None,
+                    queue_date if queue_no > 0 and queue_date else "",
                     paid_amount,
                 )
                 shipping = sale_values[5]
@@ -1761,9 +1768,9 @@ class CashierHandler(SimpleHTTPRequestHandler):
                     """
                     INSERT INTO sales (
                         receipt_no, completed_at, store_name, payment, subtotal, discount, tax, total,
-                        customer_name, customer_address, order_note, due_text, chat_date, paid_amount
+                        customer_name, customer_address, order_note, due_text, chat_date, queue_no, queue_date, paid_amount
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     sale_values,
                 )
@@ -1838,7 +1845,7 @@ class CashierHandler(SimpleHTTPRequestHandler):
         row = connection.execute(
             """
             SELECT id, receipt_no, completed_at, store_name, payment, subtotal, discount, tax, total,
-                   customer_name, customer_address, order_note, due_text, chat_date,
+                   customer_name, customer_address, order_note, due_text, chat_date, queue_no, queue_date,
                    deleted_at, stock_restored_on_delete, paid_amount
             FROM sales
             WHERE id = ?
