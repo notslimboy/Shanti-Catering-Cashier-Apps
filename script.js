@@ -244,6 +244,14 @@ const state = {
   editingSaleDetail: false,
   checkoutWarningSignature: "",
   importDrafts: [],
+  bulkImportBatch: {
+    id: "",
+    dateKey: getLocalDateKey(),
+    startedAt: "",
+    nextQueueNo: 1,
+    lastQueueNo: 0,
+    processedQueueNos: [],
+  },
   bulkDraftFilter: "all",
   bulkDraftSearch: "",
   lastReceipt: null,
@@ -528,6 +536,7 @@ const els = {
   bulkImportModal: document.querySelector("#bulkImportModal"),
   bulkImportFileInput: document.querySelector("#bulkImportFileInput"),
   bulkSummaryInput: document.querySelector("#bulkSummaryInput"),
+  bulkImportStartNoInput: document.querySelector("#bulkImportStartNoInput"),
   bulkImportReview: document.querySelector("#bulkImportReview"),
   parseBulkSummaryButton: document.querySelector("#parseBulkSummaryButton"),
   clearBulkDraftsButton: document.querySelector("#clearBulkDraftsButton"),
@@ -706,6 +715,8 @@ function loadState() {
     if (state.columns.stock === "stock") state.columns.stock = "stok";
     state.heldCarts = Array.isArray(parsed.heldCarts) ? parsed.heldCarts : [];
     state.importDrafts = Array.isArray(parsed.importDrafts) ? parsed.importDrafts.map(normalizeDraftContact) : [];
+    state.bulkImportBatch = normalizeBulkImportBatch(parsed.bulkImportBatch);
+    normalizeImportDraftQueueNumbers({ preserveNext: true });
     state.selectedCategory = typeof parsed.selectedCategory === "string" ? parsed.selectedCategory : "all";
     state.salesSearch = typeof parsed.salesSearch === "string" ? parsed.salesSearch : "";
     const parsedSalesRange = String(parsed.salesRange || "day");
@@ -767,6 +778,7 @@ function getLocalStateSnapshot() {
     dailyMenu: state.dailyMenu,
     heldCarts: state.heldCarts,
     importDrafts: state.importDrafts,
+    bulkImportBatch: state.bulkImportBatch,
     lastReceipt: state.lastReceipt,
   };
 }
@@ -5345,6 +5357,201 @@ function getDraftDisplayName(draft) {
   return String(draft?.customerName || "Draft pesanan").trim();
 }
 
+function parseQueueNoInput(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return { raw, value: 0, empty: true, valid: false };
+  const normalized = raw.replace(/[.\s]/g, "");
+  if (!/^\d+$/.test(normalized)) return { raw, value: 0, empty: false, valid: false };
+  const queueNo = Number.parseInt(normalized, 10);
+  return {
+    raw,
+    value: Number.isFinite(queueNo) && queueNo > 0 ? queueNo : 0,
+    empty: false,
+    valid: Number.isFinite(queueNo) && queueNo > 0,
+  };
+}
+
+function getDraftQueueNo(draft) {
+  const parsed = parseQueueNoInput(draft?.queueNo ?? draft?.queue_no ?? "");
+  return parsed.valid ? parsed.value : 0;
+}
+
+function createBulkImportBatch(overrides = {}) {
+  return {
+    id: "",
+    dateKey: getLocalDateKey(),
+    startedAt: "",
+    nextQueueNo: 1,
+    lastQueueNo: 0,
+    processedQueueNos: [],
+    ...overrides,
+    processedQueueNos: Array.isArray(overrides.processedQueueNos)
+      ? [...new Set(overrides.processedQueueNos.map((item) => parseQueueNoInput(item).value).filter(Boolean))]
+      : [],
+    startedAt: overrides.startedAt || "",
+    dateKey: normalizeQueueDate(overrides.dateKey || "") || getLocalDateKey(),
+  };
+}
+
+function normalizeBulkImportBatch(source = {}) {
+  const raw = source && typeof source === "object" ? source : {};
+  const nextParsed = parseQueueNoInput(raw.nextQueueNo);
+  const lastParsed = parseQueueNoInput(raw.lastQueueNo);
+  return createBulkImportBatch({
+    id: String(raw.id || "").trim(),
+    dateKey: raw.dateKey || raw.queueDate || getLocalDateKey(),
+    startedAt: String(raw.startedAt || "").trim(),
+    nextQueueNo: nextParsed.valid ? nextParsed.value : 1,
+    lastQueueNo: lastParsed.valid ? lastParsed.value : 0,
+    processedQueueNos: raw.processedQueueNos,
+  });
+}
+
+function ensureBulkImportBatch(options = {}) {
+  state.bulkImportBatch = normalizeBulkImportBatch(state.bulkImportBatch);
+  if (options.create && !state.bulkImportBatch.id) {
+    state.bulkImportBatch.id = makeId("batch");
+    state.bulkImportBatch.startedAt = new Date().toISOString();
+    state.bulkImportBatch.dateKey = getLocalDateKey();
+  }
+  return state.bulkImportBatch;
+}
+
+function resetBulkImportBatch() {
+  state.bulkImportBatch = createBulkImportBatch();
+  syncBulkImportStartNoInput();
+}
+
+function getBulkImportProcessedQueueNoSet() {
+  const batch = ensureBulkImportBatch();
+  return new Set((batch.processedQueueNos || []).map((item) => parseQueueNoInput(item).value).filter(Boolean));
+}
+
+function getMaxImportDraftQueueNo(drafts = state.importDrafts) {
+  return (Array.isArray(drafts) ? drafts : []).reduce((max, draft) => Math.max(max, getDraftQueueNo(draft)), 0);
+}
+
+function syncBulkImportBatchCounters(options = {}) {
+  const batch = ensureBulkImportBatch();
+  const maxDraftNo = getMaxImportDraftQueueNo();
+  const maxProcessedNo = [...getBulkImportProcessedQueueNoSet()].reduce((max, item) => Math.max(max, item), 0);
+  batch.lastQueueNo = Math.max(Number(batch.lastQueueNo || 0), maxDraftNo, maxProcessedNo);
+  const nextParsed = parseQueueNoInput(batch.nextQueueNo);
+  if (!options.preserveNext || !nextParsed.valid) {
+    batch.nextQueueNo = batch.lastQueueNo + 1;
+  }
+  return batch;
+}
+
+function syncBulkImportStartNoInput() {
+  if (!els.bulkImportStartNoInput) return;
+  const batch = syncBulkImportBatchCounters({ preserveNext: true });
+  els.bulkImportStartNoInput.value = String(batch.nextQueueNo || batch.lastQueueNo + 1 || 1);
+}
+
+function normalizeImportDraftQueueNumbers(options = {}) {
+  if (!state.importDrafts.length) {
+    syncBulkImportBatchCounters({ preserveNext: options.preserveNext !== false });
+    syncBulkImportStartNoInput();
+    return false;
+  }
+  const batch = ensureBulkImportBatch({ create: true });
+  const used = new Set();
+  let nextNo = 1;
+  let changed = false;
+
+  state.importDrafts.forEach((draft) => {
+    const parsed = parseQueueNoInput(draft.queueNo ?? draft.queue_no ?? "");
+    if (parsed.valid) {
+      draft.queueNo = parsed.value;
+      used.add(parsed.value);
+    } else if (draft.queueNoManual) {
+      // Keep manual invalid input visible so the draft stays in Perlu Review.
+    } else {
+      while (used.has(nextNo)) nextNo += 1;
+      draft.queueNo = nextNo;
+      used.add(nextNo);
+      changed = true;
+      nextNo += 1;
+    }
+    if (draft.queueDate !== batch.dateKey) {
+      draft.queueDate = batch.dateKey;
+      changed = true;
+    }
+  });
+
+  const maxNo = [...used].reduce((max, item) => Math.max(max, item), 0);
+  batch.lastQueueNo = Math.max(Number(batch.lastQueueNo || 0), maxNo);
+  const nextParsed = parseQueueNoInput(batch.nextQueueNo);
+  if (!nextParsed.valid && options.preserveNext !== true) {
+    batch.nextQueueNo = batch.lastQueueNo + 1;
+    changed = true;
+  }
+  syncBulkImportStartNoInput();
+  return changed;
+}
+
+function setBulkImportStartNo(value) {
+  const batch = ensureBulkImportBatch({ create: Boolean(state.importDrafts.length) });
+  const parsed = parseQueueNoInput(value);
+  batch.nextQueueNo = parsed.valid ? parsed.value : String(value || "").trim();
+  saveState();
+}
+
+function assignQueueNumbersToImportedDrafts(drafts, startNo) {
+  const batch = ensureBulkImportBatch({ create: true });
+  const queueDate = batch.dateKey;
+  const firstNo = Number(startNo || 0);
+  drafts.forEach((draft, index) => {
+    draft.queueNo = firstNo + index;
+    draft.queueDate = queueDate;
+  });
+  const lastAssigned = drafts.length ? firstNo + drafts.length - 1 : batch.lastQueueNo;
+  batch.lastQueueNo = Math.max(Number(batch.lastQueueNo || 0), lastAssigned);
+  batch.nextQueueNo = batch.lastQueueNo + 1;
+  syncBulkImportStartNoInput();
+}
+
+function updateBulkImportCounterFromQueueNo(value) {
+  const parsed = parseQueueNoInput(value);
+  if (!parsed.valid) return;
+  const batch = ensureBulkImportBatch({ create: true });
+  if (parsed.value > Number(batch.lastQueueNo || 0)) {
+    batch.lastQueueNo = parsed.value;
+    batch.nextQueueNo = parsed.value + 1;
+    syncBulkImportStartNoInput();
+  }
+}
+
+function markBulkImportQueueNoProcessed(draft) {
+  const queueNo = getDraftQueueNo(draft);
+  if (!queueNo) return;
+  const batch = ensureBulkImportBatch({ create: true });
+  batch.processedQueueNos = [...new Set([...(batch.processedQueueNos || []), queueNo])].sort((a, b) => a - b);
+  batch.lastQueueNo = Math.max(Number(batch.lastQueueNo || 0), queueNo);
+  if (!parseQueueNoInput(batch.nextQueueNo).valid || Number(batch.nextQueueNo) <= queueNo) {
+    batch.nextQueueNo = batch.lastQueueNo + 1;
+  }
+  syncBulkImportStartNoInput();
+}
+
+function getDraftQueueIssue(draft) {
+  const parsed = parseQueueNoInput(draft?.queueNo ?? draft?.queue_no ?? "");
+  if (parsed.empty) return { message: "Nomor urut kosong", blocking: true };
+  if (!parsed.valid) return { message: "Nomor urut harus angka positif", blocking: true };
+
+  const duplicateDraft = state.importDrafts.find((item) => item.id !== draft.id && getDraftQueueNo(item) === parsed.value);
+  if (duplicateDraft) {
+    return { message: `Nomor urut ${parsed.value} dipakai draft lain`, blocking: true };
+  }
+
+  if (getBulkImportProcessedQueueNoSet().has(parsed.value)) {
+    return { message: `Nomor urut ${parsed.value} sudah dipakai transaksi`, blocking: true };
+  }
+
+  return null;
+}
+
 function normalizeQueueDate(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -5409,7 +5616,7 @@ function buildQueueFallbackChatDate(queueNo, chatDate) {
 }
 
 function getDraftQueueDate(draft) {
-  return normalizeQueueDate(draft?.queueDate || draft?.queue_date || draft?.chatDate || draft?.chat_date || "");
+  return normalizeQueueDate(draft?.queueDate || draft?.queue_date || "");
 }
 
 function getSaleQueueDate(sale) {
@@ -5449,14 +5656,14 @@ function getNextQueueNumberForDate(queueDate, usedByDate) {
 }
 
 function buildDraftQueueSnapshot(drafts = state.importDrafts, sales = state.sales) {
-  const usedByDate = buildUsedQueueNumbersByDate(sales);
+  const batch = ensureBulkImportBatch({ create: Boolean((Array.isArray(drafts) ? drafts : []).length) });
   const snapshot = new Map();
   (Array.isArray(drafts) ? drafts : []).forEach((draft) => {
-    const queueDate = getDraftQueueDate(draft);
-    if (!queueDate) return;
+    const queueNo = getDraftQueueNo(draft);
+    if (!queueNo) return;
     snapshot.set(draft.id, {
-      queueDate,
-      queueNo: getNextQueueNumberForDate(queueDate, usedByDate),
+      queueDate: getDraftQueueDate(draft) || batch.dateKey,
+      queueNo,
     });
   });
   return snapshot;
@@ -5475,6 +5682,8 @@ function getQueueInfoFromSale(sale) {
 
 function getDraftIssues(draft) {
   const issues = [];
+  const queueIssue = getDraftQueueIssue(draft);
+  if (queueIssue) issues.push(queueIssue);
   if (!String(draft.customerName || "").trim()) issues.push({ message: "Customer/alamat kosong", blocking: false });
   if (!String(draft.chatDate || "").trim()) issues.push({ message: "Tanggal chat kosong", blocking: false });
   if (!draft.items.length) issues.push({ message: "Item kosong", blocking: true });
@@ -5517,9 +5726,11 @@ function getBulkImportValidation(drafts = state.importDrafts) {
     missingChatDate: 0,
     zeroShipping: 0,
     stockIssues: 0,
+    queueIssues: 0,
   };
 
   drafts.forEach((draft) => {
+    if (getDraftQueueIssue(draft)) summary.queueIssues += 1;
     if (!String(draft.customerName || "").trim()) summary.missingCustomer += 1;
     if (!String(draft.chatDate || "").trim()) summary.missingChatDate += 1;
     if (!Number(draft.shipping || 0)) summary.zeroShipping += 1;
@@ -5574,6 +5785,7 @@ function renderBulkImportReview(drafts = state.importDrafts) {
     summary.missingChatDate ? { label: `${summary.missingChatDate} tanggal chat kosong`, variant: "" } : null,
     summary.zeroShipping ? { label: `${summary.zeroShipping} ongkir 0`, variant: "" } : null,
     summary.stockIssues ? { label: `${summary.stockIssues} stok kurang`, variant: "error" } : null,
+    summary.queueIssues ? { label: `${summary.queueIssues} nomor urut perlu cek`, variant: "error" } : null,
   ].filter(Boolean);
   const examples = summary.unmatchedItems.slice(0, 5).map((name) => escapeHtml(name)).join(", ");
   const copy = summary.unmatchedItems.length
@@ -5629,6 +5841,9 @@ function setBulkImportStatus(message, options = {}) {
 }
 
 function renderBulkDrafts() {
+  const draftsChanged = normalizeImportDraftQueueNumbers({ preserveNext: true });
+  if (draftsChanged) saveState();
+
   if (els.openBulkImportButton) {
     const buttonTitle = state.importDrafts.length ? `Import Pesanan (${state.importDrafts.length})` : "Import Pesanan";
     if (els.openBulkImportButtonTitle) {
@@ -5651,6 +5866,7 @@ function renderBulkDrafts() {
     els.bulkDraftList.innerHTML = `<div class="empty-state">Belum ada draft pesanan.</div>`;
     renderBulkBatchPanel([]);
     renderBulkImportReview([]);
+    syncBulkImportStartNoInput();
     if (els.bulkImportStatus) els.bulkImportStatus.textContent = "Belum ada draft pesanan.";
     return;
   }
@@ -5712,11 +5928,10 @@ function renderBulkDrafts() {
     return;
   }
 
-  const queueSnapshot = buildDraftQueueSnapshot(state.importDrafts);
   els.bulkDraftList.innerHTML = filteredDrafts
     .map((draft, draftIndex) => {
-      const queueInfo = getDraftQueueSnapshot(draft, queueSnapshot);
-      const queueLabel = queueInfo ? `NO: ${queueInfo.queueNo}` : "-";
+      const queueNo = getDraftQueueNo(draft);
+      const queueLabel = draft.queueNo ?? draft.queue_no ?? "";
       const issues = getDraftIssues(draft);
       const blocking = issues.some((issue) => issue.blocking);
       const subtotal = getDraftSubtotal(draft);
@@ -5757,7 +5972,7 @@ function renderBulkDrafts() {
         <article class="bulk-draft-card" data-draft-id="${escapeHtml(draft.id)}">
           <div class="bulk-draft-header">
             <div>
-              <p class="sale-card-title">Draft ${draftIndex + 1}</p>
+              <p class="sale-card-title">Draft ${queueNo || draftIndex + 1}</p>
               <p class="sale-card-meta">${escapeHtml(getDraftDisplayName(draft))}</p>
             </div>
             <span class="stock-pill ${statusClass}">${statusLabel}</span>
@@ -5769,7 +5984,7 @@ function renderBulkDrafts() {
             </label>
             <label class="bulk-queue-field">
               Nomor urut
-              <input type="text" value="${escapeHtml(queueLabel)}" readonly aria-readonly="true">
+              <input type="text" inputmode="numeric" data-draft-field="queueNo" value="${escapeHtml(queueLabel)}">
             </label>
             <label>
               Tanggal chat
@@ -5809,13 +6024,19 @@ function renderBulkDrafts() {
 function importBulkSummaryText() {
   try {
     const drafts = parseBulkSummaryCsv(els.bulkSummaryInput.value);
+    const startParsed = parseQueueNoInput(els.bulkImportStartNoInput?.value ?? state.bulkImportBatch?.nextQueueNo ?? 1);
+    if (!startParsed.valid) throw new Error("Nomor awal import harus angka positif.");
+    assignQueueNumbersToImportedDrafts(drafts, startParsed.value);
     const summary = getBulkImportValidation(drafts);
     state.importDrafts = [...state.importDrafts, ...drafts].slice(0, 100);
     els.bulkSummaryInput.value = "";
     renderBulkDrafts();
     saveState();
     const warning = summary.unmatchedItems.length ? ` ${summary.unmatchedItems.length} item belum cocok menu.` : "";
-    setBulkImportStatus(`${drafts.length} draft pesanan dibuat dari CSV.${warning}`, {
+    const firstNo = getDraftQueueNo(drafts[0]);
+    const lastNo = getDraftQueueNo(drafts[drafts.length - 1]);
+    const rangeCopy = firstNo && lastNo ? ` dengan nomor ${firstNo}${firstNo === lastNo ? "" : `-${lastNo}`}` : "";
+    setBulkImportStatus(`${drafts.length} draft pesanan dibuat${rangeCopy}.${warning}`, {
       variant: summary.unmatchedItems.length ? "error" : "success",
     });
   } catch (error) {
@@ -5843,6 +6064,11 @@ function updateDraftField(draftId, field, value) {
   const draft = findImportDraft(draftId);
   if (!draft) return;
   if (field === "shipping") draft.shipping = parseIntegerInput(value);
+  else if (field === "queueNo") {
+    draft.queueNo = String(value || "").trim();
+    draft.queueNoManual = true;
+    updateBulkImportCounterFromQueueNo(draft.queueNo);
+  }
   else if (field === "payment") draft.payment = normalizePayment(value);
   else {
     draft[field] = String(value || "").trim();
@@ -6104,6 +6330,7 @@ async function processReadyImportDrafts(options = {}) {
         const savedSale = await saveSaleToDatabase(salePayload);
         if (savedSale.receiptNo) salePayload.receiptNo = savedSale.receiptNo;
         processed.push({ draft, salePayload });
+        markBulkImportQueueNoProcessed(draft);
         decrementStockFromDraft(draft);
         state.importDrafts = state.importDrafts.filter((item) => item.id !== draft.id);
         state.lastReceipt = salePayload;
@@ -6169,9 +6396,12 @@ async function openBulkImport() {
   if (els.bulkSearchInput) {
     els.bulkSearchInput.value = "";
   }
+  normalizeImportDraftQueueNumbers({ preserveNext: true });
+  syncBulkImportStartNoInput();
   renderBulkDrafts();
   openModal(els.bulkImportModal, els.bulkSummaryInput);
   await refreshSalesForQueueNumbers();
+  syncBulkImportStartNoInput();
   renderBulkDrafts();
 }
 
@@ -11390,6 +11620,8 @@ async function completeSale() {
     product.stock = Math.max(0, product.stock - cartItem.quantity);
   });
   if (state.sale.sourceDraftId) {
+    const sourceDraft = findImportDraft(state.sale.sourceDraftId);
+    if (sourceDraft) markBulkImportQueueNoProcessed(sourceDraft);
     state.importDrafts = state.importDrafts.filter((draft) => draft.id !== state.sale.sourceDraftId);
   }
   state.cart = [];
@@ -11545,6 +11777,9 @@ function bindEvents() {
     const [file] = event.target.files;
     readBulkImportFile(file);
   });
+  els.bulkImportStartNoInput?.addEventListener("input", (event) => {
+    setBulkImportStartNo(event.target.value);
+  });
   els.parseBulkSummaryButton.addEventListener("click", importBulkSummaryText);
   els.bulkSearchInput?.addEventListener("input", (event) => {
     state.bulkDraftSearch = event.target.value;
@@ -11555,19 +11790,23 @@ function bindEvents() {
   els.previewPrintReadyDraftsButton?.addEventListener("click", previewPrintReadyDrafts);
   els.copyAiPromptButton.addEventListener("click", copyAiPrompt);
   els.clearBulkDraftsButton.addEventListener("click", async () => {
-    if (!state.importDrafts.length) return;
+    if (!state.importDrafts.length && !state.bulkImportBatch?.id) return;
     const confirmed = await openAppConfirm({
       eyebrow: "Import Pesanan",
-      title: "Hapus semua draft?",
-      message: "Semua draft pesanan hasil import akan dihapus dari daftar review.",
-      confirmText: "Ya, hapus draft",
+      title: state.importDrafts.length ? "Hapus semua draft?" : "Reset nomor batch?",
+      message: state.importDrafts.length
+        ? "Semua draft pesanan hasil import akan dihapus dari daftar review dan nomor batch akan mulai dari 1 lagi."
+        : "Nomor batch aktif akan direset supaya import berikutnya mulai dari 1.",
+      confirmText: state.importDrafts.length ? "Ya, hapus draft" : "Ya, reset nomor",
       variant: "danger",
     });
     if (!confirmed) return;
+    const hadDrafts = state.importDrafts.length > 0;
     state.importDrafts = [];
+    resetBulkImportBatch();
     renderBulkDrafts();
     saveState();
-    setBulkImportStatus("Semua draft pesanan dihapus.");
+    setBulkImportStatus(hadDrafts ? "Semua draft pesanan dihapus. Nomor batch direset." : "Nomor batch direset. Import berikutnya mulai dari 1.");
   });
   els.bulkImportModal.addEventListener("click", (event) => {
     if (event.target === els.bulkImportModal) {
@@ -11589,6 +11828,9 @@ function bindEvents() {
   });
   els.bulkDraftList.addEventListener("change", (event) => {
     updateBulkDraftFromTarget(event.target, true);
+  });
+  els.bulkDraftList.addEventListener("focusout", (event) => {
+    if (event.target?.dataset?.draftField === "queueNo") renderBulkDrafts();
   });
   els.bulkDraftList.addEventListener("click", (event) => {
     const card = event.target.closest("[data-draft-id]");
