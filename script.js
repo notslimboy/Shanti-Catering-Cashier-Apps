@@ -5389,16 +5389,41 @@ function normalizeQueueDate(value) {
   return "";
 }
 
+function parseQueueFallbackChatDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const match = raw.match(/^NO:\s*(\d+)(?:\s*[|•-]\s*(.+))?$/i);
+  if (!match) return null;
+  const queueNo = Number(match[1] || 0);
+  return {
+    queueNo: Number.isFinite(queueNo) && queueNo > 0 ? Math.floor(queueNo) : 0,
+    sourceDateText: String(match[2] || "").trim(),
+  };
+}
+
+function buildQueueFallbackChatDate(queueNo, chatDate) {
+  const value = Number(queueNo || 0);
+  if (!Number.isFinite(value) || value <= 0) return String(chatDate || "").trim();
+  const sourceDateText = String(chatDate || "").trim();
+  return sourceDateText ? `NO: ${Math.floor(value)} | ${sourceDateText}` : `NO: ${Math.floor(value)}`;
+}
+
 function getDraftQueueDate(draft) {
   return normalizeQueueDate(draft?.queueDate || draft?.queue_date || draft?.chatDate || draft?.chat_date || "");
 }
 
 function getSaleQueueDate(sale) {
-  return normalizeQueueDate(sale?.queueDate || sale?.queue_date || "");
+  const explicitDate = normalizeQueueDate(sale?.queueDate || sale?.queue_date || "");
+  if (explicitDate) return explicitDate;
+  const fallback = parseQueueFallbackChatDate(sale?.chatDate || sale?.chat_date || "");
+  return normalizeQueueDate(fallback?.sourceDateText || "");
 }
 
 function getSaleQueueNo(sale) {
   const value = Number(sale?.queueNo ?? sale?.queue_no ?? 0);
+  if (Number.isFinite(value) && value > 0) return Math.floor(value);
+  const fallback = parseQueueFallbackChatDate(sale?.chatDate || sale?.chat_date || "");
+  if (fallback?.queueNo) return fallback.queueNo;
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
@@ -6617,6 +6642,14 @@ function getSupabaseMissingSchemaColumn(error, tableName) {
       return match[1];
     }
   }
+  const missingColumnMatch = message.match(/column\s+(?:(?:public\.)?["']?([a-zA-Z0-9_-]+)["']?\.)?["']?([a-zA-Z0-9_-]+)["']?\s+does not exist/i);
+  if (missingColumnMatch) {
+    const matchedTable = missingColumnMatch[1] || "";
+    const matchedColumn = missingColumnMatch[2] || "";
+    if (!matchedTable || matchedTable.toLowerCase() === String(tableName).toLowerCase()) {
+      return matchedColumn;
+    }
+  }
   return "";
 }
 
@@ -6636,6 +6669,8 @@ const SUPABASE_SALE_ITEM_EXTENDED_COLUMNS = new Set([
   "pricing_type",
   "receipt_label",
 ]);
+
+const SUPABASE_SALE_QUEUE_COLUMNS = new Set(["queue_no", "queue_date"]);
 
 function buildSupabaseSaleItem(item, saleId, options = {}) {
   const includeExtendedColumns = options.includeExtendedColumns !== false;
@@ -6778,7 +6813,7 @@ async function saveSaleToDatabase(payload) {
       saleRecord.queue_date = payload.queueDate;
     }
 
-    const { data: saleData, error: saleError } = await supabase
+    let { data: saleData, error: saleError } = await supabase
       .from("sales")
       .insert(saleRecord)
       .select()
@@ -6786,10 +6821,31 @@ async function saveSaleToDatabase(payload) {
       
     if (saleError) {
       const missingColumn = getSupabaseMissingSchemaColumn(saleError, "sales");
-      if (payload.queueNo && ["queue_no", "queue_date"].includes(missingColumn)) {
-        throw new Error("Supabase belum punya kolom nomor urut import. Jalankan SQL migration: alter table public.sales add column if not exists queue_no integer; alter table public.sales add column if not exists queue_date date;");
+      if (payload.queueNo && SUPABASE_SALE_QUEUE_COLUMNS.has(missingColumn)) {
+        const fallbackSaleRecord = { ...saleRecord };
+        delete fallbackSaleRecord.queue_no;
+        delete fallbackSaleRecord.queue_date;
+        fallbackSaleRecord.chat_date = buildQueueFallbackChatDate(payload.queueNo, saleRecord.chat_date);
+        payload.chatDate = fallbackSaleRecord.chat_date;
+
+        console.warn(
+          `Supabase sales belum punya kolom '${missingColumn}', menyimpan nomor urut sementara di chat_date.`,
+          saleError
+        );
+
+        const fallbackResult = await supabase
+          .from("sales")
+          .insert(fallbackSaleRecord)
+          .select()
+          .single();
+
+        saleData = fallbackResult.data;
+        saleError = fallbackResult.error;
+        if (!saleError) {
+          setDatabaseStatus("Supabase belum punya kolom nomor urut; transaksi tetap tersimpan dengan fallback NO di tanggal chat.");
+        }
       }
-      throw saleError;
+      if (saleError) throw saleError;
     }
     
     if (Array.isArray(payload.items) && payload.items.length > 0) {
