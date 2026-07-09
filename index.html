@@ -297,6 +297,10 @@
                   </div>
 
                   <div class="sale-controls">
+                    <label class="send-note-field">
+                      <span>Send note</span>
+                      <textarea id="sendNoteInput" rows="2" autocomplete="off" placeholder="Contoh: kirim ke Direktorat ITS, ambil gojek, titip satpam"></textarea>
+                    </label>
                     <label>
                       <span class="shipping-label">
                         <svg class="delivery-icon" aria-hidden="true" focusable="false"><use href="#icon-delivery-rider"></use></svg>
@@ -738,8 +742,8 @@
 
         <label>
           CSV summary AI
-          <textarea id="bulkSummaryInput" rows="8" placeholder='customer,chatDate,payment,ongkir,item,quantity,note
-"Bu Ani - Jl Melati 12","28/5/2026 10.15","Tunai",10000,"Nasi Goreng Rumahan",20,"sambal pisah"'></textarea>
+          <textarea id="bulkSummaryInput" rows="8" placeholder='customer,chatDate,payment,ongkir,item,quantity,note,sendNote
+"Bu Ani - Jl Melati 12","28/5/2026 10.15","Tunai",10000,"Nasi Goreng Rumahan",20,"sambal pisah","kirim ke pos satpam"'></textarea>
         </label>
 
         <label class="bulk-import-start-field">

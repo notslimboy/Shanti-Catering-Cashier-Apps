@@ -168,6 +168,7 @@ def init_database():
             "customer_name": "TEXT NOT NULL DEFAULT ''",
             "customer_address": "TEXT NOT NULL DEFAULT ''",
             "order_note": "TEXT NOT NULL DEFAULT ''",
+            "send_note": "TEXT NOT NULL DEFAULT ''",
             "due_text": "TEXT NOT NULL DEFAULT ''",
             "chat_date": "TEXT NOT NULL DEFAULT ''",
             "queue_no": "INTEGER",
@@ -1345,7 +1346,7 @@ class CashierHandler(SimpleHTTPRequestHandler):
             sales_rows = connection.execute(
                 """
                 SELECT id, receipt_no, completed_at, store_name, payment, subtotal, discount, tax, total,
-                       customer_name, customer_address, order_note, due_text, chat_date, queue_no, queue_date,
+                       customer_name, customer_address, order_note, send_note, due_text, chat_date, queue_no, queue_date,
                        deleted_at, stock_restored_on_delete, paid_amount
                 FROM sales
                 WHERE (? OR COALESCE(deleted_at, '') = '')
@@ -1755,9 +1756,10 @@ class CashierHandler(SimpleHTTPRequestHandler):
                     rupiah_number(payload.get("tax")),
                     total_amount,
                     customer_name,
-                    "",
-                    "",
-                    "",
+                    str(payload.get("customerAddress") or payload.get("customer_address") or "").strip(),
+                    str(payload.get("orderNote") or payload.get("order_note") or "").strip(),
+                    str(payload.get("sendNote") or payload.get("send_note") or "").strip(),
+                    str(payload.get("dueText") or payload.get("due_text") or "").strip(),
                     str(payload.get("chatDate") or "").strip(),
                     queue_no if queue_no > 0 and queue_date else None,
                     queue_date if queue_no > 0 and queue_date else "",
@@ -1768,9 +1770,9 @@ class CashierHandler(SimpleHTTPRequestHandler):
                     """
                     INSERT INTO sales (
                         receipt_no, completed_at, store_name, payment, subtotal, discount, tax, total,
-                        customer_name, customer_address, order_note, due_text, chat_date, queue_no, queue_date, paid_amount
+                        customer_name, customer_address, order_note, send_note, due_text, chat_date, queue_no, queue_date, paid_amount
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     sale_values,
                 )
@@ -1845,7 +1847,7 @@ class CashierHandler(SimpleHTTPRequestHandler):
         row = connection.execute(
             """
             SELECT id, receipt_no, completed_at, store_name, payment, subtotal, discount, tax, total,
-                   customer_name, customer_address, order_note, due_text, chat_date, queue_no, queue_date,
+                   customer_name, customer_address, order_note, send_note, due_text, chat_date, queue_no, queue_date,
                    deleted_at, stock_restored_on_delete, paid_amount
             FROM sales
             WHERE id = ?
@@ -1900,7 +1902,8 @@ class CashierHandler(SimpleHTTPRequestHandler):
         with get_connection() as connection:
             sale = connection.execute(
                 """
-                SELECT id, completed_at, payment, subtotal, discount, tax, customer_name, chat_date
+                SELECT id, completed_at, payment, subtotal, discount, tax,
+                       customer_name, customer_address, order_note, send_note, due_text, chat_date
                 FROM sales
                 WHERE id = ?
                 """,
@@ -1958,15 +1961,20 @@ class CashierHandler(SimpleHTTPRequestHandler):
             total = subtotal + shipping + tax
             payment = str(payload.get("payment", sale["payment"]) or "Tunai").strip()
             customer_name = str(payload.get("customerName", payload.get("customer_name", sale["customer_name"])) or "").strip()
+            customer_address = str(payload.get("customerAddress", payload.get("customer_address", sale["customer_address"])) or "").strip()
+            order_note = str(payload.get("orderNote", payload.get("order_note", sale["order_note"])) or "").strip()
+            send_note = str(payload.get("sendNote", payload.get("send_note", sale["send_note"])) or "").strip()
+            due_text = str(payload.get("dueText", payload.get("due_text", sale["due_text"])) or "").strip()
             chat_date = str(payload.get("chatDate", payload.get("chat_date", sale["chat_date"])) or "").strip()
 
             connection.execute(
                 """
                 UPDATE sales
-                SET payment = ?, subtotal = ?, discount = ?, tax = ?, total = ?, customer_name = ?, chat_date = ?
+                SET payment = ?, subtotal = ?, discount = ?, tax = ?, total = ?,
+                    customer_name = ?, customer_address = ?, order_note = ?, send_note = ?, due_text = ?, chat_date = ?
                 WHERE id = ?
                 """,
-                (payment, subtotal, shipping, tax, total, customer_name, chat_date, sale_id),
+                (payment, subtotal, shipping, tax, total, customer_name, customer_address, order_note, send_note, due_text, chat_date, sale_id),
             )
             if item_update_requested:
                 connection.execute("DELETE FROM sale_items WHERE sale_id = ?", (sale_id,))

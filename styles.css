@@ -1334,6 +1334,12 @@ body.sidebar-open .sidebar-overlay {
   grid-column: 1 / -1;
 }
 
+.send-note-field textarea {
+  min-height: 68px;
+  resize: vertical;
+  line-height: 1.35;
+}
+
 .sale-customer-field {
   grid-column: 1 / -1;
 }
@@ -2411,6 +2417,18 @@ body.sidebar-open .sidebar-overlay {
 
 .receipt-small {
   font-size: var(--receipt-small-font-size);
+}
+
+.receipt-send-note {
+  margin: 3px 0;
+  font-size: calc(var(--receipt-small-font-size) + 1px);
+  font-weight: 950;
+  line-height: 1.18;
+  -webkit-text-stroke: 0.28px #111;
+}
+
+.receipt-send-note strong {
+  font-weight: 950;
 }
 
 .receipt-note {
@@ -4557,6 +4575,20 @@ body.sidebar-open .sidebar-overlay {
   padding: 8px 10px;
 }
 
+.sale-edit-item .kasir-sale-edit-menu-picker {
+  width: 100%;
+  min-width: 0;
+}
+
+.sale-edit-item .kasir-sale-edit-menu-picker .kasir-tom-control {
+  min-height: 40px;
+  padding: 5px 10px;
+}
+
+.sale-edit-item .kasir-sale-edit-menu-picker .kasir-tom-control > input {
+  min-height: 28px;
+}
+
 .sale-edit-remove-item {
   min-height: 40px;
   padding: 8px 10px;
@@ -4934,6 +4966,10 @@ body.sidebar-open .sidebar-overlay {
   border-color: color-mix(in srgb, var(--teal) 42%, var(--line));
   font-weight: 950;
   letter-spacing: 0;
+}
+
+.bulk-draft-send-note {
+  grid-column: span 2;
 }
 
 .bulk-draft-items {
@@ -6371,6 +6407,10 @@ body.sidebar-open .sidebar-overlay {
   .bulk-draft-item {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .bulk-draft-send-note {
+    grid-column: 1 / -1;
   }
 
   .bulk-draft-footer {

@@ -113,7 +113,7 @@ const RECEIPT_FONT_SIZES = {
 const DEFAULT_CATEGORY = "Lainnya";
 const AI_BULK_PROMPT = `Ringkas chat WhatsApp ini menjadi CSV saja, tanpa markdown.
 Kolom wajib:
-customer,chatDate,payment,ongkir,item,quantity,unit,harga,note
+customer,chatDate,payment,ongkir,item,quantity,unit,harga,note,sendNote
 
 Aturan:
 - Satu baris = satu item pesanan.
@@ -122,12 +122,13 @@ Aturan:
 - Jika chat menyebut harga custom seperti "Sop Iga 50K", isi kolom harga dengan 50000 dan item tetap "Sop Iga".
 - Jika chat menyebut jumlah satuan seperti "Perkedel 10 biji", isi item "Perkedel", quantity 10, dan unit "biji".
 - Catatan seperti "sambal pisah", "tidak pakai udang", atau "caonya kotak-kotak" harus masuk ke kolom note pada item yang sesuai.
+- Instruksi kirim/pickup seperti "kirim ke Direktorat ITS", "ambil gojek", atau "titip satpam" harus masuk ke kolom sendNote, bukan note.
 - Jika ada produk yang sama tetapi memiliki catatan/varian/keterangan yang berbeda (contoh: "2x Siomay tanpa pare" dan "1x Siomay pake pare"), produk tersebut HARUS ditulis sebagai baris terpisah di CSV dengan catatan masing-masing. JANGAN PERNAH menggabungkan kuantitasnya atau menggabungkan catatan mereka menjadi satu baris (seperti "3x Siomay, catatan: tanpa pare; pake pare").
 - Abaikan obrolan yang bukan pesanan, gabungkan revisi terakhir dari customer yang sama, dan jangan menebak item kalau tidak disebut.
 
 Contoh:
-customer,chatDate,payment,ongkir,item,quantity,unit,harga,note
-"Bu Ani - Jl Melati 12","28/5/2026 10.15","Tunai",10000,"Nasi Goreng Rumahan",20,"porsi",,"sambal pisah untuk 5 porsi"`;
+customer,chatDate,payment,ongkir,item,quantity,unit,harga,note,sendNote
+"Bu Ani - Jl Melati 12","28/5/2026 10.15","Tunai",10000,"Nasi Goreng Rumahan",20,"porsi",,"sambal pisah untuk 5 porsi","kirim ke pos satpam"`;
 
 function getLocalDateKey(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -151,6 +152,7 @@ function getDefaultSaleState(overrides = {}) {
     chatDate: "",
     dueText: "",
     orderNote: "",
+    sendNote: "",
     sourceDraftId: "",
     queueNo: null,
     queueDate: "",
@@ -364,6 +366,7 @@ const modalScrollLock = {
   bodyStyle: {},
 };
 const tomSelectControls = new Map();
+const saleEditTomSelectControls = new Map();
 
 const els = {
   sheetUrlInput: document.querySelector("#sheetUrlInput"),
@@ -636,6 +639,7 @@ const els = {
   customerNameInput: document.querySelector("#customerNameInput"),
   customerProfileHint: document.querySelector("#customerProfileHint"),
   customerSuggestions: document.querySelector("#customerSuggestions"),
+  sendNoteInput: document.querySelector("#sendNoteInput"),
   shippingInput: document.querySelector("#shippingInput"),
   paymentInput: document.querySelector("#paymentInput"),
   paymentSelect: document.querySelector("#paymentSelect"),
@@ -1155,12 +1159,14 @@ function updateSidebarActiveState() {
 function normalizeSaleContact(sale) {
   const customer = String(sale?.customerName || sale?.customer_name || "").trim();
   const address = String(sale?.customerAddress || sale?.customer_address || "").trim();
+  const sendNote = String(sale?.sendNote || sale?.send_note || sale?.catatanKirim || sale?.catatan_kirim || "").trim();
   return {
     ...sale,
     customerName: address || customer,
     customerAddress: "",
     dueText: "",
     orderNote: "",
+    sendNote,
   };
 }
 
@@ -3811,7 +3817,7 @@ function getSaleSearchKey(sale) {
   const itemText = (Array.isArray(sale.items) ? sale.items : [])
     .map((item) => `${getReceiptItemDisplayName(item)} ${item.name || ""} ${item.sku || ""} ${item.note || ""}`)
     .join(" ");
-  const searchKey = normalizeKey(`${sale.receipt_no || ""} ${sale.payment || ""} ${sale.customer_name || ""} ${sale.customerName || ""} ${sale.customer_address || ""} ${sale.customerAddress || ""} ${sale.chat_date || ""} ${sale.chatDate || ""} ${sale.order_note || ""} ${sale.orderNote || ""} ${sale.due_text || ""} ${sale.dueText || ""} ${itemText}`);
+  const searchKey = normalizeKey(`${sale.receipt_no || ""} ${sale.payment || ""} ${sale.customer_name || ""} ${sale.customerName || ""} ${sale.customer_address || ""} ${sale.customerAddress || ""} ${sale.chat_date || ""} ${sale.chatDate || ""} ${sale.order_note || ""} ${sale.orderNote || ""} ${sale.send_note || ""} ${sale.sendNote || ""} ${sale.due_text || ""} ${sale.dueText || ""} ${itemText}`);
   saleSearchKeyCache.set(sale, searchKey);
   return searchKey;
 }
@@ -3892,7 +3898,9 @@ function resolveSaleShippingTag(sale) {
       sale?.customer_address,
       sale?.customerAddress,
       sale?.order_note,
-      sale?.orderNote
+      sale?.orderNote,
+      sale?.send_note,
+      sale?.sendNote
     )
   );
 }
@@ -4168,6 +4176,7 @@ function saleToReceiptPayload(sale) {
     queueNo: sale.queueNo || sale.queue_no || null,
     queueDate: sale.queueDate || sale.queue_date || "",
     orderNote: sale.orderNote || sale.order_note || "",
+    sendNote: sale.sendNote || sale.send_note || "",
     dueText: sale.dueText || sale.due_text || "",
     subtotal: Number(sale.subtotal || 0),
     shipping: getSaleShipping(sale),
@@ -5203,12 +5212,18 @@ function normalizeDraftContact(draft) {
   const contactName = String(draft?.contactName || draft?.contact || draft?.namaKontak || draft?.nama_kontak || "").trim();
   const address = String(draft?.customerAddress || draft?.address || draft?.alamat || "").trim();
   const customer = String(draft?.customerName || draft?.customer || draft?.namaCustomer || draft?.pelanggan || draft?.nama || "").trim();
+  const { items, sendNote } = extractDraftItemSendNotes(
+    Array.isArray(draft?.items) ? draft.items : [],
+    getDraftSendNote(draft)
+  );
   return {
     ...draft,
     customerName: contactName || address || customer,
     customerAddress: "",
     dueText: "",
     orderNote: "",
+    sendNote,
+    items,
   };
 }
 
@@ -5222,6 +5237,8 @@ function normalizeDraftOrder(source) {
   const address = String(readObjectValue(order, ["address", "customerAddress", "alamat", "lokasi"], "")).trim();
   const customerName = contactName || address || customer;
   const chatDate = String(readObjectValue(order, ["chatDate", "tanggalChat", "tanggal_chat", "tanggalMasuk", "tanggal_masuk", "waktuChat", "waktu_chat"], "")).trim();
+  const explicitSendNote = readObjectValue(order, ["sendNote", "send_note", "catatanKirim", "catatan_kirim", "catatanKirimnya", "tujuanKirim", "tujuan_kirim"], "");
+  const extracted = extractDraftItemSendNotes(draftItems, explicitSendNote);
   
   let shipping = parseMoney(readObjectValue(order, ["shipping", "ongkir", "ongkosKirim", "ongkos_kirim"], 0));
   if (shipping === 0 && customerName) {
@@ -5239,9 +5256,10 @@ function normalizeDraftOrder(source) {
     chatDate,
     dueText: "",
     orderNote: "",
+    sendNote: extracted.sendNote,
     payment: normalizePayment(readObjectValue(order, ["payment", "pembayaran"], "Tunai")),
     shipping,
-    items: draftItems,
+    items: extracted.items,
   };
 }
 
@@ -5279,6 +5297,74 @@ function getBulkCsvCell(row, keys, fallback = "") {
   return String(value ?? "").trim();
 }
 
+function normalizeSendNoteText(value) {
+  const normalized = String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s,;|.-]+|[\s,;|.-]+$/g, "")
+    .trim();
+  if (/^(?:kirim|dikirim|di kirim|antar|diantar|di antar|dianter|di anter|anter|drop|titip)(?: ke)?$/i.test(normalized)) return "";
+  return normalized;
+}
+
+function mergeSendNotes(...values) {
+  const notes = [];
+  const seen = new Set();
+  values.forEach((value) => {
+    String(value || "")
+      .split(/\s*(?:;|\|)\s*/)
+      .map(normalizeSendNoteText)
+      .filter(Boolean)
+      .forEach((note) => {
+        const key = normalizeKey(note);
+        if (seen.has(key)) return;
+        seen.add(key);
+        notes.push(note);
+      });
+  });
+  return notes.join("; ");
+}
+
+function cleanItemNoteText(value) {
+  return String(value || "")
+    .replace(/\s*(?:;|\|)\s*/g, "; ")
+    .replace(/\s*,\s*/g, "; ")
+    .replace(/\s+/g, " ")
+    .replace(/(?:;\s*){2,}/g, "; ")
+    .replace(/^[\s,;|.-]+|[\s,;|.-]+$/g, "")
+    .trim();
+}
+
+function extractSendNoteFromItemNote(note) {
+  let remaining = String(note || "");
+  const sendNotes = [];
+  const sendPattern = /(^|[\s,;|.-]+)((?:kirim|dikirim|di\s+kirim|antar|diantar|di\s+antar|dianter|di\s+anter|anter|drop|titip)\s+(?:ke\s+)?[^,;|\n]+|(?:ambil|diambil|di\s+ambil)\s*(?:sendiri|gojek|grab|ojol|kurir)?(?:\s+[^,;|\n]+)?|(?:gojek|grab|ojol)(?:\s+[^,;|\n]+)?)/gi;
+
+  remaining = remaining.replace(sendPattern, (match, prefix, phrase) => {
+    const sendNote = normalizeSendNoteText(phrase);
+    if (sendNote) sendNotes.push(sendNote);
+    return prefix && /[;|,]/.test(prefix) ? prefix : " ";
+  });
+
+  return {
+    note: cleanItemNoteText(remaining),
+    sendNote: mergeSendNotes(...sendNotes),
+  };
+}
+
+function extractDraftItemSendNotes(items, initialSendNote = "") {
+  let sendNote = normalizeSendNoteText(initialSendNote);
+  const cleanedItems = items.map((item) => {
+    const extracted = extractSendNoteFromItemNote(item.note || "");
+    sendNote = mergeSendNotes(sendNote, extracted.sendNote);
+    return { ...item, note: extracted.note };
+  });
+  return { items: cleanedItems, sendNote };
+}
+
+function getDraftSendNote(draft) {
+  return normalizeSendNoteText(draft?.sendNote || draft?.send_note || draft?.catatanKirim || draft?.catatan_kirim || "");
+}
+
 function parseBulkSummaryCsv(text) {
   const raw = String(text || "").trim();
   if (!raw) throw new Error("CSV summary masih kosong.");
@@ -5313,6 +5399,9 @@ function parseBulkSummaryCsv(text) {
     const unit = getBulkCsvCell(row, ["unit", "satuan", "unitName", "unit_name"]);
     const price = getBulkCsvCell(row, ["price", "harga"]);
     const note = getBulkCsvCell(row, ["note", "catatan", "keterangan"]);
+    const explicitSendNote = getBulkCsvCell(row, ["sendNote", "send_note", "send notes", "catatanKirim", "catatan_kirim", "tujuanKirim", "tujuan_kirim"]);
+    const extractedNote = extractSendNoteFromItemNote(note);
+    const sendNote = mergeSendNotes(explicitSendNote, extractedNote.sendNote);
     const sku = getBulkCsvCell(row, ["sku", "kode"]);
 
     if (!rawName && !quantity && !note) return;
@@ -5327,6 +5416,7 @@ function parseBulkSummaryCsv(text) {
         chatDate,
         dueText: "",
         orderNote: "",
+        sendNote: "",
         payment,
         shipping,
         items: [],
@@ -5334,7 +5424,8 @@ function parseBulkSummaryCsv(text) {
     }
 
     const draft = draftsByKey.get(groupKey);
-    draft.items.push(normalizeDraftItem({ name: rawName, sku, quantity, unit, price, note }));
+    draft.sendNote = mergeSendNotes(draft.sendNote, sendNote);
+    draft.items.push(normalizeDraftItem({ name: rawName, sku, quantity, unit, price, note: extractedNote.note }));
     lastMeta = { customerName, chatDate, payment, shipping };
   });
 
@@ -5911,7 +6002,8 @@ function renderBulkDrafts() {
     filteredDrafts = filteredDrafts.filter((draft) => {
       const nameMatch = String(draft.customerName || "").toLowerCase().includes(searchQuery);
       const addressMatch = String(draft.customerAddress || "").toLowerCase().includes(searchQuery);
-      return nameMatch || addressMatch;
+      const sendNoteMatch = getDraftSendNote(draft).toLowerCase().includes(searchQuery);
+      return nameMatch || addressMatch || sendNoteMatch;
     });
   }
 
@@ -5989,6 +6081,10 @@ function renderBulkDrafts() {
             <label>
               Tanggal chat
               <input type="text" data-draft-field="chatDate" value="${escapeHtml(draft.chatDate || "")}">
+            </label>
+            <label class="bulk-draft-send-note">
+              Send note
+              <input type="text" data-draft-field="sendNote" value="${escapeHtml(getDraftSendNote(draft))}" placeholder="Contoh: kirim ke Direktorat ITS">
             </label>
             <label>
               ${shippingLabelHtml()}
@@ -6192,6 +6288,7 @@ function buildSalePayloadFromDraft(draft, completedAt = new Date(), options = {}
     queueNo: queueInfo?.queueNo || null,
     queueDate: queueInfo?.queueDate || "",
     orderNote: "",
+    sendNote: getDraftSendNote(draft),
     dueText: "",
     subtotal,
     shipping,
@@ -6238,6 +6335,7 @@ async function loadDraftToCart(draftId) {
     chatDate: draft.chatDate || "",
     dueText: "",
     orderNote: "",
+    sendNote: getDraftSendNote(draft),
     sourceDraftId: draft.id,
     queueNo: queueInfo?.queueNo || null,
     queueDate: queueInfo?.queueDate || "",
@@ -6534,6 +6632,7 @@ function buildSalePayload() {
     queueNo: state.sale.queueNo || null,
     queueDate: state.sale.queueDate || "",
     orderNote: "",
+    sendNote: normalizeSendNoteText(state.sale.sendNote),
     dueText: "",
     subtotal: totals.subtotal,
     shipping: totals.shipping,
@@ -6757,6 +6856,8 @@ async function dbFetchSales(options = {}) {
         customerAddress: sale.customer_address || "",
         order_note: sale.order_note || "",
         orderNote: sale.order_note || "",
+        send_note: sale.send_note || "",
+        sendNote: sale.send_note || "",
         due_text: sale.due_text || "",
         dueText: sale.due_text || "",
         chat_date: sale.chat_date || "",
@@ -7034,6 +7135,7 @@ async function saveSaleToDatabase(payload) {
       customer_name: payload.customerName || "",
       customer_address: payload.customerAddress || "",
       order_note: payload.orderNote || "",
+      send_note: payload.sendNote || payload.send_note || "",
       due_text: payload.dueText || "",
       chat_date: payload.chatDate || "",
       paid_amount: payload.paidAmount || 0
@@ -7168,6 +7270,7 @@ async function updateSaleInDatabase(saleId, payload) {
         customer_name: customerName,
         customer_address: payload.customerAddress || payload.customer_address || "",
         order_note: payload.orderNote || payload.order_note || "",
+        send_note: payload.sendNote || payload.send_note || "",
         due_text: payload.dueText || payload.due_text || "",
         chat_date: chatDate,
         paid_amount: payload.paidAmount || payload.paid_amount || 0
@@ -7251,6 +7354,8 @@ async function updateSaleInDatabase(saleId, payload) {
         customerAddress: updatedSales.customer_address || "",
         order_note: updatedSales.order_note || "",
         orderNote: updatedSales.order_note || "",
+        send_note: updatedSales.send_note || "",
+        sendNote: updatedSales.send_note || "",
         due_text: updatedSales.due_text || "",
         dueText: updatedSales.due_text || "",
         chat_date: updatedSales.chat_date || "",
@@ -8130,11 +8235,209 @@ function renderPaymentOptions(currentPayment) {
     .join("");
 }
 
+function getSaleEditProductOptionValue(productId, variantId = "") {
+  const productKey = String(productId || "").trim();
+  const variantKey = String(variantId || "").trim();
+  return productKey ? `sale-edit-product:${productKey}:${variantKey}` : "";
+}
+
+function createSaleEditManualOption(value, meta = "Item manual") {
+  const option = makeTomOption(value, value, meta, value, "sale-edit-manual");
+  return option ? { ...option, manual: true } : null;
+}
+
+function makeSaleEditProductOption(product, variant, options = {}) {
+  if (!product) return null;
+  const activeVariant = variant || getDefaultVariant(product);
+  const productId = String(product.id || "").trim();
+  const variantId = String(activeVariant?.id || "").trim();
+  const value = getSaleEditProductOptionValue(productId, variantId);
+  if (!value) return null;
+
+  const variantName = String(activeVariant?.name || "").trim();
+  const isDefaultOption = Boolean(options.isDefault);
+  const displayText = isDefaultOption || !variantName || normalizeKey(variantName) === "normal"
+    ? String(product.name || "Menu").trim()
+    : `${String(product.name || "Menu").trim()} · ${variantName}`;
+  const category = getProductCategory(product);
+  const aliases = getProductAliases(product);
+  const variantAliases = Array.isArray(activeVariant?.aliases) ? activeVariant.aliases : [];
+  const price = Number(activeVariant?.price || product.price || 0);
+  const meta = [
+    currency.format(price),
+    isDefaultOption ? "Default" : variantName,
+    product.sku,
+    category,
+  ].filter(Boolean).join(" · ");
+  const keywords = [
+    product.name,
+    product.sku,
+    category,
+    aliases.join(" "),
+    variantName,
+    activeVariant?.receiptLabel,
+    activeVariant?.unitName,
+    variantAliases.join(" "),
+  ].filter(Boolean).join(" ");
+
+  return {
+    ...makeTomOption(value, displayText, meta, keywords, "sale-edit-product"),
+    productId,
+    variantId,
+    sku: product.sku || "",
+    menuName: product.name || "",
+    variantName,
+    unitName: activeVariant?.unitName || "",
+    pricingType: normalizePricingType(activeVariant?.pricingType || "fixed"),
+    staticReceiptLabel: String(activeVariant?.receiptLabel || "").trim(),
+    price,
+    isDefaultOption,
+  };
+}
+
+function getSaleEditProductOptions() {
+  const options = [];
+  const seen = new Set();
+  state.products
+    .filter((product) => product.source !== "virtual")
+    .slice()
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "id-ID", { sensitivity: "base", numeric: true }))
+    .forEach((product) => {
+      const variants = getProductVariants(product);
+      const defaultVariant = getDefaultVariant(product);
+      const defaultOption = makeSaleEditProductOption(product, defaultVariant, { isDefault: true });
+      if (defaultOption && !seen.has(defaultOption.value)) {
+        seen.add(defaultOption.value);
+        options.push(defaultOption);
+      }
+
+      variants.forEach((variant) => {
+        if (!variant || String(variant.id || "") === String(defaultVariant?.id || "")) return;
+        const option = makeSaleEditProductOption(product, variant);
+        if (!option || seen.has(option.value)) return;
+        seen.add(option.value);
+        options.push(option);
+      });
+    });
+  return options;
+}
+
+function findSaleEditProductOption(productId, variantId = "") {
+  const productKey = String(productId || "").trim();
+  if (!productKey) return null;
+  const variantKey = String(variantId || "").trim();
+  const options = getSaleEditProductOptions();
+  return options.find((option) => option.productId === productKey && String(option.variantId || "") === variantKey)
+    || options.find((option) => option.productId === productKey && option.isDefaultOption)
+    || null;
+}
+
+function getSaleEditItemProductOption(item = {}) {
+  const productId = String(item.productClientId || item.product_client_id || "").trim();
+  if (!productId) return null;
+  const variantId = String(item.variantId || item.variantClientId || item.variant_client_id || "").trim();
+  return findSaleEditProductOption(productId, variantId);
+}
+
+function getSaleEditItemPickerValue(item = {}) {
+  const option = getSaleEditItemProductOption(item);
+  return option?.value || String(item.name || "").trim();
+}
+
+function getSaleEditRowField(row, field) {
+  return row?.querySelector?.(`[data-sale-edit-field="${field}"]`) || null;
+}
+
+function setSaleEditRowField(row, field, value) {
+  const input = getSaleEditRowField(row, field);
+  if (input) input.value = String(value ?? "");
+}
+
+function getSaleEditRowQuantity(row) {
+  return Math.max(1, parseIntegerInput(getSaleEditRowField(row, "quantity")?.value || "1") || 1);
+}
+
+function getSaleEditReceiptLabel(option, quantity) {
+  if (!option || option.manual) return "";
+  const pricingType = normalizePricingType(option.pricingType);
+  const unitName = String(option.unitName || "").trim();
+  if (pricingType === "unit" && quantity > 1 && unitName) return `${quantity} ${unitName}`;
+  return String(option.staticReceiptLabel || (normalizeKey(option.variantName) === "normal" ? "" : option.variantName || "")).trim();
+}
+
+function applySaleEditManualSelection(row, value) {
+  const name = String(value || "").trim();
+  setSaleEditRowField(row, "name", name);
+  setSaleEditRowField(row, "sku", "");
+  setSaleEditRowField(row, "product_client_id", "");
+  setSaleEditRowField(row, "variant_client_id", "");
+  setSaleEditRowField(row, "menu_name", "");
+  setSaleEditRowField(row, "variant_name", "");
+  setSaleEditRowField(row, "unit_name", "");
+  setSaleEditRowField(row, "unit_quantity", "");
+  setSaleEditRowField(row, "pricing_type", "");
+  setSaleEditRowField(row, "receipt_label", "");
+}
+
+function applySaleEditProductSelection(row, option) {
+  if (!row || !option || option.manual) return;
+  const quantity = getSaleEditRowQuantity(row);
+  const receiptLabel = getSaleEditReceiptLabel(option, quantity);
+  const displayName = getReceiptItemDisplayName({
+    menuName: option.menuName,
+    variantName: option.variantName,
+    unitName: option.unitName,
+    unitQuantity: quantity,
+    quantity,
+    pricingType: option.pricingType,
+    receiptLabel,
+  });
+
+  setSaleEditRowField(row, "name", displayName);
+  setSaleEditRowField(row, "sku", option.sku || "");
+  setSaleEditRowField(row, "price", formatIntegerInput(option.price || 0));
+  setSaleEditRowField(row, "product_client_id", option.productId || "");
+  setSaleEditRowField(row, "variant_client_id", option.variantId || "");
+  setSaleEditRowField(row, "menu_name", option.menuName || "");
+  setSaleEditRowField(row, "variant_name", option.variantName || "");
+  setSaleEditRowField(row, "unit_name", option.unitName || "");
+  setSaleEditRowField(row, "unit_quantity", quantity);
+  setSaleEditRowField(row, "pricing_type", option.pricingType || "fixed");
+  setSaleEditRowField(row, "receipt_label", receiptLabel);
+}
+
+function syncSaleEditSelectedItemForQuantity(row) {
+  if (!row) return;
+  const productId = getSaleEditRowField(row, "product_client_id")?.value || "";
+  if (!productId) return;
+  const variantId = getSaleEditRowField(row, "variant_client_id")?.value || "";
+  const option = findSaleEditProductOption(productId, variantId);
+  if (!option) return;
+  const quantity = getSaleEditRowQuantity(row);
+  const receiptLabel = getSaleEditReceiptLabel(option, quantity);
+  const displayName = getReceiptItemDisplayName({
+    menuName: option.menuName,
+    variantName: option.variantName,
+    unitName: option.unitName,
+    unitQuantity: quantity,
+    quantity,
+    pricingType: option.pricingType,
+    receiptLabel,
+  });
+
+  setSaleEditRowField(row, "name", displayName);
+  setSaleEditRowField(row, "unit_quantity", quantity);
+  setSaleEditRowField(row, "receipt_label", receiptLabel);
+}
+
 function renderSaleEditItemRow(item = {}) {
   const quantity = Math.max(1, Number(item.quantity || 1));
   const price = Number(item.price || 0);
+  const rowId = makeId("sale-edit-row");
+  const pickerValue = getSaleEditItemPickerValue(item);
   return `
-    <article class="sale-edit-item" data-sale-edit-item>
+    <article class="sale-edit-item" data-sale-edit-item data-sale-edit-row-id="${escapeHtml(rowId)}">
+      <input data-sale-edit-field="name" type="hidden" value="${escapeHtml(item.name || "")}">
       <input data-sale-edit-field="product_client_id" type="hidden" value="${escapeHtml(item.productClientId || item.product_client_id || "")}">
       <input data-sale-edit-field="variant_client_id" type="hidden" value="${escapeHtml(item.variantId || item.variantClientId || item.variant_client_id || "")}">
       <input data-sale-edit-field="menu_name" type="hidden" value="${escapeHtml(item.menuName || item.menu_name || item.name || "")}">
@@ -8145,7 +8448,7 @@ function renderSaleEditItemRow(item = {}) {
       <input data-sale-edit-field="receipt_label" type="hidden" value="${escapeHtml(item.receiptLabel || item.receipt_label || "")}">
       <label>
         Item
-        <input data-sale-edit-field="name" type="text" value="${escapeHtml(item.name || "")}" placeholder="Nama menu" required>
+        <input data-sale-edit-menu-search data-sale-edit-row-id="${escapeHtml(rowId)}" type="text" value="${escapeHtml(pickerValue)}" placeholder="Cari atau ketik menu" required>
       </label>
       <label>
         SKU
@@ -8194,6 +8497,10 @@ function renderSaleEditForm(payload) {
         <label class="sale-edit-wide">
           Tanggal chat
           <input name="chatDate" type="text" autocomplete="off" placeholder="Contoh: 28/05/2026 21.09.55" value="${escapeHtml(payload.chatDate)}">
+        </label>
+        <label class="sale-edit-wide">
+          Send note
+          <input name="sendNote" type="text" autocomplete="off" placeholder="Contoh: kirim ke Direktorat ITS" value="${escapeHtml(payload.sendNote || "")}">
         </label>
       </div>
       <div class="sale-edit-items">
@@ -8259,6 +8566,7 @@ function getSaleEditFormValues(form) {
     shipping: parseIntegerInput(formData.get("shipping")),
     tax: 0,
     chatDate: String(formData.get("chatDate") || "").trim(),
+    sendNote: normalizeSendNoteText(formData.get("sendNote") || ""),
     items,
   };
 }
@@ -8310,6 +8618,7 @@ async function saveSaleDetailEdit(form) {
 }
 
 function renderSaleDetail(sale) {
+  destroySaleEditProductPickers();
   const payload = saleToReceiptPayload(sale);
   const items = Array.isArray(payload.items) ? payload.items : [];
   const isEditing = Boolean(state.editingSaleDetail);
@@ -8384,6 +8693,14 @@ function renderSaleDetail(sale) {
                   </div>`
                 : ""
             }
+            ${
+              payload.sendNote
+                ? `<div>
+                    <span>Send note</span>
+                    <strong>${escapeHtml(payload.sendNote)}</strong>
+                  </div>`
+                : ""
+            }
           </div>`
     }
     <div class="sale-detail-items">
@@ -8399,7 +8716,10 @@ function renderSaleDetail(sale) {
       <div class="sale-detail-grand-total"><span>Total</span><strong>${currency.format(payload.total)}</strong></div>
     </div>
   `;
-  if (isEditing) updateSaleEditTotalPreview();
+  if (isEditing) {
+    initSaleEditProductPickers(els.saleDetailBody);
+    updateSaleEditTotalPreview();
+  }
 }
 
 function openSaleDetailModal(saleId) {
@@ -9189,6 +9509,7 @@ function receiptHtmlFromSale(sale) {
   const usedDeposit = Number(sale.usedDeposit || 0);
   const customerName = String(sale.customerName || sale.customer_name || sale.customerAddress || sale.customer_address || "").trim();
   const chatDate = String(sale.chatDate || sale.chat_date || "").trim();
+  const sendNote = normalizeSendNoteText(sale.sendNote || sale.send_note || "");
   const queueInfo = getQueueInfoFromSale(sale);
   const compact = (sale.receiptMode || state.settings.receiptMode || "compact") === "compact";
   const orderInfo = [
@@ -9196,6 +9517,7 @@ function receiptHtmlFromSale(sale) {
     queueInfo
       ? `<div class="receipt-info receipt-small">NO: ${escapeHtml(queueInfo.queueNo)}</div>`
       : (chatDate ? `<div class="receipt-info receipt-small">${escapeHtml(chatDate)}</div>` : ""),
+    sendNote ? `<div class="receipt-info receipt-send-note"><strong>KIRIM KE :</strong> <strong>${escapeHtml(sendNote)}</strong></div>` : "",
   ].filter(Boolean).join("");
   const itemHtml = items
     .map((item) => {
@@ -9268,6 +9590,7 @@ function getCurrentReceiptPayload() {
     queueNo: state.sale.queueNo || null,
     queueDate: state.sale.queueDate || "",
     orderNote: "",
+    sendNote: normalizeSendNoteText(state.sale.sendNote),
     dueText: "",
     subtotal: totals.subtotal,
     shipping: totals.shipping,
@@ -9663,6 +9986,16 @@ async function printReceiptHtmlInFrame(htmlList, pageHeightMm, receiptOptions = 
       .receipt-note {
         font-size: var(--receipt-small-font-size);
       }
+      .receipt-send-note {
+        margin: 3px 0;
+        font-size: calc(var(--receipt-small-font-size) + 1px);
+        font-weight: 950;
+        line-height: 1.18;
+        -webkit-text-stroke: 0.28px #111;
+      }
+      .receipt-send-note strong {
+        font-weight: 950;
+      }
       .receipt-note {
         margin-top: 2px;
         color: #333;
@@ -9832,6 +10165,7 @@ function getTestReceiptPayload() {
     receiptFontSize: state.settings.receiptFontSize,
     receiptMode: state.settings.receiptMode,
     payment: "Tunai",
+    sendNote: "",
     subtotal: 15000,
     shipping: 0,
     tax: 0,
@@ -10232,6 +10566,7 @@ function salesToCsv(sales) {
     "Tanggal",
     "Customer",
     "Tanggal Chat",
+    "Send Note",
     "Pembayaran",
     "Nama Item",
     "SKU",
@@ -10253,6 +10588,7 @@ function salesToCsv(sales) {
         new Date(sale.completed_at).toLocaleString("id-ID"),
         sale.customer_name || sale.customer_address || "",
         sale.chat_date || "",
+        sale.send_note || sale.sendNote || "",
         sale.payment,
         getReceiptItemDisplayName(item),
         item.sku || "",
@@ -10414,6 +10750,7 @@ function renderSettings() {
   if (els.dailyMenuDateInput) els.dailyMenuDateInput.value = getDailyMenuEditorDate();
   if (els.dailyMenuOnlyInput) els.dailyMenuOnlyInput.checked = Boolean(state.dailyMenu.onlyToday);
   els.customerNameInput.value = state.sale.customerName || "";
+  if (els.sendNoteInput) els.sendNoteInput.value = state.sale.sendNote || "";
   els.shippingInput.value = formatIntegerInput(state.sale.shipping);
   els.paymentInput.value = state.sale.payment;
   updatePaymentSelectUI();
@@ -12173,11 +12510,19 @@ function bindEvents() {
     if (event.target.matches("[data-sale-edit-money]")) {
       formatMoneyInput(event.target);
     }
+    if (event.target.matches('[data-sale-edit-field="quantity"]')) {
+      syncSaleEditSelectedItemForQuantity(event.target.closest("[data-sale-edit-item]"));
+    }
     updateSaleEditTotalPreview(form);
   });
   els.saleDetailBody.addEventListener("change", (event) => {
     const form = event.target.closest("#saleEditForm");
-    if (form) updateSaleEditTotalPreview(form);
+    if (form) {
+      if (event.target.matches('[data-sale-edit-field="quantity"]')) {
+        syncSaleEditSelectedItemForQuantity(event.target.closest("[data-sale-edit-item]"));
+      }
+      updateSaleEditTotalPreview(form);
+    }
   });
   els.saleDetailBody.addEventListener("click", (event) => {
     const addItemButton = event.target.closest("[data-add-sale-edit-item]");
@@ -12186,8 +12531,10 @@ function bindEvents() {
       const list = form?.querySelector("[data-sale-edit-item-list]");
       if (list) {
         list.insertAdjacentHTML("beforeend", renderSaleEditItemRow({ quantity: 1 }));
+        const row = list.querySelector("[data-sale-edit-item]:last-child");
+        initSaleEditProductPickers(row);
         updateSaleEditTotalPreview(form);
-        list.querySelector("[data-sale-edit-item]:last-child input")?.focus();
+        row?.querySelector("[data-sale-edit-menu-search]")?.tomselect?.focus?.();
       }
       return;
     }
@@ -12200,7 +12547,9 @@ function bindEvents() {
         setDatabaseStatus("Struk harus punya minimal satu item.");
         return;
       }
-      removeItemButton.closest("[data-sale-edit-item]")?.remove();
+      const row = removeItemButton.closest("[data-sale-edit-item]");
+      destroySaleEditProductPicker(row);
+      row?.remove();
       updateSaleEditTotalPreview(form);
       return;
     }
@@ -12221,6 +12570,7 @@ function bindEvents() {
     }
   });
   els.saleDetailModal.addEventListener("close", () => {
+    destroySaleEditProductPickers();
     state.activeDetailSale = null;
     state.editingSaleDetail = false;
   });
@@ -12547,6 +12897,12 @@ function bindEvents() {
     updateSaleCustomerName(els.customerNameInput.value, { forceDefaults: true });
   });
 
+  els.sendNoteInput?.addEventListener("input", () => {
+    state.sale.sendNote = normalizeSendNoteText(els.sendNoteInput.value);
+    saveState();
+    renderReceipt();
+  });
+
   els.shippingInput.addEventListener("input", () => {
     resetCheckoutWarnings();
     state.sale.shipping = parseIntegerInput(els.shippingInput.value);
@@ -12716,7 +13072,7 @@ function getSalesTomOptions() {
       const itemNames = (sale.items || []).map((item) => getReceiptItemDisplayName(item)).filter(Boolean);
       const total = currency.format(Number(sale.total || 0));
       const meta = [receiptNo, total, sale.payment].filter(Boolean).join(" · ");
-      const keywords = [receiptNo, customer, sale.chatDate || sale.chat_date, itemNames.join(" "), sale.orderNote || sale.order_note].filter(Boolean).join(" ");
+      const keywords = [receiptNo, customer, sale.chatDate || sale.chat_date, itemNames.join(" "), sale.orderNote || sale.order_note, sale.sendNote || sale.send_note].filter(Boolean).join(" ");
       addTomOption(options, seen, receiptNo, receiptNo, [customer, total].filter(Boolean).join(" · "), keywords, "receipt");
       addTomOption(options, seen, customer, customer, meta, keywords, "customer");
       itemNames.slice(0, 4).forEach((name) => addTomOption(options, seen, name, name, meta, keywords, "item"));
@@ -12751,11 +13107,12 @@ function getBulkDraftTomOptions() {
   const options = [];
   const seen = new Set();
   state.importDrafts.forEach((draft) => {
-    const items = (draft.items || []).map((item) => item.name).filter(Boolean);
+    const customer = draft.customerName || draft.customer || "";
+    const items = (draft.items || []).map((item) => item.rawName || item.name).filter(Boolean);
     const meta = [draft.status === "ready" ? "Siap" : "Perlu review", items.length ? `${items.length} item` : ""].filter(Boolean).join(" · ");
-    const keywords = [draft.customer, draft.chatDate, items.join(" ")].filter(Boolean).join(" ");
-    addTomOption(options, seen, draft.customer, draft.customer, meta, keywords, "draft");
-    items.slice(0, 4).forEach((item) => addTomOption(options, seen, item, item, draft.customer, keywords, "item"));
+    const keywords = [customer, draft.chatDate, getDraftSendNote(draft), items.join(" ")].filter(Boolean).join(" ");
+    addTomOption(options, seen, customer, customer, meta, keywords, "draft");
+    items.slice(0, 4).forEach((item) => addTomOption(options, seen, item, item, customer, keywords, "item"));
   });
   return options.slice(0, 260);
 }
@@ -12896,8 +13253,153 @@ function enhanceTomSearchInput(config) {
   });
 }
 
+function destroySaleEditProductPicker(rowOrId) {
+  const rowId = typeof rowOrId === "string" ? rowOrId : rowOrId?.dataset?.saleEditRowId;
+  if (!rowId) return;
+  const entry = saleEditTomSelectControls.get(rowId);
+  if (!entry) return;
+  try {
+    entry.control?.destroy?.();
+  } catch (error) {
+    console.warn("Gagal membersihkan picker item struk", error);
+  }
+  saleEditTomSelectControls.delete(rowId);
+}
+
+function destroySaleEditProductPickers(root = null) {
+  if (root) {
+    root.querySelectorAll?.("[data-sale-edit-item]").forEach((row) => destroySaleEditProductPicker(row));
+    return;
+  }
+  [...saleEditTomSelectControls.keys()].forEach(destroySaleEditProductPicker);
+}
+
+function getSaleEditPickerOptionsWithCurrent(currentValue) {
+  const options = getSaleEditProductOptions().filter(Boolean);
+  const value = String(currentValue || "").trim();
+  if (value && !options.some((option) => String(option.value) === value)) {
+    const manualOption = createSaleEditManualOption(value, "Item saat ini");
+    if (manualOption) options.unshift(manualOption);
+  }
+  return options;
+}
+
+function initSaleEditProductPickers(root = document) {
+  if (typeof window.TomSelect !== "function") return;
+  root.querySelectorAll?.("[data-sale-edit-menu-search]").forEach((input) => {
+    if (input.tomselect) return;
+    const row = input.closest("[data-sale-edit-item]");
+    if (!row) return;
+    const rowId = input.dataset.saleEditRowId || row.dataset.saleEditRowId || makeId("sale-edit-row");
+    row.dataset.saleEditRowId = rowId;
+    input.dataset.saleEditRowId = rowId;
+    const initialValue = String(input.value || "").trim();
+
+    input.setAttribute("autocomplete", "off");
+    input.classList.add("tom-search-source");
+
+    const control = new window.TomSelect(input, {
+      options: getSaleEditPickerOptionsWithCurrent(initialValue),
+      valueField: "value",
+      labelField: "text",
+      searchField: ["text", "meta", "keywords"],
+      maxItems: 1,
+      create: (value) => createSaleEditManualOption(value),
+      persist: false,
+      createOnBlur: true,
+      openOnFocus: true,
+      closeAfterSelect: true,
+      hideSelected: false,
+      preload: "focus",
+      maxOptions: 80,
+      dropdownParent: getTomDropdownParent(input),
+      wrapperClass: "ts-wrapper kasir-tom-select kasir-sale-edit-menu-picker",
+      controlClass: "ts-control kasir-tom-control",
+      dropdownClass: "ts-dropdown kasir-tom-dropdown",
+      optionClass: "option kasir-tom-option",
+      itemClass: "item kasir-tom-item",
+      render: {
+        option(data, escape) {
+          return `
+            <div class="kasir-tom-option-inner">
+              <strong>${escape(data.text)}</strong>
+              ${data.meta ? `<span>${escape(data.meta)}</span>` : ""}
+            </div>
+          `;
+        },
+        item(data, escape) {
+          return `<div class="kasir-tom-item-inner">${escape(data.text)}</div>`;
+        },
+        option_create(data, escape) {
+          return `<div class="kasir-tom-option-inner is-create"><strong>Pakai "${escape(data.input)}"</strong><span>Item manual, harga tidak diubah</span></div>`;
+        },
+        no_results(data, escape) {
+          return `<div class="kasir-tom-empty">Tidak ada menu untuk "${escape(data.input)}"</div>`;
+        },
+      },
+      onChange(value) {
+        const selectedValue = String(value || "").trim();
+        const selectedOption = selectedValue ? this.options[selectedValue] : null;
+        if (selectedOption?.type === "sale-edit-product" && !selectedOption.manual) {
+          applySaleEditProductSelection(row, selectedOption);
+        } else {
+          applySaleEditManualSelection(row, selectedOption?.text || selectedValue);
+        }
+        updateSaleEditTotalPreview(row.closest("#saleEditForm"));
+        scheduleTomSelectDropdownPosition(this);
+      },
+      onType() {
+        scheduleTomSelectDropdownPosition(this);
+      },
+      onFocus() {
+        scheduleTomSelectDropdownPosition(this);
+      },
+      onDropdownOpen() {
+        scheduleTomSelectDropdownPosition(this);
+      },
+    });
+
+    if (initialValue) control.setValue(initialValue, true);
+    saleEditTomSelectControls.set(rowId, {
+      input,
+      control,
+      row,
+      lastSignature: getTomOptionSignature(getSaleEditPickerOptionsWithCurrent(initialValue)),
+    });
+  });
+}
+
+function refreshSaleEditProductPickerOptions() {
+  if (!saleEditTomSelectControls.size) return;
+  saleEditTomSelectControls.forEach((entry, rowId) => {
+    if (!entry.row?.isConnected) {
+      destroySaleEditProductPicker(rowId);
+      return;
+    }
+
+    const currentValue = String(entry.control?.getValue?.() || entry.input?.value || "").trim();
+    const options = getSaleEditPickerOptionsWithCurrent(currentValue);
+    const signature = getTomOptionSignature(options);
+    if (signature === entry.lastSignature) return;
+    entry.control.clearOptions();
+    entry.control.addOptions(options);
+    if (currentValue) {
+      if (!entry.control.options[currentValue]) {
+        const manualOption = createSaleEditManualOption(currentValue, "Item saat ini");
+        if (manualOption) entry.control.addOption(manualOption);
+      }
+      entry.control.setValue(currentValue, true);
+    }
+    entry.control.refreshOptions(false);
+    entry.lastSignature = signature;
+  });
+}
+
 function refreshTomSelectOptions() {
-  if (!tomSelectControls.size) return;
+  if (!tomSelectControls.size) {
+    refreshSaleEditProductPickerOptions();
+    return;
+  }
   tomSelectControls.forEach((entry) => {
     const options = entry.optionsGetter();
     const signature = getTomOptionSignature(options);
@@ -12921,6 +13423,7 @@ function refreshTomSelectOptions() {
     }
     entry.control.setValue(value, true);
   });
+  refreshSaleEditProductPickerOptions();
 }
 
 function initTomSelectEnhancements() {
@@ -13918,6 +14421,7 @@ async function migrateDataToSupabase() {
           customer_name: sale.customerName || sale.customer_name || "",
           customer_address: sale.customerAddress || sale.customer_address || "",
           order_note: sale.orderNote || sale.order_note || "",
+          send_note: sale.sendNote || sale.send_note || "",
           due_text: sale.dueText || sale.due_text || "",
           chat_date: sale.chatDate || sale.chat_date || "",
           deleted_at: sale.deletedAt || sale.deleted_at || null,
