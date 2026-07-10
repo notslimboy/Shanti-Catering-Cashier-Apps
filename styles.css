@@ -3534,6 +3534,9 @@ body.sidebar-open .sidebar-overlay {
 .print-report-transactions td {
   font-size: 7.9pt;
   line-height: 1.2;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .print-report-transactions tr.row-even td {
