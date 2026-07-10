@@ -10346,7 +10346,7 @@ function salesReportA4Html() {
         if (items.length === 0) {
           return `
             <tr${rowClass}>
-              <td>${index + 1}</td>
+              <td class="col-index">${index + 1}</td>
               <td>${escapeHtml(customerName)}</td>
               <td class="print-report-courier-cell">${escapeHtml(courier)}</td>
               <td>-</td>
@@ -10372,7 +10372,7 @@ function salesReportA4Html() {
             if (itemIdx === 0) {
               return `
                 <tr${rowClass}>
-                  <td rowspan="${rowspan}">${index + 1}</td>
+                  <td rowspan="${rowspan}" class="col-index">${index + 1}</td>
                   <td rowspan="${rowspan}">${escapeHtml(customerName)}</td>
                   <td rowspan="${rowspan}" class="print-report-courier-cell">${escapeHtml(courier)}</td>
                   <td>${menuStr}</td>

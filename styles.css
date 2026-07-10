@@ -3564,7 +3564,7 @@ body.sidebar-open .sidebar-overlay {
 }
 
 .print-report-transactions th:nth-child(1),
-.print-report-transactions td:nth-child(1) {
+.print-report-transactions td.col-index {
   width: 8mm;
   white-space: nowrap;
 }
