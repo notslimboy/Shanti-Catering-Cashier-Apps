@@ -2735,6 +2735,18 @@ body.sidebar-open .sidebar-overlay {
   overflow: visible;
   border-color: color-mix(in srgb, var(--mini-color, var(--teal)) 28%, var(--line));
   background: var(--surface);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.courier-shipping-row:hover {
+  background: color-mix(in srgb, var(--mini-color, var(--teal)) 8%, var(--surface));
+}
+
+.courier-shipping-row.active {
+  background: color-mix(in srgb, var(--mini-color, var(--teal)) 14%, var(--surface));
+  border-color: var(--mini-color, var(--teal));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--mini-color, var(--teal)) 30%, transparent);
 }
 
 .courier-shipping-row .mini-list-name {
@@ -2770,10 +2782,7 @@ body.sidebar-open .sidebar-overlay {
   display: inline-flex;
   align-items: center;
   min-height: 17px;
-  border: 1px solid color-mix(in srgb, var(--mini-color, var(--teal)) 42%, var(--line));
   border-radius: 999px;
-  background: transparent;
-  color: color-mix(in srgb, var(--mini-color, var(--teal)) 68%, var(--ink));
   padding: 1px 5px;
   font-size: 0.62rem;
   font-weight: 820;
@@ -2782,8 +2791,27 @@ body.sidebar-open .sidebar-overlay {
 }
 
 .courier-shipping-count-chip {
+  border: 1px solid var(--line);
+  background: transparent;
   color: var(--muted);
-  border-color: var(--line);
+}
+
+.courier-shipping-tag-chip {
+  border: 1px solid color-mix(in srgb, var(--mini-color, var(--teal)) 42%, var(--line));
+  background: transparent;
+  color: color-mix(in srgb, var(--mini-color, var(--teal)) 68%, var(--ink));
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.courier-shipping-tag-chip:hover {
+  background: color-mix(in srgb, var(--mini-color, var(--teal)) 10%, transparent);
+}
+
+.courier-shipping-tag-chip.active {
+  background: var(--mini-color, var(--teal));
+  border-color: var(--mini-color, var(--teal));
+  color: var(--surface);
 }
 
 @media (max-width: 520px) {

@@ -34,3 +34,6 @@ drivers/*.zip
 scratch/
 .agents/
 orders_*.csv
+Chat*.txt
+clean_menu_sheet.csv
+.DS_Store

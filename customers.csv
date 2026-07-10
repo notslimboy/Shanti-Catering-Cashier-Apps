@@ -1,5 +1,5 @@
 id,name,default_shipping,tag,aliases
-82,44 Ny. Iin Oman - Jl. Memet Sastrowiryo no 22,5000,Kenjeran,
+82,Memet 22,5000,Kenjeran,44 Ny. Iin Oman - Jl. Memet Sastrowiryo no 22;Jl. Memet Sastrowiryo no 22
 67,Alfita,0,ITS,
 48,Alfita - T71,0,ITS,
 75,Alif Sutorejo Prima,0,Sutorejo,
@@ -41,8 +41,8 @@ id,name,default_shipping,tag,aliases
 1866,D 19 SDMO Teknik,5000,ITS,
 129,Dahlan Bhas Sari,0,Bhaskara,
 1914,Desi - Teknik Kimia,5000,ITS,
-1949,Dharmahusada BF 20,0,Dharmahusada,
-105,Dharmahusada Emas Fendi - Dharmas bf20,0,Dharmahusada,
+1949,Dharmahusada BF 20,0,Dharmahusada,Dharmahusada Emas Fendi - Dharmas bf20;Dharmas bf20;Fendi
+105,Dharmahusada BF 20,0,Dharmahusada,Dharmahusada Emas Fendi - Dharmas bf20;Dharmas bf20;Fendi
 110,Dina Tohir 9,5000,Kenjeran,
 1892,DUPAK PECAH BELAH,35000,GOJEK,
 149,Dyah Ayu SDMO,5000,ITS,
@@ -95,7 +95,7 @@ id,name,default_shipping,tag,aliases
 1849,Jl. Dharmahusada Indah 42,5000,Dharmahusada,
 47,Jl. Suto prima indah barat blok PQ 35.,0,Sutorejo,
 1926,Jl.Bhaskara 2 no 12,0,Bhaskara,
-78,jojoran 1 Blok B no 19 - Kiki,15000,Jojoran,
+78,Jojoran 1 Blok B No 19 - Kiki,15000,Jojoran,jojoran 1 Blok B no 19 - Kiki
 15,Kalijudan Taruna 2/6,15000,Kalijudan,
 1950,Keputih Tgl Timur 2 / 15A,15000,Keputih,
 127,Klampis Semolo Timur 7 A-1,0,KLAMPIS,
@@ -106,7 +106,7 @@ id,name,default_shipping,tag,aliases
 28,M BPD B/46,0,BPD,
 31,Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2,5000,ITS,
 1843,Manyar Tirtoyoso 3/18,20000,Manyar,
-7,Mbak JU KARIS - Ibu Artha suteng blok G no.11,0,Sutorejo,
+7,Suto Tengah G / 11,0,Sutorejo,Mbak JU KARIS - Ibu Artha suteng blok G no.11;Ibu Artha suteng blok G no.11;Mbak JU KARIS
 1951,MUJI DPTSI RC Lt.4,5000,ITS,
 1885,MULYO  UTARA 7/8,0,Mulyosari,
 1901,Mulyo BPD B -1,0,BPD,Mulyosari BPD B1
@@ -121,7 +121,7 @@ id,name,default_shipping,tag,aliases
 85,Mulyo Utara/21,0,Mulyosari,Mulyo Utara/21 - MU21 pesan
 50,Mulyosari BPD 20,0,BPD,Mulyosari BPD B-20
 35,Mulyosari BPD B-22,0,BPD,
-61,Mulyosari Mas F 19 - Mulyo mas f19 - matur swn,0,Mulyosari,
+61,Mulyosari Mas F 19,0,Mulyosari,Mulyosari Mas F 19 - Mulyo mas f19 - matur swn;Mulyo mas f19;matur swn
 1857,Mulyosari prima 1/92 mc 19,5000,Mulyosari,
 135,Mulyosari Ut 8/5,0,Mulyosari,
 3,Mutiara C3 / 367,5000,Pakuwon,
@@ -153,7 +153,7 @@ id,name,default_shipping,tag,aliases
 1918,Suto Teng 8 / 44,0,Sutorejo,
 24,Suto Tengah 12 / 10,5000,Sutorejo,Sut.Tengah 12/10
 5,Suto Tengah 13 /45,0,Sutorejo,
-18,Suto Tengah 13 /45 - Sut Teng XIII/45,0,Sutorejo,
+18,Suto tengah 13 / 45,0,Sutorejo,Suto Tengah 13 /45 - Sut Teng XIII/45;Sut Teng XIII/45
 1947,Suto Tengah Blok G 11,0,Sutorejo,
 1880,SUTO TGH 12/10,0,Sutorejo,
 1871,SUTO TGH VI GG 11 - ANAK BU EDI,0,Sutorejo,
@@ -175,7 +175,7 @@ id,name,default_shipping,tag,aliases
 95,T71,0,ITS,
 93,T73,0,ITS,
 153,T85,0,ITS,
-122,Taman Mulyo Ut 7 - Telly - Taman Mulyosari Utara no 7,0,Mulyosari,
+122,Taman Mulyo Utara 7,0,Mulyosari,Taman Mulyo Ut 7 - Telly - Taman Mulyosari Utara no 7;Telly;Taman Mulyosari Utara no 7
 146,Taman Mulyo Utara 20,0,Mulyosari,
 58,Taman Suto Timur 48 Baru,0,Sutorejo,
 103,Tek Lingkungan Khusnul,5000,ITS,
@@ -200,7 +200,7 @@ id,name,default_shipping,tag,aliases
 159,W - 12,0,ITS,
 40,W / 6,0,ITS,
 142,Widya Research Center lt 4,5000,ITS,
-4,Wisper 1/49,20000,Wisper,Wisma Permai 1 no.49
+4,Wisper 1/49,5000,Wisper,Wisma Permai 1 no.49
 11,Wisper 1/75,5000,Wisper,Jl. Wisma Permai 1 no 75
 14,Wisper 11 / 17,5000,Wisper,
 1909,Wisper 5 / 18,5000,Wisper,Wisper 5/18

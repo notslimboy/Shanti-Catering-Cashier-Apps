@@ -219,199 +219,198 @@ The user will provide the **Daftar Menu Hari Ini** and the **WhatsApp chat histo
 ## DATABASE CONTEXT: OFFICIAL CUSTOMERS & ONGKIR
 Below is the list of official customer names registered in the cashier app database, their match terms/aliases, and their default shipping/ongkir fee:
 
-| Customer Name | Match Terms / Aliases | Default Shipping (Ongkir) |
-| --- | --- | --- |
-| **44 Ny. Iin Oman - Jl. Memet Sastrowiryo no 22** | "44 Ny. Iin Oman - Jl. Memet Sastrowiryo no 22" | 5000 |
-| **Alif Sutorejo Prima** | "Alif Sutorejo Prima" | 0 |
-| **Anak 7/37** | "Anak 7/37" | 0 |
-| **Anak Bu Edi Baru - Sut teng VI gg 11** | "Anak Bu Edi Baru - Sut teng VI gg 11" | 0 |
-| **Anish BTH** | "Anish BTH", "Anis BTH", "ANIS BRIN", "Anish BRIN" | 5000 |
-| **Araya 1 Blok B5 4A - Bu Wiwi** | "Araya 1 Blok B5 4A - Bu Wiwi", "Araya 1 Blok B5 4A" | 0 |
-| **Babatan Pantai 39** | "Babatan Pantai 39" | 10000 |
-| **BHAS 1/15** | "BHAS 1/15" | 0 |
-| **Bhas Tengah D - 37** | "Bhas Tengah D - 37", "Bhas Tengah D - 37 (bali)" | 0 |
-| **Bhas Utara B 14** | "Bhas Utara B 14", "BHAS UTARA", "BHAS UTARA D 14", "Bhaskara Utara B 14" | 0 |
-| **Bhaskara 4/5** | "Bhaskara 4/5" | 0 |
-| **Bhaskara Sari 18** | "Bhaskara Sari 18" | 0 |
-| **Bhaskara sari 38** | "Bhaskara sari 38", "Bhas Sari 38" | 0 |
-| **Bhaskara sari 60** | "Bhaskara sari 60" | 0 |
-| **Bhaskara V/56** | "Bhaskara V/56" | 0 |
-| **Bhaskara V/6** | "Bhaskara V/6" | 0 |
-| **Bhsksari 60** | "Bhsksari 60" | 0 |
-| **ITS T 40** | "ITS T 40", "Blok T / 40", "Blok T 40", "T40", "T 40", "T/40", "ITS T40", "ITS T/40", "Blok T40" | 0 |
-| **ITS T 11** | "ITS T 11", "Blok T/11", "T 11", "T11", "T/11", "ITS T/11", "Blok T 11" | 0 |
-| **ITS U 177** | "ITS U 177", "Blok U / 177", "U 177", "U177", "U/177", "ITS U/177", "Blok U 177" | 0 |
-| **Blok U/117** | "Blok U/117" | 0 |
-| **Blok X-16** | "Blok X-16" | 0 |
-| **BPD  B 34-35** | "BPD  B 34-35" | 0 |
-| **BPD B / 33** | "BPD B / 33" | 0 |
-| **BPD B 11** | "BPD B 11" | 0 |
-| **BPD B 14** | "BPD B 14" | 0 |
-| **BPD B 22** | "BPD B 22", "Bpd B 22 Baru" | 0 |
-| **BPD B/16** | "BPD B/16", "BPD Blok B/16" | 0 |
-| **BPD D 24/25** | "BPD D 24/25" | 0 |
-| **BU BAMBANG GG 1** | "BU BAMBANG GG 1" | 0 |
-| **Bu Nawir Mulyosari** | "Bu Nawir Mulyosari" | 0 |
-| **Bu Nawir Mulyosari - MU 6/24** | "Bu Nawir Mulyosari - MU 6/24" | 0 |
-| **Bumi Galaxy Permai M3 / 17** | "Bumi Galaxy Permai M3 / 17", "SMA 5 .. ratna juli" | 15000 |
-| **ITS D 19** | "ITS D 19", "D 19 SDMO Teknik", "D 19", "D19", "ITS D19", "ITS D/19", "SDMO", "SDMO Teknik", "Teknik D 19" | 5000 |
-| **Dahlan Bhas Sari** | "Dahlan Bhas Sari" | 0 |
-| **Desi - Teknik Kimia** | "Desi - Teknik Kimia" | 5000 |
-| **Dharmahusada BF 20** | "Dharmahusada BF 20" | 0 |
-| **Dharmahusada Emas Fendi - Dharmas bf20** | "Dharmahusada Emas Fendi - Dharmas bf20" | 0 |
-| **Dina Tohir 9** | "Dina Tohir 9" | 5000 |
-| **Dyah Ayu SDMO** | "Dyah Ayu SDMO", "Dyah Ayu" | 5000 |
-| **DUPAK PECAH BELAH** | "DUPAK PECAH BELAH" | 35000 |
-| **Emi Bumi Marina** | "Emi Bumi Marina", "Emi Bumi Marina - Teknik Fisika", "Teknik Fisika Emi", "Emi Teknik Fisika" | 5000 |
-| **Eni SMP 29** | "Eni SMP 29" | 35000 |
-| **Florence J5/23.** | "Florence J5/23." | 5000 |
-| **Florence J9 / 2** | "Florence J9 / 2" | 5000 |
-| **ITS T 29** | "ITS T 29", "Gatot - Tri T 29", "Gatot", "Tri T 29", "T 29", "T29", "ITS T29", "ITS T/29", "Blok T29" | 0 |
-| **Gimo Gg 3 - Bhaskara 3/10** | "Gimo Gg 3 - Bhaskara 3/10" | 0 |
-| **Griya Asri G2 - 28** | "Griya Asri G2 - 28" | 5000 |
-| **ITS H 18** | "ITS H 18", "H - 18", "H 18", "H18", "H/18", "ITS H/18", "Blok H18" | 5000 |
-| **Herlin T. Lingkungan** | "Herlin T. Lingkungan", "herlin T.lingkungan", "Herlin T Lingkungan", "Herlin Teknik Lingkungan", "Herlin", "T Lingkungan Herlin" | 5000 |
-| **ITS D 20** | "ITS D 20" | 5000 |
-| **ITS D 23** | "ITS D 23", "ITS D23", "D 23", "D23", "D/23", "ITS D/23", "Blok D23" | 5000 |
-| **ITS F 6** | "ITS F 6" | 0 |
-| **ITS I 6** | "ITS I 6", "ITS i 6", "ITS BLK I6", "I 6", "I6", "I/6", "ITS I/6", "Blok I6" | 5000 |
-| **ITS J 3** | "ITS J 3", "ITS J / 3", "J / 3", "J3", "J/3", "ITS J/3", "Blok J3" | 0 |
-| **ITS J 41** | "ITS J 41" | 0 |
-| **ITS J 5** | "ITS J 5", "J 5 Endah", "J 5 Endah - Blok J/5", "Endah J5", "Endah", "J5", "J 5", "J/5", "Blok J/5", "Blok J5" | 5000 |
-| **ITS M 3** | "ITS M 3" | 5000 |
-| **ITS N 11** | "ITS N 11", "N11 Tanti", "Tanti N11", "Tanti", "N11", "N 11", "ITS N11", "ITS N/11", "Blok N11" | 5000 |
-| **ITS N 2** | "ITS N 2", "ITS N/2", "N - 2", "N 2", "N2", "Blok N2" | 0 |
-| **ITS N 8** | "ITS N 8", "ITS N8", "N 8", "N8", "N/8", "ITS N/8", "Blok N8" | 5000 |
-| **ITS P 7** | "ITS P 7" | 5000 |
-| **ITS R 8** | "ITS R 8", "ITS R - 8", "R 8", "R8", "R/8", "ITS R/8", "Blok R8" | 5000 |
-| **ITS T 52** | "ITS T 52", "T52" | 0 |
-| **ITS T 8 LAMA** | "ITS T 8 LAMA" | 5000 |
-| **ITS T 85** | "ITS T 85", "ITS T85", "ITS T/85", "T85", "T 85", "T/85", "T - 85", "Blok T85" | 0 |
-| **ITS T 86** | "ITS T 86", "Blok T 86.bu Ratna", "Bu Ratna", "Ratna T86", "T86", "T 86", "ITS T86", "ITS T/86", "Blok T86" | 0 |
-| **ITS T 9** | "ITS T 9" | 5000 |
-| **ITS T 93** | "ITS T 93", "T 93 ITS" | 0 |
-| **ITS T 4** | "ITS T 4", "ITS T/4", "ITS T4", "T - 4", "T 4", "T4", "T/4", "Blok T4" | 5000 |
-| **ITS T 73** | "ITS T 73", "ITS T/73", "ITS T73", "T73", "T 73", "T/73", "Blok T/73", "Blok T 73" | 0 |
-| **ITS U 132** | "ITS U 132" | 5000 |
-| **ITS U 180** | "ITS U 180", "ITS U180", "U 180", "U180", "U-180", "U/180", "Blok U 180" | 5000 |
-| **ITS U 196** | "ITS U 196" | 5000 |
-| **ITS U 64** | "ITS U 64", "ITS U/64", "U 64", "U64", "U/64", "Blok U64" | 0 |
-| **ITS U 87** | "ITS U 87" | 5000 |
-| **ITS U/117** | "ITS U/117" | 0 |
-| **ITS V 10** | "ITS V 10", "ITS V10" | 0 |
-| **ITS W/6** | "ITS W/6" | 0 |
-| **ITS W 12** | "ITS W 12", "W - 12", "W 12", "W12", "W/12", "ITS W/12", "Blok W12" | 0 |
-| **ITS W 20** | "ITS W 20", "ITS W20", "W 20", "W20", "W/20", "ITS W/20", "Blok W20" | 5000 |
-| **ITS X 16** | "ITS X 16" | 0 |
-| **ITS X 4** | "ITS X 4" | 5000 |
-| **ITS X 22** | "ITS X 22", "ITS X/22", "ITS X22", "X 22", "X22", "X/22", "Blok X22" | 5000 |
-| **Jl Memet S no 22 komplek AL** | "Jl Memet S no 22 komplek AL" | 5000 |
-| **Jl. Dharmahusada Indah 42** | "Jl. Dharmahusada Indah 42" | 5000 |
-| **Jl. Suto prima indah barat blok PQ 35.** | "Jl. Suto prima indah barat blok PQ 35." | 0 |
-| **Jl.Bhaskara 2 no 12** | "Jl.Bhaskara 2 no 12" | 0 |
-| **jojoran 1 Blok B no 19 - Kiki** | "jojoran 1 Blok B no 19 - Kiki" | 15000 |
-| **Kalijudan Taruna 2/6** | "Kalijudan Taruna 2/6" | 15000 |
-| **Keputih Tgl Timur 2 / 15A** | "Keputih Tgl Timur 2 / 15A" | 15000 |
-| **Klampis Semolo Timur 7 A-1** | "Klampis Semolo Timur 7 A-1" | 0 |
-| **Leli - Wisper 5/6** | "Leli - Wisper 5/6" | 5000 |
-| **Leli Wisper - Wisma Permai V/6** | "Leli Wisper - Wisma Permai V/6" | 5000 |
-| **Lora** | "Lora" | 0 |
-| **ITS M 4A** | "ITS M 4A", "M 4 A", "M4A", "M 4A", "M/4A", "ITS M 4 A", "ITS M4A", "ITS M/4A", "Blok M4A" | 0 |
-| **M BPD B/46** | "M BPD B/46" | 0 |
-| **Ayu Managemen Bisnis** | "Ayu Managemen Bisnis", "Ayu Manajemen Bisnis", "Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2", "Managemen Bisnis Ayu", "Manajemen Bisnis Ayu", "Gedung FKK ITS Lt 2" | 5000 |
-| **Manyar Tirtoyoso 3/18** | "Manyar Tirtoyoso 3/18" | 20000 |
-| **Mbak JU KARIS - Ibu Artha suteng blok G no.11** | "Mbak JU KARIS - Ibu Artha suteng blok G no.11" | 0 |
-| **MUJI DPTSI RC Lt.4** | "MUJI DPTSI RC Lt.4" | 5000 |
-| **MULYO  UTARA 7/8** | "MULYO  UTARA 7/8" | 0 |
-| **Mulyo BPD B -1** | "Mulyo BPD B -1", "Mulyosari BPD B1" | 0 |
-| **Mulyo BPD BLOK B / 23** | "Mulyo BPD BLOK B / 23" | 0 |
-| **Mulyo Tengah 6 / 9** | "Mulyo Tengah 6 / 9" | 0 |
-| **Mulyo Tengah 6/5** | "Mulyo Tengah 6/5" | 0 |
-| **Mulyo Tng 6 / 5** | "Mulyo Tng 6 / 5" | 0 |
-| **Mulyo Utara 11/58** | "Mulyo Utara 11/58" | 5000 |
-| **Mulyo utara 2/69** | "Mulyo utara 2/69" | 0 |
-| **Mulyo Utara 6/24** | "Mulyo Utara 6/24" | 0 |
-| **Mulyo Utara 7 / 6** | "Mulyo Utara 7 / 6" | 0 |
-| **Mulyo Utara/21** | "Mulyo Utara/21", "Mulyo Utara/21 - MU21 pesan" | 0 |
-| **Mulyosari BPD 20** | "Mulyosari BPD 20", "Mulyosari BPD B-20" | 0 |
-| **Mulyosari BPD B-22** | "Mulyosari BPD B-22" | 0 |
-| **Mulyosari Mas F 19 - Mulyo mas f19 - matur swn** | "Mulyosari Mas F 19 - Mulyo mas f19 - matur swn" | 0 |
-| **Mulyosari prima 1/92 mc 19** | "Mulyosari prima 1/92 mc 19" | 5000 |
-| **Mulyosari Ut 8/5** | "Mulyosari Ut 8/5" | 0 |
-| **Mutiara C3 / 367** | "Mutiara C3 / 367" | 5000 |
-| **NGADI 5** | "NGADI 5" | 5000 |
-| **P1/40 - Puri asri** | "P1/40 - Puri asri" | 5000 |
-| **P1 / 40** | "P1 / 40", "P1/40", "P1 40", "P 1 / 40" | 0 |
-| **Pakuwon City San Diego M2** | "Pakuwon City San Diego M2" | 5000 |
-| **Pantai Mentari Blok SF no. 9** | "Pantai Mentari Blok SF no. 9", "Pantai Mentari Blok SF / 9" | 10000 |
-| **ITS T 99** | "ITS T 99", "Prof Yulfi Zetra - Asww - Blok T99", "Prof Yulfi Zetra", "Yulfi", "Yulfi Zetra", "Asww", "Blok T99", "T99", "T 99", "ITS T99", "ITS T/99" | 5000 |
-| **Pucangan 3.no.49** | "Pucangan 3.no.49" | 25000 |
-| **Puri Asri P3 no. 32 Nenet** | "Puri Asri P3 no. 32 Nenet" | 5000 |
-| **RENA SMA** | "RENA SMA" | 5000 |
-| **Retno Alazar - Sut Tengah XII/10** | "Retno Alazar - Sut Tengah XII/10" | 0 |
-| **Sadikin 11** | "Sadikin 11" | 5000 |
-| **SAHABUDIN 26** | "SAHABUDIN 26" | 5000 |
-| **Samlangyu 23** | "Samlangyu 23" | 5000 |
-| **Sandiego Blok M 12/60-62** | "Sandiego Blok M 12/60-62" | 5000 |
-| **Santi BAPKM** | "Santi BAPKM" | 0 |
-| **SPR F20** | "SPR F20", "SPR F - 20" | 15000 |
-| **SPR OKY** | "SPR OKY" | 0 |
-| **Sukodono** | "Sukodono" | 0 |
-| **Susi Rohmadi** | "Susi Rohmadi" | 25000 |
-| **Suto Sel 3/5** | "Suto Sel 3/5" | 0 |
-| **SUTO SEL 7/37** | "SUTO SEL 7/37", "Sut sel 7/37", "Sut sel 7 no 37", "Suto Sel 7 / 37" | 0 |
-| **Suto Sel 8/27** | "Suto Sel 8/27", "Sut.sel 8/27" | 0 |
-| **Suto Sel 8/40** | "Suto Sel 8/40" | 0 |
-| **Suto Teng 8 / 44** | "Suto Teng 8 / 44" | 0 |
-| **Suto Tengah 12 / 10** | "Suto Tengah 12 / 10", "Sut.Tengah 12/10" | 5000 |
-| **Suto Tengah 13 /45** | "Suto Tengah 13 /45" | 0 |
-| **Suto Tengah 13 /45 - Sut Teng XIII/45** | "Suto Tengah 13 /45 - Sut Teng XIII/45" | 0 |
-| **Suto Tengah Blok G 11** | "Suto Tengah Blok G 11" | 0 |
-| **SUTO TGH 12/10** | "SUTO TGH 12/10" | 0 |
-| **SUTO TGH VI GG 11 - ANAK BU EDI** | "SUTO TGH VI GG 11 - ANAK BU EDI" | 0 |
-| **SUTO TIMUR 3 / 33** | "SUTO TIMUR 3 / 33" | 0 |
-| **Suto Ut Gg 11 No 10** | "Suto Ut Gg 11 No 10" | 0 |
-| **Suto Utara 6 /11** | "Suto Utara 6 /11", "Suto Utara 6/11" | 0 |
-| **Suto Utara Baru 17 A** | "Suto Utara Baru 17 A" | 0 |
-| **Sutorejo Sel 1/22** | "Sutorejo Sel 1/22" | 0 |
-| **Sutorejo Selatan XI/4** | "Sutorejo Selatan XI/4" | 0 |
-| **Sutorejo Tengah 2/6** | "Sutorejo Tengah 2/6" | 0 |
-| **Sutorejo Tengah 8/10** | "Sutorejo Tengah 8/10", "Sutorejo Tengah 8 / 10" | 0 |
-| **sutorejo timur 32/H5** | "sutorejo timur 32/H5" | 0 |
-| **ITS T 49** | "ITS T 49", "T - 49", "T 49", "T49", "T/49", "ITS T/49", "Blok T49" | 5000 |
-| **ITS T 65** | "ITS T 65", "T - 65", "T 65", "T65", "T/65", "ITS T/65", "Blok T65" | 5000 |
-| **ITS T 72** | "ITS T 72", "T - 72", "T 72", "T72", "T/72", "ITS T/72", "Blok T72" | 0 |
-| **T 93** | "T 93" | 0 |
-| **ITS T 71** | "ITS T 71", "T71", "T 71", "T/71", "ITS T/71", "Blok T71", "Alfita", "Alftita", "Alfita - T71" | 0 |
-| **Taman Mulyo Ut 7 - Telly - Taman Mulyosari Utara no 7** | "Taman Mulyo Ut 7 - Telly - Taman Mulyosari Utara no 7" | 0 |
-| **Taman Mulyo Utara 20** | "Taman Mulyo Utara 20" | 0 |
-| **Taman Suto Timur 48 Baru** | "Taman Suto Timur 48 Baru" | 0 |
-| **Teknik Lingkungan Khusnul** | "Teknik Lingkungan Khusnul", "Tek Lingkungan Khusnul", "Khusnul", "T Lingkungan Khusnul" | 5000 |
-| **Temen Pak Didik (IDA)** | "Temen Pak Didik (IDA)", "Temen Pak Didik" | 35000 |
-| **Tenggilis Mejoyo Fayzia** | "Tenggilis Mejoyo Fayzia" | 35000 |
-| **Tohir 1** | "Tohir 1" | 5000 |
-| **Tohir 14** | "Tohir 14" | 0 |
-| **Tohir 17** | "Tohir 17" | 5000 |
-| **Tohir 17 Komplek AL** | "Tohir 17 Komplek AL" | 5000 |
-| **Tohir 23** | "Tohir 23" | 5000 |
-| **Tohir 30** | "Tohir 30", "Pantai Mentari F / 31" | 5000 |
-| **Tuwowo Rejo** | "Tuwowo Rejo" | 15000 |
-| **ITS U 9** | "ITS U 9", "U / 9 Atria", "U 9 Atria", "U/9 Atria", "Atria", "U 9", "U9", "U/9", "ITS U9", "ITS U/9", "Blok U9" | 5000 |
-| **U 117** | "U 117" | 0 |
-| **ITS U4 5A** | "ITS U4 5A", "U4 5A", "U 4 5A", "U4/5A", "U 4 / 5 A", "U 4 / 5 A Perpus - Blok U-IV/5A", "Blok U-IV/5A" | 5000 |
-| **ITS U 176** | "ITS U 176", "U I76", "U 176", "U176", "U/176", "ITS U176", "ITS U/176", "Blok U176" | 0 |
-| **U87** | "U87" | 5000 |
-| **ITS V 3** | "ITS V 3", "V / 3", "V 3", "V3", "V/3", "ITS V/3", "Blok V3" | 5000 |
-| **Vila Westwood A6-1** | "Vila Westwood A6-1", "villa westwood A6-1" | 5000 |
-| **Villa Royal C4/18** | "Villa Royal C4/18" | 5000 |
-| **W / 6** | "W / 6" | 0 |
-| **Widya Research Center lt 4** | "Widya Research Center lt 4" | 5000 |
-| **Wisper 1/49** | "Wisper 1/49", "Wisma Permai 1 no.49" | 20000 |
-| **Wisper 1/75** | "Wisper 1/75", "Jl. Wisma Permai 1 no 75" | 5000 |
-| **Wisper 11 / 17** | "Wisper 11 / 17" | 5000 |
-| **Wisper 5 / 18** | "Wisper 5 / 18", "Wisper 5/18" | 5000 |
-| **WisPer Tengah 9/JJ-37** | "WisPer Tengah 9/JJ-37", "WisPer Tengah 9/JJ -37 Sby", "WISPER TGH 9/JJ-37" | 10000 |
-| **Wisper Tengah Blok Kk** | "Wisper Tengah Blok Kk", "WISPER TENGAH KK" | 5000 |
-| **WPT IX / JJ - 37** | "WPT IX / JJ - 37", "WISPER WPT IX / JJ - 37" | 10000 |
-| **ITS X 26** | "ITS X 26", "X 26", "X26", "X/26", "ITS X/26", "Blok X26", "X 26 - Bu iis", "Bu Iis X26", "Bu iis", "Iis X26" | 5000 |
-| **Zainal Gg. 3** | "Zainal Gg. 3" | 0 |
+| Customer Name                                             | Match Terms / Aliases                                                                                                                                                                     | Default Shipping (Ongkir) |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| **Memet 22**                                             | "Memet 22", "44 Ny. Iin Oman - Jl. Memet Sastrowiryo no 22", "Jl. Memet Sastrowiryo no 22"                                                                                              | 5000                      |
+| **Alif Sutorejo Prima**                                   | "Alif Sutorejo Prima"                                                                                                                                                                     | 0                         |
+| **Anak 7/37**                                             | "Anak 7/37"                                                                                                                                                                               | 0                         |
+| **Anak Bu Edi Baru - Sut teng VI gg 11**                  | "Anak Bu Edi Baru - Sut teng VI gg 11"                                                                                                                                                    | 0                         |
+| **Anish BTH**                                             | "Anish BTH", "Anis BTH", "ANIS BRIN", "Anish BRIN"                                                                                                                                        | 5000                      |
+| **Araya 1 Blok B5 4A - Bu Wiwi**                          | "Araya 1 Blok B5 4A - Bu Wiwi", "Araya 1 Blok B5 4A"                                                                                                                                      | 0                         |
+| **Babatan Pantai 39**                                     | "Babatan Pantai 39"                                                                                                                                                                       | 10000                     |
+| **BHAS 1/15**                                             | "BHAS 1/15"                                                                                                                                                                               | 0                         |
+| **Bhas Tengah D - 37**                                    | "Bhas Tengah D - 37", "Bhas Tengah D - 37 (bali)"                                                                                                                                         | 0                         |
+| **Bhas Utara B 14**                                       | "Bhas Utara B 14", "BHAS UTARA", "BHAS UTARA D 14", "Bhaskara Utara B 14"                                                                                                                 | 0                         |
+| **Bhaskara 4/5**                                          | "Bhaskara 4/5"                                                                                                                                                                            | 0                         |
+| **Bhaskara Sari 18**                                      | "Bhaskara Sari 18"                                                                                                                                                                        | 0                         |
+| **Bhaskara sari 38**                                      | "Bhaskara sari 38", "Bhas Sari 38"                                                                                                                                                        | 0                         |
+| **Bhaskara sari 60**                                      | "Bhaskara sari 60"                                                                                                                                                                        | 0                         |
+| **Bhaskara V/56**                                         | "Bhaskara V/56"                                                                                                                                                                           | 0                         |
+| **Bhaskara V/6**                                          | "Bhaskara V/6"                                                                                                                                                                            | 0                         |
+| **Bhsksari 60**                                           | "Bhsksari 60"                                                                                                                                                                             | 0                         |
+| **ITS T 40**                                              | "ITS T 40", "Blok T / 40", "Blok T 40", "T40", "T 40", "T/40", "ITS T40", "ITS T/40", "Blok T40"                                                                                          | 0                         |
+| **ITS T 11**                                              | "ITS T 11", "Blok T/11", "T 11", "T11", "T/11", "ITS T/11", "Blok T 11"                                                                                                                   | 0                         |
+| **ITS U 177**                                             | "ITS U 177", "Blok U / 177", "U 177", "U177", "U/177", "ITS U/177", "Blok U 177"                                                                                                          | 0                         |
+| **Blok U/117**                                            | "Blok U/117"                                                                                                                                                                              | 0                         |
+| **Blok X-16**                                             | "Blok X-16"                                                                                                                                                                               | 0                         |
+| **BPD  B 34-35**                                          | "BPD  B 34-35"                                                                                                                                                                            | 0                         |
+| **BPD B / 33**                                            | "BPD B / 33"                                                                                                                                                                              | 0                         |
+| **BPD B 11**                                              | "BPD B 11"                                                                                                                                                                                | 0                         |
+| **BPD B 14**                                              | "BPD B 14"                                                                                                                                                                                | 0                         |
+| **BPD B 22**                                              | "BPD B 22", "Bpd B 22 Baru"                                                                                                                                                               | 0                         |
+| **BPD B/16**                                              | "BPD B/16", "BPD Blok B/16"                                                                                                                                                               | 0                         |
+| **BPD D 24/25**                                           | "BPD D 24/25"                                                                                                                                                                             | 0                         |
+| **BU BAMBANG GG 1**                                       | "BU BAMBANG GG 1"                                                                                                                                                                         | 0                         |
+| **Bu Nawir Mulyosari**                                    | "Bu Nawir Mulyosari"                                                                                                                                                                      | 0                         |
+| **Bu Nawir Mulyosari - MU 6/24**                          | "Bu Nawir Mulyosari - MU 6/24"                                                                                                                                                            | 0                         |
+| **Bumi Galaxy Permai M3 / 17**                            | "Bumi Galaxy Permai M3 / 17", "SMA 5 .. ratna juli"                                                                                                                                       | 15000                     |
+| **ITS D 19**                                              | "ITS D 19", "D 19 SDMO Teknik", "D 19", "D19", "ITS D19", "ITS D/19", "SDMO", "SDMO Teknik", "Teknik D 19"                                                                                | 5000                      |
+| **Dahlan Bhas Sari**                                      | "Dahlan Bhas Sari"                                                                                                                                                                        | 0                         |
+| **Desi - Teknik Kimia**                                   | "Desi - Teknik Kimia"                                                                                                                                                                     | 5000                      |
+| **Dharmahusada BF 20**                                    | "Dharmahusada BF 20", "Dharmahusada Emas Fendi - Dharmas bf20", "Dharmas bf20", "Fendi"                                                                                                | 0                         |
+| **Dina Tohir 9**                                          | "Dina Tohir 9"                                                                                                                                                                            | 5000                      |
+| **Dyah Ayu SDMO**                                         | "Dyah Ayu SDMO", "Dyah Ayu"                                                                                                                                                               | 5000                      |
+| **DUPAK PECAH BELAH**                                     | "DUPAK PECAH BELAH"                                                                                                                                                                       | 35000                     |
+| **Emi Bumi Marina**                                       | "Emi Bumi Marina", "Emi Bumi Marina - Teknik Fisika", "Teknik Fisika Emi", "Emi Teknik Fisika"                                                                                            | 5000                      |
+| **Eni SMP 29**                                            | "Eni SMP 29"                                                                                                                                                                              | 35000                     |
+| **Florence J5/23.**                                       | "Florence J5/23."                                                                                                                                                                         | 5000                      |
+| **Florence J9 / 2**                                       | "Florence J9 / 2"                                                                                                                                                                         | 5000                      |
+| **ITS T 29**                                              | "ITS T 29", "Gatot - Tri T 29", "Gatot", "Tri T 29", "T 29", "T29", "ITS T29", "ITS T/29", "Blok T29"                                                                                     | 0                         |
+| **Gimo Gg 3 - Bhaskara 3/10**                             | "Gimo Gg 3 - Bhaskara 3/10"                                                                                                                                                               | 0                         |
+| **Griya Asri G2 - 28**                                    | "Griya Asri G2 - 28"                                                                                                                                                                      | 5000                      |
+| **ITS H 18**                                              | "ITS H 18", "H - 18", "H 18", "H18", "H/18", "ITS H/18", "Blok H18"                                                                                                                       | 5000                      |
+| **Herlin T. Lingkungan**                                  | "Herlin T. Lingkungan", "herlin T.lingkungan", "Herlin T Lingkungan", "Herlin Teknik Lingkungan", "Herlin", "T Lingkungan Herlin"                                                         | 5000                      |
+| **ITS D 20**                                              | "ITS D 20"                                                                                                                                                                                | 5000                      |
+| **ITS D 23**                                              | "ITS D 23", "ITS D23", "D 23", "D23", "D/23", "ITS D/23", "Blok D23"                                                                                                                      | 5000                      |
+| **ITS F 6**                                               | "ITS F 6"                                                                                                                                                                                 | 0                         |
+| **ITS I 6**                                               | "ITS I 6", "ITS i 6", "ITS BLK I6", "I 6", "I6", "I/6", "ITS I/6", "Blok I6"                                                                                                              | 5000                      |
+| **ITS J 3**                                               | "ITS J 3", "ITS J / 3", "J / 3", "J3", "J/3", "ITS J/3", "Blok J3"                                                                                                                        | 0                         |
+| **ITS J 41**                                              | "ITS J 41"                                                                                                                                                                                | 0                         |
+| **ITS J 5**                                               | "ITS J 5", "J 5 Endah", "J 5 Endah - Blok J/5", "Endah J5", "Endah", "J5", "J 5", "J/5", "Blok J/5", "Blok J5"                                                                            | 5000                      |
+| **ITS M 3**                                               | "ITS M 3"                                                                                                                                                                                 | 5000                      |
+| **ITS N 11**                                              | "ITS N 11", "N11 Tanti", "Tanti N11", "Tanti", "N11", "N 11", "ITS N11", "ITS N/11", "Blok N11"                                                                                           | 5000                      |
+| **ITS N 2**                                               | "ITS N 2", "ITS N/2", "N - 2", "N 2", "N2", "Blok N2"                                                                                                                                     | 0                         |
+| **ITS N 8**                                               | "ITS N 8", "ITS N8", "N 8", "N8", "N/8", "ITS N/8", "Blok N8"                                                                                                                             | 5000                      |
+| **ITS P 7**                                               | "ITS P 7"                                                                                                                                                                                 | 5000                      |
+| **ITS R 8**                                               | "ITS R 8", "ITS R - 8", "R 8", "R8", "R/8", "ITS R/8", "Blok R8"                                                                                                                          | 5000                      |
+| **ITS T 52**                                              | "ITS T 52", "T52"                                                                                                                                                                         | 0                         |
+| **ITS T 8 LAMA**                                          | "ITS T 8 LAMA"                                                                                                                                                                            | 5000                      |
+| **ITS T 85**                                              | "ITS T 85", "ITS T85", "ITS T/85", "T85", "T 85", "T/85", "T - 85", "Blok T85"                                                                                                            | 0                         |
+| **ITS T 86**                                              | "ITS T 86", "Blok T 86.bu Ratna", "Bu Ratna", "Ratna T86", "T86", "T 86", "ITS T86", "ITS T/86", "Blok T86"                                                                               | 0                         |
+| **ITS T 9**                                               | "ITS T 9"                                                                                                                                                                                 | 5000                      |
+| **ITS T 93**                                              | "ITS T 93", "T 93 ITS"                                                                                                                                                                    | 0                         |
+| **ITS T 4**                                               | "ITS T 4", "ITS T/4", "ITS T4", "T - 4", "T 4", "T4", "T/4", "Blok T4"                                                                                                                    | 5000                      |
+| **ITS T 73**                                              | "ITS T 73", "ITS T/73", "ITS T73", "T73", "T 73", "T/73", "Blok T/73", "Blok T 73"                                                                                                        | 0                         |
+| **ITS U 132**                                             | "ITS U 132"                                                                                                                                                                               | 5000                      |
+| **ITS U 180**                                             | "ITS U 180", "ITS U180", "U 180", "U180", "U-180", "U/180", "Blok U 180"                                                                                                                  | 5000                      |
+| **ITS U 196**                                             | "ITS U 196"                                                                                                                                                                               | 5000                      |
+| **ITS U 64**                                              | "ITS U 64", "ITS U/64", "U 64", "U64", "U/64", "Blok U64"                                                                                                                                 | 0                         |
+| **ITS U 87**                                              | "ITS U 87"                                                                                                                                                                                | 5000                      |
+| **ITS U/117**                                             | "ITS U/117"                                                                                                                                                                               | 0                         |
+| **ITS V 10**                                              | "ITS V 10", "ITS V10"                                                                                                                                                                     | 0                         |
+| **ITS W/6**                                               | "ITS W/6"                                                                                                                                                                                 | 0                         |
+| **ITS W 12**                                              | "ITS W 12", "W - 12", "W 12", "W12", "W/12", "ITS W/12", "Blok W12"                                                                                                                       | 0                         |
+| **ITS W 20**                                              | "ITS W 20", "ITS W20", "W 20", "W20", "W/20", "ITS W/20", "Blok W20"                                                                                                                      | 5000                      |
+| **ITS X 16**                                              | "ITS X 16"                                                                                                                                                                                | 0                         |
+| **ITS X 4**                                               | "ITS X 4"                                                                                                                                                                                 | 5000                      |
+| **ITS X 22**                                              | "ITS X 22", "ITS X/22", "ITS X22", "X 22", "X22", "X/22", "Blok X22"                                                                                                                      | 5000                      |
+| **Jl Memet S no 22 komplek AL**                           | "Jl Memet S no 22 komplek AL"                                                                                                                                                             | 5000                      |
+| **Jl. Dharmahusada Indah 42**                             | "Jl. Dharmahusada Indah 42"                                                                                                                                                               | 5000                      |
+| **Jl. Suto prima indah barat blok PQ 35.**                | "Jl. Suto prima indah barat blok PQ 35."                                                                                                                                                  | 0                         |
+| **Jl.Bhaskara 2 no 12**                                   | "Jl.Bhaskara 2 no 12"                                                                                                                                                                     | 0                         |
+| **Jojoran 1 Blok B No 19 - Kiki**                         | "Jojoran 1 Blok B No 19 - Kiki", "jojoran 1 Blok B no 19 - Kiki"                                                                                                                         | 15000                     |
+| **Kalijudan Taruna 2/6**                                  | "Kalijudan Taruna 2/6"                                                                                                                                                                    | 15000                     |
+| **Keputih Tgl Timur 2 / 15A**                             | "Keputih Tgl Timur 2 / 15A"                                                                                                                                                               | 15000                     |
+| **Klampis Semolo Timur 7 A-1**                            | "Klampis Semolo Timur 7 A-1"                                                                                                                                                              | 0                         |
+| **Leli - Wisper 5/6**                                     | "Leli - Wisper 5/6"                                                                                                                                                                       | 5000                      |
+| **Leli Wisper - Wisma Permai V/6**                        | "Leli Wisper - Wisma Permai V/6"                                                                                                                                                          | 5000                      |
+| **Lora**                                                  | "Lora"                                                                                                                                                                                    | 0                         |
+| **ITS M 4A**                                              | "ITS M 4A", "M 4 A", "M4A", "M 4A", "M/4A", "ITS M 4 A", "ITS M4A", "ITS M/4A", "Blok M4A"                                                                                                | 0                         |
+| **M BPD B/46**                                            | "M BPD B/46"                                                                                                                                                                              | 0                         |
+| **Ayu Managemen Bisnis**                                  | "Ayu Managemen Bisnis", "Ayu Manajemen Bisnis", "Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2", "Managemen Bisnis Ayu", "Manajemen Bisnis Ayu", "Gedung FKK ITS Lt 2" | 5000                      |
+| **Manyar Tirtoyoso 3/18**                                 | "Manyar Tirtoyoso 3/18"                                                                                                                                                                   | 20000                     |
+| **Suto Tengah G / 11**                                    | "Suto Tengah G / 11", "Mbak JU KARIS - Ibu Artha suteng blok G no.11", "Ibu Artha suteng blok G no.11", "Mbak JU KARIS"                                                                  | 0                         |
+| **MUJI DPTSI RC Lt.4**                                    | "MUJI DPTSI RC Lt.4"                                                                                                                                                                      | 5000                      |
+| **MULYO  UTARA 7/8**                                      | "MULYO  UTARA 7/8"                                                                                                                                                                        | 0                         |
+| **Mulyo BPD B -1**                                        | "Mulyo BPD B -1", "Mulyosari BPD B1"                                                                                                                                                      | 0                         |
+| **Mulyo BPD BLOK B / 23**                                 | "Mulyo BPD BLOK B / 23"                                                                                                                                                                   | 0                         |
+| **Mulyo Tengah 6 / 9**                                    | "Mulyo Tengah 6 / 9"                                                                                                                                                                      | 0                         |
+| **Mulyo Tengah 6/5**                                      | "Mulyo Tengah 6/5"                                                                                                                                                                        | 0                         |
+| **Mulyo Tng 6 / 5**                                       | "Mulyo Tng 6 / 5"                                                                                                                                                                         | 0                         |
+| **Mulyo Utara 11/58**                                     | "Mulyo Utara 11/58"                                                                                                                                                                       | 5000                      |
+| **Mulyo utara 2/69**                                      | "Mulyo utara 2/69"                                                                                                                                                                        | 0                         |
+| **Mulyo Utara 6/24**                                      | "Mulyo Utara 6/24"                                                                                                                                                                        | 0                         |
+| **Mulyo Utara 7 / 6**                                     | "Mulyo Utara 7 / 6"                                                                                                                                                                       | 0                         |
+| **Mulyo Utara/21**                                        | "Mulyo Utara/21", "Mulyo Utara/21 - MU21 pesan"                                                                                                                                           | 0                         |
+| **Mulyosari BPD 20**                                      | "Mulyosari BPD 20", "Mulyosari BPD B-20"                                                                                                                                                  | 0                         |
+| **Mulyosari BPD B-22**                                    | "Mulyosari BPD B-22"                                                                                                                                                                      | 0                         |
+| **Mulyosari Mas F 19**                                    | "Mulyosari Mas F 19", "Mulyosari Mas F 19 - Mulyo mas f19 - matur swn", "Mulyo mas f19", "matur swn"                                                                                    | 0                         |
+| **Mulyosari prima 1/92 mc 19**                            | "Mulyosari prima 1/92 mc 19"                                                                                                                                                              | 5000                      |
+| **Mulyosari Ut 8/5**                                      | "Mulyosari Ut 8/5"                                                                                                                                                                        | 0                         |
+| **Mutiara C3 / 367**                                      | "Mutiara C3 / 367"                                                                                                                                                                        | 5000                      |
+| **NGADI 5**                                               | "NGADI 5"                                                                                                                                                                                 | 5000                      |
+| **P1/40 - Puri asri**                                     | "P1/40 - Puri asri"                                                                                                                                                                       | 5000                      |
+| **P1 / 40**                                               | "P1 / 40", "P1/40", "P1 40", "P 1 / 40"                                                                                                                                                   | 5000                      |
+| **Pakuwon City San Diego M2**                             | "Pakuwon City San Diego M2"                                                                                                                                                               | 5000                      |
+| **Pantai Mentari Blok SF no. 9**                          | "Pantai Mentari Blok SF no. 9", "Pantai Mentari Blok SF / 9"                                                                                                                              | 10000                     |
+| **ITS T 99**                                              | "ITS T 99", "Prof Yulfi Zetra - Asww - Blok T99", "Prof Yulfi Zetra", "Yulfi", "Yulfi Zetra", "Asww", "Blok T99", "T99", "T 99", "ITS T99", "ITS T/99"                                    | 5000                      |
+| **Pucangan 3.no.49**                                      | "Pucangan 3.no.49"                                                                                                                                                                        | 25000                     |
+| **Puri Asri P3 no. 32 Nenet**                             | "Puri Asri P3 no. 32 Nenet"                                                                                                                                                               | 5000                      |
+| **RENA SMA**                                              | "RENA SMA"                                                                                                                                                                                | 5000                      |
+| **Retno Alazar - Sut Tengah XII/10**                      | "Retno Alazar - Sut Tengah XII/10"                                                                                                                                                        | 0                         |
+| **Sadikin 11**                                            | "Sadikin 11"                                                                                                                                                                              | 5000                      |
+| **SAHABUDIN 26**                                          | "SAHABUDIN 26"                                                                                                                                                                            | 5000                      |
+| **Samlangyu 23**                                          | "Samlangyu 23"                                                                                                                                                                            | 5000                      |
+| **Sandiego Blok M 12/60-62**                              | "Sandiego Blok M 12/60-62"                                                                                                                                                                | 5000                      |
+| **Santi BAPKM**                                           | "Santi BAPKM"                                                                                                                                                                             | 0                         |
+| **SPR F20**                                               | "SPR F20", "SPR F - 20"                                                                                                                                                                   | 15000                     |
+| **SPR OKY**                                               | "SPR OKY"                                                                                                                                                                                 | 0                         |
+| **Sukodono**                                              | "Sukodono"                                                                                                                                                                                | 0                         |
+| **Susi Rohmadi**                                          | "Susi Rohmadi"                                                                                                                                                                            | 25000                     |
+| **Suto Sel 3/5**                                          | "Suto Sel 3/5"                                                                                                                                                                            | 0                         |
+| **SUTO SEL 7/37**                                         | "SUTO SEL 7/37", "Sut sel 7/37", "Sut sel 7 no 37", "Suto Sel 7 / 37"                                                                                                                     | 0                         |
+| **Suto Sel 8/27**                                         | "Suto Sel 8/27", "Sut.sel 8/27"                                                                                                                                                           | 0                         |
+| **Suto Sel 8/40**                                         | "Suto Sel 8/40"                                                                                                                                                                           | 0                         |
+| **Suto Teng 8 / 44**                                      | "Suto Teng 8 / 44"                                                                                                                                                                        | 0                         |
+| **Suto Tengah 12 / 10**                                   | "Suto Tengah 12 / 10", "Sut.Tengah 12/10"                                                                                                                                                 | 5000                      |
+| **Suto Tengah 13 /45**                                    | "Suto Tengah 13 /45"                                                                                                                                                                      | 0                         |
+| **Suto tengah 13 / 45**                                   | "Suto tengah 13 / 45", "Suto Tengah 13 /45 - Sut Teng XIII/45", "Sut Teng XIII/45"                                                                                                        | 0                         |
+| **Suto Tengah Blok G 11**                                 | "Suto Tengah Blok G 11"                                                                                                                                                                   | 0                         |
+| **SUTO TGH 12/10**                                        | "SUTO TGH 12/10"                                                                                                                                                                          | 0                         |
+| **SUTO TGH VI GG 11 - ANAK BU EDI**                       | "SUTO TGH VI GG 11 - ANAK BU EDI"                                                                                                                                                         | 0                         |
+| **SUTO TIMUR 3 / 33**                                     | "SUTO TIMUR 3 / 33"                                                                                                                                                                       | 0                         |
+| **Suto Ut Gg 11 No 10**                                   | "Suto Ut Gg 11 No 10"                                                                                                                                                                     | 0                         |
+| **Suto Utara 6 /11**                                      | "Suto Utara 6 /11", "Suto Utara 6/11"                                                                                                                                                     | 0                         |
+| **Suto Utara Baru 17 A**                                  | "Suto Utara Baru 17 A"                                                                                                                                                                    | 0                         |
+| **Sutorejo Sel 1/22**                                     | "Sutorejo Sel 1/22"                                                                                                                                                                       | 0                         |
+| **Sutorejo Selatan XI/4**                                 | "Sutorejo Selatan XI/4"                                                                                                                                                                   | 0                         |
+| **Sutorejo Tengah 2/6**                                   | "Sutorejo Tengah 2/6"                                                                                                                                                                     | 0                         |
+| **Sutorejo Tengah 8/10**                                  | "Sutorejo Tengah 8/10", "Sutorejo Tengah 8 / 10"                                                                                                                                          | 0                         |
+| **sutorejo timur 32/H5**                                  | "sutorejo timur 32/H5"                                                                                                                                                                    | 0                         |
+| **ITS T 49**                                              | "ITS T 49", "T - 49", "T 49", "T49", "T/49", "ITS T/49", "Blok T49"                                                                                                                       | 5000                      |
+| **ITS T 65**                                              | "ITS T 65", "T - 65", "T 65", "T65", "T/65", "ITS T/65", "Blok T65"                                                                                                                       | 5000                      |
+| **ITS T 72**                                              | "ITS T 72", "T - 72", "T 72", "T72", "T/72", "ITS T/72", "Blok T72"                                                                                                                       | 0                         |
+| **T 93**                                                  | "T 93"                                                                                                                                                                                    | 0                         |
+| **ITS T 71**                                              | "ITS T 71", "T71", "T 71", "T/71", "ITS T/71", "Blok T71", "Alfita", "Alftita", "Alfita - T71"                                                                                            | 0                         |
+| **Taman Mulyo Utara 7**                                  | "Taman Mulyo Utara 7", "Taman Mulyo Ut 7 - Telly - Taman Mulyosari Utara no 7", "Telly", "Taman Mulyosari Utara no 7"                                                                    | 0                         |
+| **Taman Mulyo Utara 20**                                  | "Taman Mulyo Utara 20"                                                                                                                                                                    | 0                         |
+| **Taman Suto Timur 48 Baru**                              | "Taman Suto Timur 48 Baru"                                                                                                                                                                | 0                         |
+| **Teknik Lingkungan Khusnul**                             | "Teknik Lingkungan Khusnul", "Tek Lingkungan Khusnul", "Khusnul", "T Lingkungan Khusnul"                                                                                                  | 5000                      |
+| **Temen Pak Didik (IDA)**                                 | "Temen Pak Didik (IDA)", "Temen Pak Didik"                                                                                                                                                | 35000                     |
+| **Tenggilis Mejoyo Fayzia**                               | "Tenggilis Mejoyo Fayzia"                                                                                                                                                                 | 35000                     |
+| **Tohir 1**                                               | "Tohir 1"                                                                                                                                                                                 | 5000                      |
+| **Tohir 14**                                              | "Tohir 14"                                                                                                                                                                                | 0                         |
+| **Tohir 17**                                              | "Tohir 17"                                                                                                                                                                                | 5000                      |
+| **Tohir 17 Komplek AL**                                   | "Tohir 17 Komplek AL"                                                                                                                                                                     | 5000                      |
+| **Tohir 23**                                              | "Tohir 23"                                                                                                                                                                                | 5000                      |
+| **Tohir 30**                                              | "Tohir 30", "Pantai Mentari F / 31"                                                                                                                                                       | 5000                      |
+| **Tuwowo Rejo**                                           | "Tuwowo Rejo"                                                                                                                                                                             | 15000                     |
+| **ITS U 9**                                               | "ITS U 9", "U / 9 Atria", "U 9 Atria", "U/9 Atria", "Atria", "U 9", "U9", "U/9", "ITS U9", "ITS U/9", "Blok U9"                                                                           | 5000                      |
+| **U 117**                                                 | "U 117"                                                                                                                                                                                   | 0                         |
+| **ITS U4 5A**                                             | "ITS U4 5A", "U4 5A", "U 4 5A", "U4/5A", "U 4 / 5 A", "U 4 / 5 A Perpus - Blok U-IV/5A", "Blok U-IV/5A"                                                                                   | 5000                      |
+| **ITS U 176**                                             | "ITS U 176", "U I76", "U 176", "U176", "U/176", "ITS U176", "ITS U/176", "Blok U176"                                                                                                      | 0                         |
+| **U87**                                                   | "U87"                                                                                                                                                                                     | 5000                      |
+| **ITS V 3**                                               | "ITS V 3", "V / 3", "V 3", "V3", "V/3", "ITS V/3", "Blok V3"                                                                                                                              | 5000                      |
+| **Vila Westwood A6-1**                                    | "Vila Westwood A6-1", "villa westwood A6-1"                                                                                                                                               | 5000                      |
+| **Villa Royal C4/18**                                     | "Villa Royal C4/18"                                                                                                                                                                       | 5000                      |
+| **W / 6**                                                 | "W / 6"                                                                                                                                                                                   | 0                         |
+| **Widya Research Center lt 4**                            | "Widya Research Center lt 4"                                                                                                                                                              | 5000                      |
+| **Wisper 1/49**                                           | "Wisper 1/49", "Wisma Permai 1 no.49"                                                                                                                                                     | 5000                      |
+| **Wisper 1/75**                                           | "Wisper 1/75", "Jl. Wisma Permai 1 no 75"                                                                                                                                                 | 5000                      |
+| **Wisper 11 / 17**                                        | "Wisper 11 / 17"                                                                                                                                                                          | 5000                      |
+| **Wisper 5 / 18**                                         | "Wisper 5 / 18", "Wisper 5/18"                                                                                                                                                            | 5000                      |
+| **WisPer Tengah 9/JJ-37**                                 | "WisPer Tengah 9/JJ-37", "WisPer Tengah 9/JJ -37 Sby", "WISPER TGH 9/JJ-37"                                                                                                               | 10000                     |
+| **Wisper Tengah Blok Kk**                                 | "Wisper Tengah Blok Kk", "WISPER TENGAH KK"                                                                                                                                               | 5000                      |
+| **WPT IX / JJ - 37**                                      | "WPT IX / JJ - 37", "WISPER WPT IX / JJ - 37"                                                                                                                                             | 10000                     |
+| **ITS X 26**                                              | "ITS X 26", "X 26", "X26", "X/26", "ITS X/26", "Blok X26", "X 26 - Bu iis", "Bu Iis X26", "Bu iis", "Iis X26"                                                                             | 5000                      |
+| **Zainal Gg. 3**                                          | "Zainal Gg. 3"                                                                                                                                                                            | 0                         |

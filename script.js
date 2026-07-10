@@ -205,6 +205,8 @@ const state = {
   salesSearch: "",
   salesSort: "newest",
   salesPage: 1,
+  selectedCourier: "",
+  selectedShippingTag: "",
   salesCalendar: {
     field: "start",
     month: getLocalDateKey().slice(0, 7),
@@ -3835,7 +3837,21 @@ function getSaleSortTime(sale) {
 function getVisibleSales() {
   const query = normalizeKey(state.salesSearch);
   const direction = state.salesSort === "oldest" ? 1 : -1;
-  return getSelectedSales()
+  let sales = getSelectedSales();
+
+  if (state.selectedCourier) {
+    sales = sales.filter((sale) => {
+      const courier = getSaleShippingCourierLabel(sale);
+      return courier === state.selectedCourier;
+    });
+  } else if (state.selectedShippingTag) {
+    sales = sales.filter((sale) => {
+      const tag = resolveSaleShippingTag(sale) || SHIPPING_TAG_UNMAPPED_LABEL;
+      return tag === state.selectedShippingTag;
+    });
+  }
+
+  return sales
     .filter((sale) => saleMatchesSearch(sale, query))
     .sort((saleA, saleB) => {
       const timeDiff = getSaleSortTime(saleA) - getSaleSortTime(saleB);
@@ -3913,9 +3929,9 @@ function buildCourierShippingSummary(sales = []) {
 
   sales.forEach((sale) => {
     const shipping = getSaleShipping(sale);
-    if (shipping <= 0) return;
-
     const tag = resolveSaleShippingTag(sale);
+    if (shipping <= 0 && !tag) return;
+
     const tagLabel = tag || SHIPPING_TAG_UNMAPPED_LABEL;
     const courier = getShippingCourierForTag(tag) || SHIPPING_COURIER_UNMAPPED_LABEL;
     const tagKey = `${courier}|${tagLabel}`;
@@ -7996,11 +8012,15 @@ function renderCourierShippingList(element, summary) {
   element.innerHTML = items
     .map((item, index) => {
       const color = graphColors[index % graphColors.length];
+      const isCourierActive = state.selectedCourier === item.courier;
       const tagChips = item.tags
-        .map((tag) => `<span class="courier-shipping-tag-chip">${escapeHtml(tag.tag)} ${currency.format(tag.total)}</span>`)
+        .map((tag) => {
+          const isTagActive = state.selectedShippingTag === tag.tag;
+          return `<span class="courier-shipping-tag-chip ${isTagActive ? "active" : ""}" data-tag-filter="${escapeHtml(tag.tag)}">${escapeHtml(tag.tag)} ${currency.format(tag.total)}</span>`;
+        })
         .join("");
       return `
-        <div class="mini-list-row courier-shipping-row" style="--mini-color: ${color}">
+        <div class="mini-list-row courier-shipping-row ${isCourierActive ? "active" : ""}" style="--mini-color: ${color}" data-courier-filter="${escapeHtml(item.courier)}">
           <span class="mini-list-name">
             <span class="mini-list-icon" aria-hidden="true">${escapeHtml(getCourierBadgeText(item.courier))}</span>
             <span class="courier-shipping-copy">
@@ -8114,6 +8134,19 @@ function renderSalesDashboard() {
   els.salesSearchInput.value = state.salesSearch;
   renderSalesSortControl();
   els.salesDateLabel.textContent = formatSalesDateLabel();
+
+  const listTitleEl = document.querySelector(".sales-list-title");
+  if (listTitleEl) {
+    if (state.selectedCourier) {
+      listTitleEl.textContent = `Transaksi Kurir: ${state.selectedCourier}`;
+    } else if (state.selectedShippingTag) {
+      listTitleEl.textContent = `Transaksi Tag: ${state.selectedShippingTag}`;
+    } else if (state.salesSearch) {
+      listTitleEl.textContent = "Hasil pencarian";
+    } else {
+      listTitleEl.textContent = state.salesStatus === "deleted" ? "Semua transaksi terhapus" : "Semua transaksi";
+    }
+  }
   els.salesRangeButtons.forEach((button) => {
     const active = button.dataset.salesRange === state.salesRange;
     button.classList.toggle("active", active);
@@ -12430,6 +12463,28 @@ function bindEvents() {
     if (key === "itemTotals") {
       state.dailyReportExpanded.itemTotals = !state.dailyReportExpanded.itemTotals;
       renderSalesDashboard();
+    }
+  });
+  els.dailyCourierShipping?.addEventListener("click", (event) => {
+    const tagChip = event.target.closest("[data-tag-filter]");
+    if (tagChip) {
+      event.stopPropagation();
+      const tag = tagChip.dataset.tagFilter;
+      state.selectedCourier = "";
+      state.selectedShippingTag = state.selectedShippingTag === tag ? "" : tag;
+      state.salesPage = 1;
+      renderSalesDashboard();
+      saveState();
+      return;
+    }
+    const courierRow = event.target.closest("[data-courier-filter]");
+    if (courierRow) {
+      const courier = courierRow.dataset.courierFilter;
+      state.selectedShippingTag = "";
+      state.selectedCourier = state.selectedCourier === courier ? "" : courier;
+      state.salesPage = 1;
+      renderSalesDashboard();
+      saveState();
     }
   });
   els.previousSalesPageButton?.addEventListener("click", () => setSalesPage(state.salesPage - 1));
