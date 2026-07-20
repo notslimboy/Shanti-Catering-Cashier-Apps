@@ -4,6 +4,8 @@ A local-first cashier application for Shanti Catering and small food businesses.
 
 The app runs in a browser with a local Python backend. It is not meant to be a large ERP system; it is a practical daily operations tool that cashiers can use quickly.
 
+It also has a Capacitor mobile shell for Android and iOS. See [docs/CAPACITOR.md](docs/CAPACITOR.md) for the build workflow and the native POS printer bridge contract.
+
 ## Scope Status
 
 | Area | Status | Purpose |
@@ -17,7 +19,7 @@ The app runs in a browser with a local Python backend. It is not meant to be a l
 | Edit and delete receipts | Available | Receipt details, edit basic data, edit items/qty/price, reprint, soft delete, and restore deleted receipts. |
 | Database backup | Available | Download/restore SQLite, plus `Backup Semua` for SQLite and browser app data. |
 | Basic offline/PWA shell | Available | App shell is cached; inventory/cart/drafts are stored in the browser. |
-| Cloud multi-device | Not yet | No login, cloud database, user roles, or multi-cashier sync yet. |
+| Supabase sync with offline outbox | Available | Local state stays usable offline; pending sales sync to Supabase automatically when the connection returns. |
 
 ## Main Use Cases
 
@@ -39,6 +41,12 @@ This app is not yet suitable for:
 - Login, admin/cashier roles, or per-user audit logs.
 - Cloud databases without architectural changes.
 - Stateless hosting such as Vercel while still relying on local SQLite.
+
+## Supabase and Offline Work
+
+Supabase is the shared cloud database. The cashier does not stop when it is temporarily unreachable: the local Zustand state and browser/native storage keep the active menu, cart, drafts, and a persistent sales outbox. A completed sale affected by a network failure is marked as pending locally, remains visible in the dashboard, and is pushed to Supabase on the next online event.
+
+The local Python + SQLite server remains useful for desktop operation, backups, and its existing API mode. It is not a replacement for the mobile offline cache inside a Capacitor application.
 
 ## Running Locally
 

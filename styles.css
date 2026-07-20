@@ -131,27 +131,6 @@
   display: none !important;
 }
 
-html {
-  scroll-behavior: smooth;
-}
-
-html.lenis,
-html.lenis body {
-  height: auto;
-}
-
-.lenis.lenis-smooth {
-  scroll-behavior: auto !important;
-}
-
-.lenis.lenis-smooth iframe {
-  pointer-events: none;
-}
-
-.lenis.lenis-stopped {
-  overflow: hidden;
-}
-
 dialog,
 .product-list,
 .cart-list,
@@ -2315,18 +2294,22 @@ body.sidebar-open .sidebar-overlay {
 }
 
 .receipt-paper {
-  width: min(100%, var(--receipt-width));
+  width: var(--receipt-print-width);
+  max-width: 100%;
   min-height: 0;
   margin: 0 auto;
-  border: 1px solid #d6d3ce;
-  border-radius: 4px;
+  border: 0;
+  border-radius: 0;
+  outline: 1px solid #d6d3ce;
   background: #fff;
   color: #111;
-  padding: 14px;
+  padding: 0.5mm 0.5mm 0 1mm;
   font-family: "Courier New", Courier, monospace;
   font-size: var(--receipt-font-size);
-  font-weight: 700;
-  line-height: 1.35;
+  font-weight: 600;
+  font-synthesis: weight;
+  line-height: 1.3;
+  box-shadow: 0 10px 24px rgba(31, 41, 55, 0.12);
 }
 
 .receipt-paper h3,
@@ -2334,28 +2317,34 @@ body.sidebar-open .sidebar-overlay {
   margin: 0;
 }
 
-.receipt-paper h3 {
-  font-size: 0.82em;
-  line-height: 1.12;
-}
-
 .receipt-logo {
   display: block;
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 7px;
-  filter: grayscale(1);
+  width: min(18mm, 48%);
+  height: 18mm;
+  margin: 0 auto 2.5mm;
+  image-rendering: crisp-edges;
   object-fit: contain;
 }
 
-.receipt-compact-header h3 {
-  font-size: 0.82em;
-  line-height: 1.15;
+.receipt-header {
+  text-align: center;
+}
+
+.receipt-store-name {
+  font-size: var(--receipt-heading-font-size);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.receipt-compact-header .receipt-store-name {
+  margin-bottom: 0;
 }
 
 .receipt-store-address {
-  font-size: 0.82em;
-  line-height: 1.12;
+  margin-top: 1.5mm !important;
+  font-size: calc(var(--receipt-small-font-size) - 2px);
+  font-weight: 600;
+  line-height: 1.25;
 }
 
 .receipt-center {
@@ -2363,8 +2352,14 @@ body.sidebar-open .sidebar-overlay {
 }
 
 .receipt-line {
-  margin: 8px 0;
-  border-top: 1px dashed #222;
+  margin: 3.5mm 0;
+  border-top: 0.45mm dashed #111;
+}
+
+.receipt-batch-separator {
+  width: var(--receipt-print-width);
+  margin: 2mm 0;
+  border-top: 0.45mm dashed #111;
 }
 
 .receipt-row {
@@ -2388,31 +2383,35 @@ body.sidebar-open .sidebar-overlay {
 }
 
 .receipt-customer {
-  display: grid;
-  gap: 2px;
-  margin: 4px 0;
-  border: 2px solid #111;
-  background: transparent;
-  padding: 5px 3px;
-  font-size: 1.12em;
-  font-weight: 900;
-  line-height: 1.12;
+  margin: 1.5mm 0;
+  border: 0.65mm solid #111;
+  padding: 2mm 1mm;
   text-align: center;
+  font-size: var(--receipt-emphasis-font-size);
+  font-weight: 900;
+  line-height: 1.22;
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
-  letter-spacing: 0;
 }
 
-.receipt-customer strong {
+.receipt-customer-name,
+.receipt-queue {
   display: block;
-  font-weight: 800;
-  line-height: 1.12;
-  -webkit-text-stroke: 0.25px #111;
+  font-weight: 900;
 }
 
 .receipt-item {
-  margin-bottom: 8px;
+  margin-bottom: 3mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.receipt-item-name {
+  font-weight: 900;
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .receipt-small {
@@ -2420,21 +2419,148 @@ body.sidebar-open .sidebar-overlay {
 }
 
 .receipt-send-note {
-  margin: 3px 0;
-  font-size: calc(var(--receipt-small-font-size) + 1px);
-  font-weight: 950;
-  line-height: 1.18;
-  -webkit-text-stroke: 0.28px #111;
+  margin: 1.5mm 0 0;
+  font-size: var(--receipt-font-size);
+  font-weight: 900;
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
-.receipt-send-note strong {
-  font-weight: 950;
+.receipt-send-note-label,
+.receipt-send-note-value,
+.receipt-quantity,
+.receipt-line-total {
+  font-weight: 900;
 }
 
 .receipt-note {
-  margin-top: 2px;
+  margin-top: 1.2mm;
   color: #333;
   font-size: var(--receipt-small-font-size);
+  font-weight: 600;
+  line-height: 1.24;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.receipt-item-pricing {
+  margin-top: 1.2mm;
+  align-items: baseline;
+}
+
+.kitchen-order-ticket {
+  padding-top: 1.5mm;
+}
+
+.kot-header {
+  display: grid;
+  gap: 1mm;
+}
+
+.kot-title {
+  font-size: var(--receipt-emphasis-font-size);
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.kot-date {
+  font-size: var(--receipt-small-font-size);
+  font-weight: 700;
+}
+
+.kot-items {
+  display: grid;
+  gap: 2.2mm;
+}
+
+.kot-item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 4mm;
+  font-size: var(--receipt-font-size);
+  line-height: 1.22;
+}
+
+.kot-item-name,
+.kot-item-quantity {
+  font-weight: 900;
+}
+
+.kot-item-row .kot-item-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: left;
+}
+
+.kot-item-row .kot-item-quantity {
+  align-self: start;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.kot-notes h4 {
+  margin: 0 0 1.8mm;
+  font-size: var(--receipt-font-size);
+  font-weight: 900;
+}
+
+.kot-note-row {
+  margin-top: 1.2mm !important;
+  font-size: var(--receipt-small-font-size);
+  font-weight: 700;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+.kot-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  margin: 0;
+  font-size: var(--receipt-font-size);
+  font-weight: 900;
+}
+
+.receipt-item-unit {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.receipt-summary-row {
+  margin: 1.2mm 0;
+  font-weight: 600;
+}
+
+.receipt-summary-row strong {
+  font-weight: 900;
+}
+
+.receipt-shipping,
+.receipt-shipping strong {
+  font-weight: 900;
+}
+
+.receipt-total {
+  display: grid;
+  gap: 1.3mm;
+  justify-items: center;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.receipt-total-label,
+.receipt-total-value {
+  display: block;
+  font-size: var(--receipt-total-font-size);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.receipt-total-value {
+  white-space: nowrap;
 }
 
 .empty-state {
@@ -2607,11 +2733,43 @@ body.sidebar-open .sidebar-overlay {
 }
 
 .daily-report-card > span,
+.daily-report-card-heading > span,
 .mini-list-empty {
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.daily-report-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.daily-kot-print-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 30px;
+  gap: 5px;
+  border-color: color-mix(in srgb, var(--teal) 42%, var(--line));
+  color: var(--teal-dark);
+  padding: 5px 8px;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.daily-kot-print-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.daily-kot-print-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .mini-list {
@@ -3267,6 +3425,7 @@ body.sidebar-open .sidebar-overlay {
   margin: 0;
   border: 0;
   border-radius: 0;
+  outline: 0;
   padding: 0.5mm 0.5mm 0 1mm;
   box-shadow: none;
 }
@@ -3283,11 +3442,11 @@ body.sidebar-open .sidebar-overlay {
 }
 
 .receipt-print-measure .receipt-line {
-  margin: 5px 0;
+  margin: 2.5mm 0;
 }
 
 .receipt-print-measure .receipt-item {
-  margin-bottom: 5px;
+  margin-bottom: 2.5mm;
 }
 
 .print-report-a4 {
@@ -3797,6 +3956,7 @@ body.sidebar-open .sidebar-overlay {
 
 .receipt-preview-panel {
   gap: 22px;
+  justify-items: center;
 }
 
 .sale-detail-panel {
@@ -4635,6 +4795,123 @@ body.sidebar-open .sidebar-overlay {
 }
 
 .printer-setup-panel {
+  gap: 16px;
+}
+
+.native-printer-panel {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--soft-surface);
+  padding: 14px;
+}
+
+.native-printer-panel > label,
+.native-printer-network-grid > label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.native-printer-status {
+  display: grid;
+  gap: 4px;
+}
+
+.native-printer-status strong,
+.native-printer-control-row strong {
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
+.native-printer-status p,
+.native-printer-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.native-printer-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+}
+
+.native-printer-control-row .ghost-button {
+  min-height: 36px;
+  padding: 7px 11px;
+  white-space: nowrap;
+}
+
+.native-printer-device-list {
+  display: grid;
+  gap: 8px;
+}
+
+.native-printer-device {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  min-height: 58px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.native-printer-device:hover,
+.native-printer-device:focus-visible {
+  border-color: var(--accent);
+}
+
+.native-printer-device.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.native-printer-device strong {
+  overflow-wrap: anywhere;
+}
+
+.native-printer-device small {
+  color: var(--muted);
+  font-size: 0.73rem;
+  font-weight: 700;
+}
+
+.native-printer-network-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 0.35fr);
+  gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .native-printer-control-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .native-printer-control-row .ghost-button {
+    width: 100%;
+  }
+
+  .native-printer-network-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+#browserPrinterSetup {
+  display: grid;
   gap: 16px;
 }
 
@@ -7528,8 +7805,16 @@ body.sidebar-open .sidebar-overlay {
   }
 
   #salesDashboardModal .daily-report-card > span,
+  #salesDashboardModal .daily-report-card-heading > span,
   #salesDashboardModal .mini-list-empty {
     font-size: 0.66rem;
+  }
+
+  #salesDashboardModal .daily-kot-print-button {
+    min-height: 28px;
+    gap: 4px;
+    padding: 4px 7px;
+    font-size: 0.64rem;
   }
 
   #salesDashboardModal .mini-list {
@@ -8846,6 +9131,7 @@ body.sidebar-open .sidebar-overlay {
     background: #fff;
     border: 0;
     border-radius: 0;
+    outline: 0;
     margin: 0;
     padding: 0.5mm 0.5mm 0 1mm;
     box-shadow: none;
@@ -8878,11 +9164,11 @@ body.sidebar-open .sidebar-overlay {
   }
 
   .receipt-line {
-    margin: 5px 0;
+    margin: 2.5mm 0;
   }
 
   .receipt-item {
-    margin-bottom: 5px;
+    margin-bottom: 2.5mm;
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -11411,12 +11697,27 @@ body.sidebar-open .sidebar-overlay {
 }
 
 @media (max-width: 1100px) {
+  #salesDashboardModal .sales-modal-heading {
+    position: relative;
+    z-index: 40;
+  }
+
+  #salesDashboardModal .sales-modal-heading .export-menu[open] {
+    z-index: 60;
+  }
+
+  #salesDashboardModal .sales-modal-heading .export-menu-panel {
+    z-index: 70;
+  }
+
   #salesDashboardModal .sales-date-controls {
     z-index: 20;
   }
 
   #salesDashboardModal .date-picker-button {
     grid-template-columns: minmax(0, 1fr) 24px;
+    grid-template-rows: auto auto;
+    align-content: center;
     align-items: center;
   }
 
@@ -11426,9 +11727,18 @@ body.sidebar-open .sidebar-overlay {
     white-space: nowrap;
   }
 
-  #salesDashboardModal .date-picker-button small,
-  #salesDashboardModal .date-picker-button small[hidden] {
-    display: none !important;
+  #salesDashboardModal .date-picker-button small {
+    display: block !important;
+    grid-row: 2;
+    grid-column: 1;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  #salesDashboardModal .date-picker-button::after {
+    grid-row: 1 / span 2;
+    grid-column: 2;
   }
 }
 
@@ -11441,8 +11751,13 @@ body.sidebar-open .sidebar-overlay {
   }
 
   #salesDashboardModal .date-picker-button {
-    min-height: 58px;
+    min-height: 64px;
     padding: 10px 12px;
+  }
+
+  #salesDashboardModal .date-picker-button small {
+    font-size: 0.66rem;
+    line-height: 1.15;
   }
 
   #salesDashboardModal .date-picker-button strong {
@@ -11472,13 +11787,18 @@ body.sidebar-open .sidebar-overlay {
   }
 
   #salesDashboardModal .date-picker-button {
-    min-height: 50px;
+    min-height: 60px;
     padding: 8px 10px;
   }
 
   #salesDashboardModal .date-picker-button strong {
     font-size: clamp(0.86rem, 4.1vw, 0.98rem);
     line-height: 1.08;
+  }
+
+  #salesDashboardModal .date-picker-button small {
+    font-size: 0.61rem;
+    line-height: 1.15;
   }
 
   #salesDashboardModal .sales-calendar-popover {

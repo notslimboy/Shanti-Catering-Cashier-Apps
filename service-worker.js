@@ -1,9 +1,11 @@
-const CACHE_NAME = "kasir-bento-v282";
+const CACHE_NAME = "kasir-bento-v297";
 const APP_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=282",
-  "./script.js?v=282",
+  "./styles.css?v=297",
+  "./script.js?v=297",
+  "./vendor/state/zustand-vanilla.mjs",
+  "./vendor/pos/receipt-printer-encoder-3.0.3.js",
   "./drivers/XP%20PRINTER%20DRIVER.rar",
   "./sample-items.csv",
   "./sample-bulk-orders.csv",
@@ -11,6 +13,8 @@ const APP_ASSETS = [
   "./icon-192.png",
   "./icon-512.png",
   "./logocatering.webp",
+  "./assets/thermal/logo-thermal-256-threshold.png",
+  "./assets/thermal/logo-thermal-320-threshold.png",
 ];
 
 self.addEventListener("install", (event) => {

@@ -7,6 +7,7 @@ id,name,default_shipping,tag,aliases
 63,Anak Bu Edi Baru - Sut teng VI gg 11,0,Sutorejo,
 126,Anis BTH,5000,ITS,ANIS BRIN
 143,Araya 1 Blok B5 4A - Bu Wiwi,0,ARAYA,Araya 1 Blok B5 4A
+1952,Astutik Perpus,5000,ITS,Astutik
 1864,Babatan Pantai 39,10000,Kenjeran,
 1886,BHAS 1/15,0,Bhaskara,
 1862,Bhas Tengah D - 37,0,Bhaskara,Bhas Tengah D - 37 (bali)
@@ -20,7 +21,7 @@ id,name,default_shipping,tag,aliases
 101,Bhaskara V/56,0,Bhaskara,
 72,Bhaskara V/6,0,Bhaskara,
 1896,Bhsksari 60,0,Bhaskara,
-137,Blok T / 40,0,ITS,
+137,Blok T / 40,0,ITS,ITS T 40;Blok T 40;T40;T 40;T/40;ITS T40;ITS T/40;Blok T40
 16,Blok T 86.bu Ratna,0,ITS,
 84,Blok T/11,0,ITS,
 120,Blok U / 177,0,ITS,
@@ -35,7 +36,7 @@ id,name,default_shipping,tag,aliases
 1855,BPD D 24/25,0,BPD,
 1893,BU BAMBANG GG 1,0,Bhaskara,
 1904,Bu Nawir Mulyosari,0,Mulyosari,
-46,Bu Nawir Mulyosari - MU 6/24,0,Mulyosari,
+46,Bu Nawir Mulyosari - MU 6/24,0,Mulyosari,Nana/MU 6/24;Nana MU 6/24
 1900,Bumi Galaxy Permai M3 / 17,15000,Bumi Galaxy,SMA 5 .. ratna juli
 114,Catur SPKB,5000,ITS,
 1866,D 19 SDMO Teknik,5000,ITS,
@@ -70,13 +71,13 @@ id,name,default_shipping,tag,aliases
 26,ITS P 7,5000,ITS,
 1913,ITS R - 8,5000,ITS,
 1875,ITS T 52,0,ITS,T52
-1889,ITS T 8 LAMA,5000,ITS,
+1889,ITS T 8 LAMA,5000,ITS,T 8 Lama;T8 lm;T8 lama
 1870,ITS T 85,0,ITS,
 1874,ITS T 86,0,ITS,T86
 25,ITS T 9,5000,ITS,
 1865,ITS T 93,0,ITS,T 93 ITS
-1879,ITS T/4,5000,ITS,ITS T 4
-2,ITS T/73,0,ITS,Blok T/73
+1879,ITS T/4,5000,ITS,ITS T 4;ITS T4;T - 4;T 4;T4;T/4;Blok T4
+2,ITS T/73,0,ITS,Blok T/73;ITS T 73;ITS T73;T73;T 73;T/73;Blok T 73
 102,ITS U 132,5000,ITS,
 1887,ITS U 180,5000,ITS,
 70,ITS U 196,5000,ITS,
@@ -95,7 +96,7 @@ id,name,default_shipping,tag,aliases
 112,Jl Memet S no 22 komplek AL,5000,Kenjeran,
 1849,Jl. Dharmahusada Indah 42,5000,Dharmahusada,
 47,Jl. Suto prima indah barat blok PQ 35.,0,Sutorejo,
-1926,Jl.Bhaskara 2 no 12,0,Bhaskara,
+1926,Jl.Bhaskara 2 no 12,0,Bhaskara,Bojone Agung Gg2
 78,Jojoran 1 Blok B No 19 - Kiki,15000,Jojoran,jojoran 1 Blok B no 19 - Kiki
 15,Kalijudan Taruna 2/6,15000,Kalijudan,
 1950,Keputih Tgl Timur 2 / 15A,15000,Keputih,
@@ -103,7 +104,7 @@ id,name,default_shipping,tag,aliases
 23,Leli - Wisper 5/6,5000,Wisper,
 53,Leli Wisper - Wisma Permai V/6,5000,Wisper,
 124,Lora,0,Bhaskara,
-60,M 4 A,0,ITS,
+60,M 4 A,0,ITS,ITS M 4A;M4A;M 4A;M/4A;ITS M 4 A;ITS M4A;ITS M/4A;Blok M4A
 28,M BPD B/46,0,BPD,
 31,Managmen Bisnis Ayu - gedung dirpaip sebelah gedung FKK ITS lt 2,5000,ITS,
 1843,Manyar Tirtoyoso 3/18,20000,Manyar,
@@ -131,7 +132,7 @@ id,name,default_shipping,tag,aliases
 157,P1/40,0,ITS,
 1868,P1/40 - Puri asri,5000,Pakuwon,
 1851,Pakuwon City San Diego M2,5000,Pakuwon,
-9,Pantai Mentari Blok SF no. 9,10000,Kenjeran,Pantai Mentari Blok SF / 9;pantai mentari blok SF no. 9
+9,Pantai Mentari Blok SF no. 9,10000,Kenjeran,Pantai Mentari Blok SF / 9;pantai mentari blok SF no. 9;Pantai Mentri Blok SF / 9
 65,Prof Yulfi Zetra - Asww - Blok T99,5000,ITS,
 13,Pucangan 3.no.49,25000,Pucang,
 1919,Puri Asri P3 no. 32 Nenet,5000,Pakuwon,
@@ -169,17 +170,17 @@ id,name,default_shipping,tag,aliases
 119,sutorejo timur 32/H5,0,Sutorejo,
 158,T - 4,0,ITS,
 109,T - 49,5000,ITS,
-121,T - 65,5000,ITS,
+121,T - 65,5000,ITS,ITS T 65;T65;T 65;T/65;ITS T/65;Blok T65
 32,T - 72,0,ITS,
 96,T 93,0,ITS,
 155,T40,0,ITS,
-95,T71,0,ITS,
+95,T71,0,ITS,ITS T 71;T 71;T/71;ITS T/71;Blok T71;Alfita
 93,T73,0,ITS,
 153,T85,0,ITS,
-122,Taman Mulyo Utara 7,0,Mulyosari,Taman Mulyo Ut 7 - Telly - Taman Mulyosari Utara no 7;Telly;Taman Mulyosari Utara no 7
+122,Taman Mulyo Utara 7,0,Mulyosari,Taman Mulyo Ut 7 - Telly - Taman Mulyosari Utara no 7;Telly;Taman Mulyosari Utara no 7;Taman Mulyo Ut 7
 146,Taman Mulyo Utara 20,0,Mulyosari,
 58,Taman Suto Timur 48 Baru,0,Sutorejo,
-103,Tek Lingkungan Khusnul,5000,ITS,
+103,Tek Lingkungan Khusnul,5000,ITS,Teknik Lingkungan Khusnul;Khusnul;T Lingkungan Khusnul
 80,Temen Pak Didik (IDA),35000,Rungkut,Temen Pak Didik
 99,Tenggilis Mejoyo Fayzia,35000,Tenggilis,
 115,Tohir 1,5000,Kenjeran,
@@ -192,10 +193,10 @@ id,name,default_shipping,tag,aliases
 68,U / 9 Atria,5000,ITS,
 97,U 117,0,ITS,
 39,U 180,5000,ITS,
-108,U 4 / 5 A Perpus - Blok U-IV/5A,5000,ITS,
+108,U 4 / 5 A Perpus - Blok U-IV/5A,5000,ITS,ITS U4 5A;U4 5A
 59,U I76,0,ITS,
 98,U87,5000,ITS,
-104,V / 3,5000,ITS,
+104,V / 3,5000,ITS,ITS V 3;V 3;V3;V/3;ITS V/3;Blok V3
 1921,Vila Westwood A6-1,5000,Pakuwon,villa westwood A6-1
 1856,Villa Royal C4/18,5000,Pakuwon,
 159,W - 12,0,ITS,

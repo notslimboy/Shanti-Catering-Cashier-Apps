@@ -32,14 +32,17 @@
     <link rel="icon" type="image/png" href="icon-192.png">
     <link rel="apple-touch-icon" href="icon-192.png">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="https://unpkg.com/lenis@1.3.25/dist/lenis.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.6.1/dist/css/tom-select.css">
-    <link rel="stylesheet" href="styles.css?v=282">
+    <link rel="stylesheet" href="styles.css?v=297">
     <script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script defer src="https://unpkg.com/lenis@1.3.25/dist/lenis.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/tom-select@2.6.1/dist/js/tom-select.complete.min.js"></script>
-    <script defer src="script.js?v=282"></script>
+    <script defer src="vendor/pos/receipt-printer-encoder-3.0.3.js"></script>
+    <script type="module">
+      import { createStore } from "./vendor/state/zustand-vanilla.mjs";
+      window.kasirZustand = { createStore };
+      await import("./script.js?v=297");
+    </script>
   </head>
   <body>
     <svg class="app-icon-sprite" aria-hidden="true" focusable="false">
@@ -497,7 +500,13 @@
               <div id="dailyPaymentBreakdown" class="mini-list"></div>
             </div>
             <div class="daily-report-card daily-items-card">
-              <span>Total item</span>
+              <div class="daily-report-card-heading">
+                <span>Total item</span>
+                <button class="ghost-button daily-kot-print-button" id="printKitchenOrderTicketButton" type="button" aria-label="Cetak KOT total item" title="Cetak KOT total item">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-printer-setup"></use></svg>
+                  <span>KOT</span>
+                </button>
+              </div>
               <div id="dailyItemTotals" class="mini-list"></div>
             </div>
             <div class="daily-report-card daily-courier-card">
@@ -1272,43 +1281,76 @@
           </div>
         </div>
 
-        <div class="printer-driver-card">
-          <div>
-            <strong>Driver yang dipakai</strong>
-            <p>Gunakan arsip driver XP Printer yang sudah disimpan di folder project untuk install printer thermal kasir.</p>
+        <section class="native-printer-panel" id="nativePrinterPanel" hidden>
+          <div class="native-printer-status">
+            <strong>Cetak RAW ESC/POS</strong>
+            <p id="nativePrinterStatus">Pilih sambungan printer thermal.</p>
           </div>
-          <a class="secondary-button printer-driver-link" href="drivers/XP%20PRINTER%20DRIVER.rar" download>Download Driver XP</a>
-        </div>
+          <label>
+            Sambungan printer
+            <select id="nativePrinterTransportInput">
+              <option value="bluetooth">Bluetooth</option>
+              <option value="network">Wi-Fi / LAN</option>
+            </select>
+          </label>
+          <div id="nativeBluetoothPrinterControls">
+            <div class="native-printer-control-row">
+              <strong>Printer Bluetooth yang sudah dipair</strong>
+              <button class="ghost-button" id="refreshNativeBluetoothButton" type="button">Muat Printer</button>
+            </div>
+            <div class="native-printer-device-list" id="nativePrinterDeviceList" aria-live="polite"></div>
+          </div>
+          <div class="native-printer-network-grid" id="nativeNetworkPrinterControls" hidden>
+            <label>
+              IP / hostname printer
+              <input id="nativePrinterHostInput" type="text" inputmode="url" autocomplete="off" placeholder="192.168.1.120">
+            </label>
+            <label>
+              Port RAW
+              <input id="nativePrinterPortInput" type="text" inputmode="numeric" autocomplete="off" value="9100">
+            </label>
+          </div>
+        </section>
 
-        <div class="printer-step-list">
-          <article class="printer-step-card">
-            <span>1</span>
+        <div id="browserPrinterSetup">
+          <div class="printer-driver-card">
             <div>
-              <strong>Install driver XP Printer</strong>
-              <p>Extract file RAR, install driver sesuai OS, lalu restart browser kalau printer belum muncul.</p>
+              <strong>Driver yang dipakai</strong>
+              <p>Gunakan arsip driver XP Printer yang sudah disimpan di folder project untuk install printer thermal kasir.</p>
             </div>
-          </article>
-          <article class="printer-step-card">
-            <span>2</span>
-            <div>
-              <strong>Pilih ukuran kertas</strong>
-              <p>Untuk printer kecil pilih 58 mm. Kalau struk lebar atau printer 80 mm, ubah di Edit Struk.</p>
-            </div>
-          </article>
-          <article class="printer-step-card">
-            <span>3</span>
-            <div>
-              <strong>Set print dialog</strong>
-              <p>Margins none/minimum, scale 100%, headers and footers off. Kalau kanan kepotong, turunkan scale ke 95%.</p>
-            </div>
-          </article>
-          <article class="printer-step-card">
-            <span>4</span>
-            <div>
-              <strong>Test print</strong>
-              <p>Tekan Test Print lalu pilih printer thermal XP/POS di dialog browser.</p>
-            </div>
-          </article>
+            <a class="secondary-button printer-driver-link" href="drivers/XP%20PRINTER%20DRIVER.rar" download>Download Driver XP</a>
+          </div>
+
+          <div class="printer-step-list">
+            <article class="printer-step-card">
+              <span>1</span>
+              <div>
+                <strong>Install driver XP Printer</strong>
+                <p>Extract file RAR, install driver sesuai OS, lalu restart browser kalau printer belum muncul.</p>
+              </div>
+            </article>
+            <article class="printer-step-card">
+              <span>2</span>
+              <div>
+                <strong>Pilih ukuran kertas</strong>
+                <p>Untuk printer kecil pilih 58 mm. Kalau struk lebar atau printer 80 mm, ubah di Edit Struk.</p>
+              </div>
+            </article>
+            <article class="printer-step-card">
+              <span>3</span>
+              <div>
+                <strong>Set print dialog</strong>
+                <p>Margins none/minimum, scale 100%, headers and footers off. Kalau kanan kepotong, turunkan scale ke 95%.</p>
+              </div>
+            </article>
+            <article class="printer-step-card">
+              <span>4</span>
+              <div>
+                <strong>Test print</strong>
+                <p>Tekan Test Print lalu pilih printer thermal XP/POS di dialog browser.</p>
+              </div>
+            </article>
+          </div>
         </div>
 
         <form method="dialog" class="modal-actions">

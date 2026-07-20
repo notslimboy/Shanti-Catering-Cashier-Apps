@@ -1,0 +1,28 @@
+{
+  "name": "kasir-shanti-catering",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kasir Shanti Catering web app with Capacitor mobile shells.",
+  "scripts": {
+    "check": "node --check script.js",
+    "serve": "python3 server.py",
+    "cap:prepare": "node scripts/sync-capacitor-web.mjs",
+    "cap:sync": "npm run cap:prepare && npx cap sync",
+    "cap:add:android": "npm run cap:prepare && npx cap add android",
+    "cap:add:ios": "npm run cap:prepare && npx cap add ios",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "cap:run:android": "npm run cap:sync && npx cap run android",
+    "cap:run:ios": "npm run cap:sync && npx cap run ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

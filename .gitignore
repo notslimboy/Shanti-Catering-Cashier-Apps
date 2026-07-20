@@ -26,6 +26,10 @@ build/
 dist/
 *.spec
 
+# Capacitor generated web bundle and JavaScript dependencies
+node_modules/
+www/
+
 # Local packaged drivers or vendor archives
 drivers/*.rar
 drivers/*.zip

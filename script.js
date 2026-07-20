@@ -1,4 +1,10 @@
 const STORAGE_KEY = "kasir-bento-state-v1";
+const NATIVE_POS_PRINTER_PLUGIN_NAME = "NativePosPrinter";
+const POS_PRINTER_DEFAULTS = Object.freeze({
+  language: "esc-pos",
+  cut: "partial",
+  feedLines: 0,
+});
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const SALES_PAGE_SIZE = 10;
 const PRODUCT_RENDER_INITIAL_LIMIT = 24;
@@ -160,7 +166,7 @@ function getDefaultSaleState(overrides = {}) {
   };
 }
 
-const state = {
+const initialState = {
   products: [],
   cart: [],
   settings: {
@@ -173,6 +179,11 @@ const state = {
     printFlow: "direct",
     receiptMode: "complete",
     thermalPrinterDefaulted: true,
+    nativePrinterTransport: "bluetooth",
+    nativePrinterAddress: "",
+    nativePrinterName: "",
+    nativePrinterHost: "",
+    nativePrinterPort: "9100",
     theme: "light",
     dbMode: "supabase",
   },
@@ -258,9 +269,29 @@ const state = {
   },
   bulkDraftFilter: "all",
   bulkDraftSearch: "",
+  syncOutbox: [],
+  nativePrinterDevices: [],
   lastReceipt: null,
   selectedFile: null,
 };
+
+const createKasirStore = window.kasirZustand?.createStore;
+if (typeof createKasirStore !== "function") {
+  throw new Error("Zustand state runtime tidak termuat.");
+}
+
+const kasirStateStore = createKasirStore(() => ({ app: initialState, revision: 0 }));
+const state = kasirStateStore.getState().app;
+let syncOutboxInFlight = false;
+
+function commitState() {
+  kasirStateStore.setState((current) => ({
+    app: state,
+    revision: current.revision + 1,
+  }));
+}
+
+window.kasirStateStore = kasirStateStore;
 
 const customerProfilesCache = {
   dirty: true,
@@ -495,7 +526,18 @@ const els = {
   openPrinterSetupButton: document.querySelector("#openPrinterSetupButton"),
   openPrinterSetupFromSettingsButton: document.querySelector("#openPrinterSetupFromSettingsButton"),
   printerSetupModal: document.querySelector("#printerSetupModal"),
+  printerSetupTitle: document.querySelector("#printerSetupTitle"),
   printerSetupTestPrintButton: document.querySelector("#printerSetupTestPrintButton"),
+  nativePrinterPanel: document.querySelector("#nativePrinterPanel"),
+  browserPrinterSetup: document.querySelector("#browserPrinterSetup"),
+  nativePrinterStatus: document.querySelector("#nativePrinterStatus"),
+  nativePrinterTransportInput: document.querySelector("#nativePrinterTransportInput"),
+  nativeBluetoothPrinterControls: document.querySelector("#nativeBluetoothPrinterControls"),
+  nativeNetworkPrinterControls: document.querySelector("#nativeNetworkPrinterControls"),
+  refreshNativeBluetoothButton: document.querySelector("#refreshNativeBluetoothButton"),
+  nativePrinterDeviceList: document.querySelector("#nativePrinterDeviceList"),
+  nativePrinterHostInput: document.querySelector("#nativePrinterHostInput"),
+  nativePrinterPortInput: document.querySelector("#nativePrinterPortInput"),
   openInventoryModalButton: document.querySelector("#openInventoryModalButton"),
   inventoryModal: document.querySelector("#inventoryModal"),
   productEditorModal: document.querySelector("#productEditorModal"),
@@ -604,6 +646,7 @@ const els = {
   dailyAverageText: document.querySelector("#dailyAverageText"),
   dailyPaymentBreakdown: document.querySelector("#dailyPaymentBreakdown"),
   dailyItemTotals: document.querySelector("#dailyItemTotals"),
+  printKitchenOrderTicketButton: document.querySelector("#printKitchenOrderTicketButton"),
   dailyCourierShipping: document.querySelector("#dailyCourierShipping"),
   dailyReportSection: document.querySelector("#dailyReportSection"),
   printDailyReportButton: document.querySelector("#printDailyReportButton"),
@@ -688,6 +731,9 @@ function loadState() {
     state.products = normalizeProductsCollection(Array.isArray(parsed.products) ? parsed.products : []);
     state.cart = Array.isArray(parsed.cart) ? parsed.cart : [];
     state.settings = { ...state.settings, ...savedSettings };
+    ["printTransport", "qzPrinter", "qzLanguage", "qzCut", "qzFeedLines"].forEach((key) => {
+      delete state.settings[key];
+    });
     if (state.settings.storeName === "Kasir Bento" || state.settings.storeName === "Kasir Shanti Catering") state.settings.storeName = "Shanti Catering";
     if (state.settings.storeAddress === "Jl. Contoh No. 12, Jakarta") state.settings.storeAddress = "BHASKARA III / 38";
     if (state.settings.footer === "Terima kasih sudah berbelanja") state.settings.footer = "== TERIMA KASIH ==";
@@ -698,6 +744,11 @@ function loadState() {
     if (!["direct", "preview"].includes(state.settings.printFlow)) state.settings.printFlow = "direct";
     if (state.settings.receiptMode === "compact") state.settings.receiptMode = "complete";
     if (!["compact", "complete"].includes(state.settings.receiptMode)) state.settings.receiptMode = "complete";
+    if (!["bluetooth", "network"].includes(state.settings.nativePrinterTransport)) state.settings.nativePrinterTransport = "bluetooth";
+    state.settings.nativePrinterAddress = String(state.settings.nativePrinterAddress || "").trim();
+    state.settings.nativePrinterName = String(state.settings.nativePrinterName || "").trim();
+    state.settings.nativePrinterHost = String(state.settings.nativePrinterHost || "").trim();
+    state.settings.nativePrinterPort = String(state.settings.nativePrinterPort || "9100").replace(/\D/g, "") || "9100";
     if (!["light", "dark"].includes(state.settings.theme)) state.settings.theme = "light";
     state.settings.dbMode = "supabase";
     state.settings.autoPrint = state.settings.autoPrint !== false;
@@ -722,6 +773,7 @@ function loadState() {
     state.heldCarts = Array.isArray(parsed.heldCarts) ? parsed.heldCarts : [];
     state.importDrafts = Array.isArray(parsed.importDrafts) ? parsed.importDrafts.map(normalizeDraftContact) : [];
     state.bulkImportBatch = normalizeBulkImportBatch(parsed.bulkImportBatch);
+    state.syncOutbox = Array.isArray(parsed.syncOutbox) ? parsed.syncOutbox : [];
     normalizeImportDraftQueueNumbers({ preserveNext: true });
     state.selectedCategory = typeof parsed.selectedCategory === "string" ? parsed.selectedCategory : "all";
     state.salesSearch = typeof parsed.salesSearch === "string" ? parsed.salesSearch : "";
@@ -785,12 +837,14 @@ function getLocalStateSnapshot() {
     heldCarts: state.heldCarts,
     importDrafts: state.importDrafts,
     bulkImportBatch: state.bulkImportBatch,
+    syncOutbox: state.syncOutbox,
     lastReceipt: state.lastReceipt,
   };
 }
 
 function saveState() {
   removeInternalTestProductsFromState();
+  commitState();
   const snapshot = getLocalStateSnapshot();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
 }
@@ -854,40 +908,9 @@ function hasOpenDialog() {
   return Boolean(document.querySelector("dialog[open]"));
 }
 
-function stopSmoothScrollForModal() {
-  try {
-    window.kasirSmoothScroll?.stop?.();
-  } catch (error) {
-    console.warn("Gagal menghentikan smooth scroll saat modal dibuka:", error);
-  }
-}
-
-function clearSmoothScrollStopState() {
-  document.documentElement.classList.remove("lenis-stopped");
+function ensurePageScrollAfterModal() {
+  if (hasOpenDialog() || isSidebarOpen()) return;
   document.documentElement.style.overflow = "";
-}
-
-function resumeSmoothScrollAfterModal() {
-  const canResumePageScroll = !hasOpenDialog() && !isSidebarOpen();
-  try {
-    const smoothScroll = window.kasirSmoothScroll;
-    smoothScroll?.start?.();
-    smoothScroll?.resize?.();
-  } catch (error) {
-    console.warn("Gagal mengaktifkan lagi smooth scroll:", error);
-  }
-  if (!canResumePageScroll) return;
-  clearSmoothScrollStopState();
-  requestAnimationFrame(() => {
-    if (hasOpenDialog() || isSidebarOpen()) return;
-    try {
-      window.kasirSmoothScroll?.start?.();
-      window.kasirSmoothScroll?.resize?.();
-    } catch (error) {
-      console.warn("Gagal memastikan smooth scroll aktif:", error);
-    }
-    clearSmoothScrollStopState();
-  });
 }
 
 function restoreWindowScrollInstantly(scrollY) {
@@ -899,12 +922,6 @@ function restoreWindowScrollInstantly(scrollY) {
 
   rootStyle.scrollBehavior = "auto";
   bodyStyle.scrollBehavior = "auto";
-
-  try {
-    window.kasirSmoothScroll?.scrollTo?.(targetY, { immediate: true, force: true });
-  } catch (error) {
-    console.warn("Gagal restore scroll lewat smooth scroll:", error);
-  }
 
   window.scrollTo({ top: targetY, left: 0, behavior: "auto" });
   if (Math.abs((window.scrollY || 0) - targetY) > 1) {
@@ -918,7 +935,6 @@ function restoreWindowScrollInstantly(scrollY) {
 }
 
 function lockPageScroll() {
-  stopSmoothScrollForModal();
   if (modalScrollLock.active) return;
 
   modalScrollLock.active = true;
@@ -944,7 +960,7 @@ function lockPageScroll() {
 
 function unlockPageScroll() {
   if (!modalScrollLock.active) {
-    resumeSmoothScrollAfterModal();
+    ensurePageScrollAfterModal();
     return;
   }
 
@@ -958,7 +974,7 @@ function unlockPageScroll() {
   modalScrollLock.scrollY = 0;
   modalScrollLock.bodyStyle = {};
   restoreWindowScrollInstantly(restoreY);
-  resumeSmoothScrollAfterModal();
+  ensurePageScrollAfterModal();
 }
 
 function updateModalScrollLock() {
@@ -4006,6 +4022,11 @@ function getSalesDateMeta(dateKey, compact = false) {
   return `${stats.count} transaksi · ${currency.format(stats.revenue)}`;
 }
 
+function getSalesDateTransactionMeta(dateKey) {
+  const count = getSalesCalendarStats(dateKey).count;
+  return count ? `${count} transaksi` : "Belum ada transaksi";
+}
+
 function addMonthsToMonthKey(monthKey, delta) {
   const [year, month] = String(monthKey || getLocalDateKey().slice(0, 7))
     .split("-")
@@ -4029,19 +4050,19 @@ function setSalesCalendarMonthFromDate(dateKey) {
 }
 
 function renderSalesDateControls(range = getSalesRangeDates()) {
-  const showDateMeta = !window.matchMedia("(max-width: 1100px)").matches;
-  const startMeta = getSalesDateMeta(range.start, false);
-  const endMeta = range.start === range.end ? startMeta : getSalesDateMeta(range.end, false);
+  const compactDateMeta = window.matchMedia("(max-width: 1100px)").matches;
+  const startMeta = compactDateMeta ? getSalesDateTransactionMeta(range.start) : getSalesDateMeta(range.start, false);
+  const endMeta = range.start === range.end ? startMeta : compactDateMeta ? getSalesDateTransactionMeta(range.end) : getSalesDateMeta(range.end, false);
 
   if (els.salesStartDateText) els.salesStartDateText.textContent = formatShortDateLabel(range.start);
   if (els.salesEndDateText) els.salesEndDateText.textContent = formatShortDateLabel(range.end);
   if (els.salesStartDateMeta) {
-    els.salesStartDateMeta.textContent = showDateMeta ? startMeta : "";
-    els.salesStartDateMeta.hidden = !showDateMeta;
+    els.salesStartDateMeta.textContent = startMeta;
+    els.salesStartDateMeta.hidden = false;
   }
   if (els.salesEndDateMeta) {
-    els.salesEndDateMeta.textContent = showDateMeta ? endMeta : "";
-    els.salesEndDateMeta.hidden = !showDateMeta;
+    els.salesEndDateMeta.textContent = endMeta;
+    els.salesEndDateMeta.hidden = false;
   }
 
   [els.salesStartDateButton, els.salesEndDateButton].forEach((button) => {
@@ -4248,6 +4269,45 @@ function buildDailyReport(sales = getSelectedSales()) {
       .sort((left, right) => right.total - left.total),
     itemTotals: [...itemMap.values()]
       .sort((left, right) => right.quantity - left.quantity || right.total - left.total || left.name.localeCompare(right.name)),
+  };
+}
+
+function formatKitchenQuantity(value) {
+  const quantity = Number(value || 0);
+  if (!Number.isFinite(quantity)) return "0";
+  return Number.isInteger(quantity) ? String(quantity) : new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(quantity);
+}
+
+function buildKitchenOrderTicket(sales = getSelectedSales().filter((sale) => !isSaleDeleted(sale))) {
+  const report = buildDailyReport(sales);
+  const notedItemMap = new Map();
+
+  sales.forEach((sale) => {
+    (Array.isArray(sale.items) ? sale.items : []).forEach((item) => {
+      const note = String(item.note || "").trim();
+      const quantity = Number(item.quantity || 0);
+      if (!note || !Number.isFinite(quantity) || quantity <= 0) return;
+
+      const name = getReceiptItemDisplayName(item);
+      const key = `${normalizeKey(name)}\u0000${normalizeKey(note)}`;
+      const current = notedItemMap.get(key) || { name, note, quantity: 0 };
+      current.quantity += quantity;
+      notedItemMap.set(key, current);
+    });
+  });
+
+  const range = getSalesRangeDates();
+  const dateLabel = range.start === range.end
+    ? formatDateLabel(range.start)
+    : `${formatShortDateLabel(range.start)} - ${formatShortDateLabel(range.end)}`;
+
+  return {
+    dateLabel,
+    itemTotals: report.itemTotals.filter((item) => Number(item.quantity || 0) > 0),
+    itemCount: report.itemCount,
+    notedItems: [...notedItemMap.values()].sort((left, right) => (
+      left.name.localeCompare(right.name, "id-ID") || left.note.localeCompare(right.note, "id-ID")
+    )),
   };
 }
 
@@ -6377,9 +6437,15 @@ async function previewPrintReadyDrafts() {
     salePayload.receiptNo = "PREVIEW-DRAFT";
     return salePayload;
   });
+  if (isCapacitorNativeApp()) {
+    await printSaleReceiptsBatch(salePayloads);
+    return;
+  }
   const htmlList = salePayloads.map((salePayload) => receiptHtmlFromSale(salePayload));
+  const receiptOptions = salePayloads[0] || {};
+  applyReceiptSettingsStyles(receiptOptions);
   const totalHeightMm = measureReceiptBatchPageHeight(htmlList);
-  await printReceiptHtmlInFrame(htmlList, totalHeightMm);
+  await printReceiptHtmlInFrame(htmlList, totalHeightMm, receiptOptions);
 }
 
 async function processReadyImportDrafts(options = {}) {
@@ -6892,7 +6958,7 @@ async function dbFetchSales(options = {}) {
       };
     }).filter((sale) => !isPartialSupabaseSale(sale));
     
-    return { sales };
+    return { sales: mergePendingOutboxSales(sales) };
   } else {
     const url = `/api/sales?limit=${limit}${includeDeleted ? '&includeDeleted=1' : ''}`;
     return requestJson(url);
@@ -7099,9 +7165,136 @@ function isPartialSupabaseSale(sale) {
   return !sale.deletedAt && (!Array.isArray(sale.items) || sale.items.length === 0);
 }
 
-async function saveSaleToDatabase(payload) {
-  if (state.settings.dbMode === "supabase") {
-    const supabase = getSupabaseClient();
+function createSyncOutboxId(prefix = "sync") {
+  const suffix = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}-${suffix}`;
+}
+
+function isOfflineSyncError(error) {
+  if (navigator.onLine === false) return true;
+  const message = String(error?.message || error || "").toLowerCase();
+  return error?.name === "TypeError" || /failed to fetch|network(?:error)?|network request failed|timeout|offline/.test(message);
+}
+
+function ensureOfflineReceiptNo(payload) {
+  const current = String(payload.receiptNo || "").trim();
+  if (current && !current.endsWith("-DRAFT")) return current;
+  const completedAt = payload.completedAt ? new Date(payload.completedAt) : new Date();
+  const date = Number.isNaN(completedAt.getTime()) ? new Date() : completedAt;
+  const dateKey = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+  return `SH-${dateKey}-OFF-${Date.now().toString(36).toUpperCase()}`;
+}
+
+function offlineSaleFromOperation(operation) {
+  const payload = operation.payload || {};
+  const items = Array.isArray(payload.items) ? payload.items.map((item) => ({
+    ...item,
+    lineTotal: Number(item.lineTotal || item.line_total || Number(item.price || 0) * Number(item.quantity || 0)),
+    line_total: Number(item.lineTotal || item.line_total || Number(item.price || 0) * Number(item.quantity || 0)),
+  })) : [];
+  return {
+    id: `offline:${operation.id}`,
+    receipt_no: payload.receiptNo,
+    receiptNo: payload.receiptNo,
+    completed_at: payload.completedAt,
+    completedAt: payload.completedAt,
+    store_name: payload.storeName,
+    storeName: payload.storeName,
+    payment: payload.payment,
+    subtotal: Number(payload.subtotal || 0),
+    discount: Number(payload.discount || payload.shipping || 0),
+    tax: Number(payload.tax || 0),
+    total: Number(payload.total || 0),
+    customer_name: payload.customerName || "",
+    customerName: payload.customerName || "",
+    customer_address: payload.customerAddress || "",
+    customerAddress: payload.customerAddress || "",
+    order_note: payload.orderNote || "",
+    orderNote: payload.orderNote || "",
+    send_note: payload.sendNote || "",
+    sendNote: payload.sendNote || "",
+    due_text: payload.dueText || "",
+    dueText: payload.dueText || "",
+    chat_date: payload.chatDate || "",
+    chatDate: payload.chatDate || "",
+    queue_no: payload.queueNo || null,
+    queueNo: payload.queueNo || null,
+    queue_date: payload.queueDate || "",
+    queueDate: payload.queueDate || "",
+    deleted_at: null,
+    deletedAt: null,
+    stock_restored_on_delete: 0,
+    stockRestoredOnDelete: 0,
+    paid_amount: Number(payload.paidAmount || 0),
+    paidAmount: Number(payload.paidAmount || 0),
+    items,
+    offlinePending: true,
+  };
+}
+
+function mergePendingOutboxSales(sales = []) {
+  const merged = Array.isArray(sales) ? [...sales] : [];
+  const receiptNos = new Set(merged.map((sale) => String(sale.receiptNo || sale.receipt_no || "")));
+  state.syncOutbox
+    .filter((operation) => operation?.type === "sale:create" && operation?.payload)
+    .forEach((operation) => {
+      const sale = offlineSaleFromOperation(operation);
+      if (!receiptNos.has(String(sale.receiptNo || ""))) merged.push(sale);
+    });
+  return merged;
+}
+
+function queueOfflineSale(payload) {
+  const queuedPayload = JSON.parse(JSON.stringify({ ...payload, receiptNo: ensureOfflineReceiptNo(payload) }));
+  const existingIndex = state.syncOutbox.findIndex((operation) => (
+    operation?.type === "sale:create" && operation?.payload?.receiptNo === queuedPayload.receiptNo
+  ));
+  const operation = {
+    id: existingIndex >= 0 ? state.syncOutbox[existingIndex].id : createSyncOutboxId("sale"),
+    type: "sale:create",
+    createdAt: existingIndex >= 0 ? state.syncOutbox[existingIndex].createdAt : new Date().toISOString(),
+    payload: queuedPayload,
+  };
+  if (existingIndex >= 0) state.syncOutbox.splice(existingIndex, 1, operation);
+  else state.syncOutbox.push(operation);
+  payload.receiptNo = queuedPayload.receiptNo;
+  state.sales = prepareSalesForSearch(mergePendingOutboxSales(state.sales));
+  invalidateCustomerProfilesCache();
+  saveState();
+  return { success: true, id: `offline:${operation.id}`, receiptNo: queuedPayload.receiptNo, offline: true };
+}
+
+async function flushOfflineSyncOutbox(options = {}) {
+  if (syncOutboxInFlight || state.settings.dbMode !== "supabase" || !navigator.onLine) return 0;
+  const pendingSales = state.syncOutbox.filter((operation) => operation?.type === "sale:create" && operation?.payload);
+  if (!pendingSales.length) return 0;
+
+  syncOutboxInFlight = true;
+  let synced = 0;
+  try {
+    for (const operation of pendingSales) {
+      try {
+        await saveSaleToSupabase({ ...operation.payload });
+        state.syncOutbox = state.syncOutbox.filter((item) => item.id !== operation.id);
+        synced++;
+      } catch (error) {
+        if (isOfflineSyncError(error)) break;
+        console.error("Sinkron transaksi offline gagal", error);
+        break;
+      }
+    }
+  } finally {
+    syncOutboxInFlight = false;
+    if (synced) {
+      saveState();
+      if (options.toast !== false) setSyncStatus(`${synced} transaksi offline tersinkron ke Supabase.`, { toast: true });
+    }
+  }
+  return synced;
+}
+
+async function saveSaleToSupabase(payload) {
+  const supabase = getSupabaseClient();
     
     // Generate next receipt number if it is a draft
     let receiptNo = payload.receiptNo;
@@ -7211,12 +7404,22 @@ async function saveSaleToDatabase(payload) {
       await dbUpsertCustomer(supabase, payload.customerName, payload.shipping || payload.discount || 0, payload.completedAt);
     }
     
-    return { success: true, id: saleData.id, receiptNo: receiptNo };
-  } else {
+  return { success: true, id: saleData.id, receiptNo: receiptNo };
+}
+
+async function saveSaleToDatabase(payload) {
+  if (state.settings.dbMode !== "supabase") {
     return requestJson("/api/sales", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  }
+
+  try {
+    return await saveSaleToSupabase(payload);
+  } catch (error) {
+    if (!isOfflineSyncError(error)) throw error;
+    return queueOfflineSale(payload);
   }
 }
 
@@ -7901,7 +8104,7 @@ async function loadCustomers(options = {}) {
 async function loadSalesDashboard() {
   try {
     const data = await dbFetchSales({ limit: 1000, includeDeleted: true });
-    state.sales = prepareSalesForSearch(Array.isArray(data.sales) ? data.sales : []);
+    state.sales = prepareSalesForSearch(mergePendingOutboxSales(Array.isArray(data.sales) ? data.sales : []));
     invalidateCustomerProfilesCache();
     
     if (state.settings.dbMode === "supabase") {
@@ -7926,8 +8129,12 @@ async function loadSalesDashboard() {
       setDatabaseStatus("Dashboard sudah terhubung ke SQLite.", { toast: false });
     }
   } catch (error) {
+    state.sales = prepareSalesForSearch(mergePendingOutboxSales(state.sales));
     renderSalesDashboard();
-    setDatabaseStatus(`${error.message} Hubungkan database atau restart server SQL.`);
+    const queued = state.syncOutbox.filter((operation) => operation?.type === "sale:create").length;
+    setDatabaseStatus(queued
+      ? `${queued} transaksi tersimpan lokal dan menunggu sinkronisasi Supabase.`
+      : `${error.message} Hubungkan database atau restart server SQL.`);
   }
 }
 
@@ -8048,6 +8255,13 @@ function renderDailyReport(selectedSales) {
     "Belum ada item terjual.",
     { limit: 6, moreLabel: "item lain", totalLabel: "item tampil", toggleKey: "itemTotals", expanded: state.dailyReportExpanded.itemTotals }
   );
+  if (els.printKitchenOrderTicketButton) {
+    const itemCount = Number(report.itemCount || 0);
+    els.printKitchenOrderTicketButton.disabled = itemCount <= 0;
+    els.printKitchenOrderTicketButton.title = itemCount > 0
+      ? `Cetak KOT ${formatKitchenQuantity(itemCount)} item`
+      : "Belum ada item untuk dicetak";
+  }
   renderCourierShippingList(els.dailyCourierShipping, report.shippingSummary);
 }
 
@@ -9529,7 +9743,13 @@ function renderMobileMiniCart() {
 function receiptCustomerHtml(customerName) {
   const cleanName = String(customerName || "").trim();
   if (!cleanName) return "";
-  return `<div class="receipt-info receipt-customer"><strong>${escapeHtml(cleanName)}</strong></div>`;
+  return `<div class="receipt-info receipt-customer"><strong class="receipt-customer-name">${escapeHtml(cleanName)}</strong></div>`;
+}
+
+function getThermalReceiptLogoSrc(receiptWidth = state.settings.receiptWidth) {
+  return String(receiptWidth) === "58"
+    ? "assets/thermal/logo-thermal-256-threshold.png"
+    : "assets/thermal/logo-thermal-320-threshold.png";
 }
 
 function receiptHtmlFromSale(sale) {
@@ -9545,12 +9765,13 @@ function receiptHtmlFromSale(sale) {
   const sendNote = normalizeSendNoteText(sale.sendNote || sale.send_note || "");
   const queueInfo = getQueueInfoFromSale(sale);
   const compact = (sale.receiptMode || state.settings.receiptMode || "compact") === "compact";
+  const receiptWidth = sale.receiptWidth || state.settings.receiptWidth;
   const orderInfo = [
     receiptCustomerHtml(customerName),
     queueInfo
-      ? `<div class="receipt-info receipt-small">NO: ${escapeHtml(queueInfo.queueNo)}</div>`
-      : (chatDate ? `<div class="receipt-info receipt-small">${escapeHtml(chatDate)}</div>` : ""),
-    sendNote ? `<div class="receipt-info receipt-send-note"><strong>KIRIM KE :</strong> <strong>${escapeHtml(sendNote)}</strong></div>` : "",
+      ? `<div class="receipt-info receipt-queue"><strong>NO: ${escapeHtml(queueInfo.queueNo)}</strong></div>`
+      : (chatDate ? `<div class="receipt-info receipt-chat-date receipt-small">${escapeHtml(chatDate)}</div>` : ""),
+    sendNote ? `<div class="receipt-info receipt-send-note"><strong class="receipt-send-note-label">CATATAN KIRIM:</strong> <strong class="receipt-send-note-value">${escapeHtml(sendNote)}</strong></div>` : "",
   ].filter(Boolean).join("");
   const itemHtml = items
     .map((item) => {
@@ -9559,31 +9780,25 @@ function receiptHtmlFromSale(sale) {
       const displayName = getReceiptItemDisplayName(item);
       return `
         <div class="receipt-item">
-          <div>${escapeHtml(displayName)}</div>
+          <div class="receipt-item-name">${escapeHtml(displayName)}</div>
           ${note ? `<div class="receipt-note">Catatan: ${escapeHtml(note)}</div>` : ""}
-          <div class="receipt-row receipt-small">
-            <span>${Number(item.quantity || 0)} x ${currency.format(Number(item.price || 0))}</span>
-            <strong>${currency.format(lineTotal)}</strong>
+          <div class="receipt-row receipt-item-pricing receipt-small">
+            <span class="receipt-item-unit"><strong class="receipt-quantity">${Number(item.quantity || 0)}</strong><span> x ${currency.format(Number(item.price || 0))}</span></span>
+            <strong class="receipt-line-total">${currency.format(lineTotal)}</strong>
           </div>
         </div>
       `;
     })
     .join("");
-  const headerHtml = compact
-    ? `
-      <div class="receipt-center receipt-compact-header">
-        <h3>${escapeHtml(sale.storeName || sale.store_name || state.settings.storeName)}</h3>
-      </div>
-    `
-    : `
-      <div class="receipt-center">
-        <img class="receipt-logo" src="logocatering.webp" alt="Logo Shanti Catering">
-        <h3>${escapeHtml(sale.storeName || sale.store_name || state.settings.storeName)}</h3>
-        <p class="receipt-store-address">${escapeHtml(sale.storeAddress || state.settings.storeAddress).replaceAll("\n", "<br>")}</p>
-      </div>
-    `;
+  const headerHtml = `
+    <header class="receipt-header receipt-center${compact ? " receipt-compact-header" : ""}">
+      <img class="receipt-logo" src="${getThermalReceiptLogoSrc(receiptWidth)}" alt="Logo Shanti Catering">
+      <h3 class="receipt-store-name">${escapeHtml(sale.storeName || sale.store_name || state.settings.storeName)}</h3>
+      ${compact ? "" : `<p class="receipt-store-address">${escapeHtml(sale.storeAddress || state.settings.storeAddress).replaceAll("\n", "<br>")}</p>`}
+    </header>
+  `;
   const adjustmentRows = [
-    !compact || shipping ? `<div class="receipt-row"><span>Ongkir</span><strong>${currency.format(shipping)}</strong></div>` : "",
+    !compact || shipping ? `<div class="receipt-row receipt-summary-row receipt-shipping"><strong>Ongkir</strong><strong>${currency.format(shipping)}</strong></div>` : "",
   ].filter(Boolean).join("");
   const footerHtml = compact ? "" : `<div class="receipt-line"></div><p class="receipt-center">${escapeHtml(sale.footer || state.settings.footer)}</p>`;
 
@@ -9593,12 +9808,15 @@ function receiptHtmlFromSale(sale) {
     <div class="receipt-line"></div>
     ${itemHtml || `<p class="receipt-center">Keranjang kosong</p>`}
     <div class="receipt-line"></div>
-    <div class="receipt-row"><span>Subtotal</span><strong>${currency.format(subtotal)}</strong></div>
+    <div class="receipt-row receipt-summary-row"><span>Subtotal</span><strong>${currency.format(subtotal)}</strong></div>
     ${adjustmentRows}
-    ${usedDeposit > 0 ? `<div class="receipt-row"><span>Potongan Deposit</span><strong>-${currency.format(usedDeposit)}</strong></div>` : ""}
-    <div class="receipt-row"><span>Pembayaran</span><strong>${escapeHtml(sale.payment || state.sale.payment)}</strong></div>
+    ${usedDeposit > 0 ? `<div class="receipt-row receipt-summary-row"><span>Potongan Deposit</span><strong>-${currency.format(usedDeposit)}</strong></div>` : ""}
+    <div class="receipt-row receipt-summary-row"><span>Pembayaran</span><strong>${escapeHtml(sale.payment || state.sale.payment)}</strong></div>
     <div class="receipt-line"></div>
-    <div class="receipt-row"><strong>Total Bayar</strong><strong>${currency.format(total - usedDeposit)}</strong></div>
+    <div class="receipt-total receipt-center">
+      <strong class="receipt-total-label">TOTAL BAYAR</strong>
+      <strong class="receipt-total-value">${currency.format(total - usedDeposit)}</strong>
+    </div>
     ${footerHtml}
   `;
 }
@@ -9665,6 +9883,20 @@ function getReceiptPrintWidthMm(receiptWidth = state.settings.receiptWidth) {
   return String(receiptWidth) === "58" ? 48 : 72;
 }
 
+const RECEIPT_PRINT_MIN_HEIGHT_MM = 30;
+const RECEIPT_PRINT_HEIGHT_BUFFER_MM = 0.5;
+
+function getReceiptTypography(fontSizeKey = state.settings.receiptFontSize) {
+  const fontSize = RECEIPT_FONT_SIZES[fontSizeKey] || RECEIPT_FONT_SIZES.medium;
+  return {
+    body: `${fontSize.body}px`,
+    small: `${fontSize.small}px`,
+    emphasis: `${fontSize.body + 2}px`,
+    heading: `${fontSize.small - 1}px`,
+    total: `${fontSize.body}px`,
+  };
+}
+
 function getReceiptPageWidthCss() {
   const inlineWidth = document.documentElement.style.getPropertyValue("--receipt-print-width").trim();
   const computedWidth = getComputedStyle(document.documentElement).getPropertyValue("--receipt-print-width").trim();
@@ -9679,7 +9911,7 @@ function setReceiptPageHeight(pageHeightMm) {
     pageSize = width;
     document.documentElement.style.setProperty("--receipt-page-height", "auto");
   } else {
-    const height = Math.min(Math.max(pageHeightMm, 42), 3000);
+    const height = Math.min(Math.max(pageHeightMm, RECEIPT_PRINT_MIN_HEIGHT_MM), 3000);
     pageSize = `${width} ${height}mm`;
     document.documentElement.style.setProperty("--receipt-page-height", `${height}mm`);
   }
@@ -9688,18 +9920,26 @@ function setReceiptPageHeight(pageHeightMm) {
   setDynamicPrintPageRule(pageSize, "0mm");
 }
 
+function getReceiptPageHeightMm(heightPx) {
+  const contentHeightMm = (Math.max(Number(heightPx) || 0, 0) * 25.4) / 96;
+  return Math.max(Math.ceil(contentHeightMm + RECEIPT_PRINT_HEIGHT_BUFFER_MM), RECEIPT_PRINT_MIN_HEIGHT_MM);
+}
+
 function applyReceiptSettingsStyles(salePayload = {}) {
   setPrintMode("receipt");
   const receiptWidth = salePayload.receiptWidth || state.settings.receiptWidth;
   const fontSizeKey = salePayload.receiptFontSize || state.settings.receiptFontSize;
-  const fontSize = RECEIPT_FONT_SIZES[fontSizeKey] || RECEIPT_FONT_SIZES.medium;
+  const typography = getReceiptTypography(fontSizeKey);
   const printWidth = getReceiptPrintWidthMm(receiptWidth);
   document.documentElement.style.setProperty("--receipt-width", `${receiptWidth}mm`);
   document.documentElement.style.setProperty("--receipt-print-width", `${printWidth}mm`);
   document.documentElement.style.setProperty("--print-page-size", `${printWidth}mm var(--receipt-page-height)`);
   document.documentElement.style.setProperty("--print-page-margin", "0mm");
-  document.documentElement.style.setProperty("--receipt-font-size", `${fontSize.body}px`);
-  document.documentElement.style.setProperty("--receipt-small-font-size", `${fontSize.small}px`);
+  document.documentElement.style.setProperty("--receipt-font-size", typography.body);
+  document.documentElement.style.setProperty("--receipt-small-font-size", typography.small);
+  document.documentElement.style.setProperty("--receipt-emphasis-font-size", typography.emphasis);
+  document.documentElement.style.setProperty("--receipt-heading-font-size", typography.heading);
+  document.documentElement.style.setProperty("--receipt-total-font-size", typography.total);
 }
 
 function measureReceiptPageHeight(html) {
@@ -9713,24 +9953,20 @@ function measureReceiptPageHeight(html) {
   const heightPx = receipt ? receipt.getBoundingClientRect().height : measure.getBoundingClientRect().height;
   measure.remove();
 
-  const heightMm = Math.max(Math.ceil((heightPx * 25.4) / 96) + 2, 42);
+  const heightMm = getReceiptPageHeightMm(heightPx);
   setReceiptPageHeight(heightMm);
 }
 
 function measureReceiptBatchPageHeight(htmlList) {
   const measure = document.createElement("div");
   measure.className = "receipt-print-measure";
-  measure.innerHTML = htmlList.map((html) => `<article class="receipt-paper">${html}</article>`).join("");
+  measure.innerHTML = receiptPrintArticlesHtml(htmlList);
   document.body.appendChild(measure);
 
-  const heights = [...measure.querySelectorAll(".receipt-paper")].map((receipt) => receipt.getBoundingClientRect().height);
+  const totalHeightPx = measure.getBoundingClientRect().height;
   measure.remove();
 
-  const totalHeightPx = heights.reduce((sum, h) => sum + h, 0);
-  let heightMm = Math.ceil((totalHeightPx * 25.4) / 96) + 2;
-  if (htmlList.length > 1) {
-    heightMm += (htmlList.length - 1) * 8; // Jarak 8mm antar orderan
-  }
+  const heightMm = getReceiptPageHeightMm(totalHeightPx);
   setReceiptPageHeight(heightMm);
   return heightMm;
 }
@@ -9747,7 +9983,7 @@ function preparePrintReceiptsBatch(salePayloads = []) {
   applyReceiptSettingsStyles(salePayloads[0]);
   const htmlList = salePayloads.map((salePayload) => receiptHtmlFromSale(salePayload));
   measureReceiptBatchPageHeight(htmlList);
-  els.printArea.innerHTML = htmlList.map((html) => `<article class="receipt-paper batch-receipt">${html}</article>`).join('<div class="page-break"></div>');
+  els.printArea.innerHTML = receiptPrintArticlesHtml(htmlList);
 }
 
 function preparePrintHtml(html) {
@@ -9858,8 +10094,11 @@ async function waitForPrintFrameReady(frame, layoutSelector = ".print-area") {
 }
 
 function receiptPrintArticlesHtml(htmlList = []) {
-  const batchClass = htmlList.length > 1 ? " batch-receipt" : "";
-  return htmlList.map((html) => `<article class="receipt-paper${batchClass}">${html}</article>`).join("");
+  const isBatch = htmlList.length > 1;
+  return htmlList.map((html, index) => {
+    const separator = isBatch && index > 0 ? '<div class="receipt-batch-separator" aria-hidden="true"></div>' : "";
+    return `${separator}<article class="receipt-paper${isBatch ? " batch-receipt" : ""}">${html}</article>`;
+  }).join("");
 }
 
 function prepareReceiptPrintFallback(htmlList = []) {
@@ -9894,7 +10133,7 @@ async function printReceiptHtmlInFrame(htmlList, pageHeightMm, receiptOptions = 
   const receiptWidth = receiptOptions.receiptWidth || state.settings.receiptWidth;
   const printWidth = getReceiptPrintWidthMm(receiptWidth);
   const fontSizeKey = receiptOptions.receiptFontSize || state.settings.receiptFontSize;
-  const fontSize = RECEIPT_FONT_SIZES[fontSizeKey] || RECEIPT_FONT_SIZES.medium;
+  const typography = getReceiptTypography(fontSizeKey);
   
   let pageSize;
   if (pageHeightMm === "auto") {
@@ -9907,7 +10146,7 @@ async function printReceiptHtmlInFrame(htmlList, pageHeightMm, receiptOptions = 
 
   frameDocument.open();
   frameDocument.write(`<!doctype html>
-<html lang="id" style="--receipt-width: ${receiptWidth}mm; --receipt-print-width: ${printWidth}mm; --receipt-font-size: ${fontSize.body}px; --receipt-small-font-size: ${fontSize.small}px;">
+<html lang="id" style="--receipt-width: ${receiptWidth}mm; --receipt-print-width: ${printWidth}mm; --receipt-font-size: ${typography.body}; --receipt-small-font-size: ${typography.small}; --receipt-emphasis-font-size: ${typography.emphasis}; --receipt-heading-font-size: ${typography.heading}; --receipt-total-font-size: ${typography.total};">
   <head>
     <meta charset="utf-8">
     <title>Struk Belanja</title>
@@ -9929,109 +10168,6 @@ async function printReceiptHtmlInFrame(htmlList, pageHeightMm, receiptOptions = 
         padding: 0;
         color: #111;
         background: #fff;
-      }
-      .receipt-paper {
-        display: block !important;
-        width: ${printWidth}mm;
-        min-height: 0;
-        margin: 0;
-        border: 0;
-        border-radius: 0;
-        background: #fff;
-        color: #111;
-        padding: 0.5mm 0.5mm 0 1mm;
-        font-family: "Courier New", Courier, monospace;
-        font-size: var(--receipt-font-size);
-        font-weight: 700;
-        line-height: 1.35;
-        box-shadow: none;
-      }
-      .receipt-paper h3,
-      .receipt-paper p {
-        margin: 0;
-      }
-      .receipt-paper h3 {
-        font-size: 0.82em;
-        line-height: 1.12;
-      }
-      .receipt-logo {
-        display: block;
-        width: 16mm;
-        height: 16mm;
-        margin: 0 auto 2mm;
-        filter: grayscale(1);
-        object-fit: contain;
-      }
-      .receipt-compact-header h3,
-      .receipt-store-address {
-        font-size: 0.82em;
-        line-height: 1.12;
-      }
-      .receipt-center {
-        text-align: center;
-      }
-      .receipt-line {
-        margin: 5px 0;
-        border-top: 1px dashed #222;
-      }
-      .receipt-row {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-      }
-      .receipt-row span,
-      .receipt-info {
-        min-width: 0;
-        overflow-wrap: anywhere;
-      }
-      .receipt-row strong {
-        flex-shrink: 0;
-        text-align: right;
-      }
-      .receipt-customer {
-        display: grid;
-        gap: 2px;
-        margin: 4px 0;
-        border: 2px solid #111;
-        background: transparent;
-        padding: 5px 3px;
-        font-size: 1.12em;
-        font-weight: 900;
-        line-height: 1.12;
-        text-align: center;
-        white-space: normal;
-        overflow-wrap: anywhere;
-        word-break: break-word;
-        letter-spacing: 0;
-      }
-      .receipt-customer strong {
-        display: block;
-        font-weight: 800;
-        line-height: 1.12;
-        -webkit-text-stroke: 0.25px #111;
-      }
-      .receipt-item {
-        margin-bottom: 5px;
-        break-inside: avoid;
-        page-break-inside: avoid;
-      }
-      .receipt-small,
-      .receipt-note {
-        font-size: var(--receipt-small-font-size);
-      }
-      .receipt-send-note {
-        margin: 3px 0;
-        font-size: calc(var(--receipt-small-font-size) + 1px);
-        font-weight: 950;
-        line-height: 1.18;
-        -webkit-text-stroke: 0.28px #111;
-      }
-      .receipt-send-note strong {
-        font-weight: 950;
-      }
-      .receipt-note {
-        margin-top: 2px;
-        color: #333;
       }
       @media print {
         @page { size: ${pageSize}; margin: 0mm; }
@@ -10056,10 +10192,7 @@ async function printReceiptHtmlInFrame(htmlList, pageHeightMm, receiptOptions = 
           height: auto !important;
           min-height: 0 !important;
         }
-        .batch-receipt + .batch-receipt {
-          margin-top: 4mm !important;
-          border-top: 1px dashed #111 !important;
-          padding-top: 4mm !important;
+        .batch-receipt {
           break-inside: avoid !important;
           page-break-inside: avoid !important;
         }
@@ -10162,7 +10295,322 @@ function openReceiptPreview(salePayload = getActiveReceiptPayload()) {
   openModal(els.receiptPreviewModal);
 }
 
-async function printSaleReceipt(salePayload = getActiveReceiptPayload()) {
+function isCapacitorNativeApp() {
+  const capacitor = window.Capacitor;
+  if (!capacitor) return false;
+  if (typeof capacitor.isNativePlatform === "function") return capacitor.isNativePlatform();
+  return ["android", "ios"].includes(capacitor.getPlatform?.());
+}
+
+function getNativePosPrinter() {
+  if (!isCapacitorNativeApp()) return null;
+  const printer = window.Capacitor?.Plugins?.[NATIVE_POS_PRINTER_PLUGIN_NAME];
+  if (!printer) return null;
+  return typeof printer.printRaw === "function" || typeof printer.print === "function" ? printer : null;
+}
+
+function getNativePrinterTransport() {
+  return state.settings.nativePrinterTransport === "network" ? "network" : "bluetooth";
+}
+
+function getNativePrinterConnectionConfig() {
+  const transport = getNativePrinterTransport();
+  if (transport === "bluetooth") {
+    const address = String(state.settings.nativePrinterAddress || "").trim();
+    if (!address) throw new Error("Pilih printer Bluetooth di Setup Printer terlebih dahulu.");
+    return { transport, address };
+  }
+
+  const host = String(state.settings.nativePrinterHost || "").trim();
+  const port = Number.parseInt(state.settings.nativePrinterPort, 10) || 9100;
+  if (!host) throw new Error("Isi alamat IP printer LAN di Setup Printer terlebih dahulu.");
+  if (port < 1 || port > 65535) throw new Error("Port printer LAN harus di antara 1 sampai 65535.");
+  return { transport, host, port };
+}
+
+function getNativePrinterSetupStatus() {
+  const printer = getNativePosPrinter();
+  if (!printer) return "Plugin printer native belum tersedia di aplikasi ini. Build ulang aplikasi Android setelah sinkronisasi proyek.";
+  if (getNativePrinterTransport() === "network") {
+    const host = String(state.settings.nativePrinterHost || "").trim();
+    return host
+      ? `Siap mengirim RAW ESC/POS ke ${host}:${state.settings.nativePrinterPort || "9100"}.`
+      : "Isi IP printer Wi-Fi/LAN dan port RAW ESC/POS, biasanya 9100.";
+  }
+  const name = String(state.settings.nativePrinterName || "").trim();
+  return name
+    ? `Printer Bluetooth terpilih: ${name}.`
+    : "Pair printer thermal di Pengaturan Android, lalu muat daftar perangkat di bawah.";
+}
+
+function renderNativePrinterSetup() {
+  const nativeApp = isCapacitorNativeApp();
+  if (els.nativePrinterPanel) els.nativePrinterPanel.hidden = !nativeApp;
+  if (els.browserPrinterSetup) els.browserPrinterSetup.hidden = nativeApp;
+  if (!nativeApp) {
+    if (els.printerSetupTitle) els.printerSetupTitle.textContent = "Setup Printer XP";
+    if (els.printerSetupTestPrintButton) els.printerSetupTestPrintButton.textContent = "Test Print";
+    return;
+  }
+
+  if (els.printerSetupTitle) els.printerSetupTitle.textContent = "Setup Printer Thermal";
+  if (els.printerSetupTestPrintButton) els.printerSetupTestPrintButton.textContent = "Test Cetak Thermal";
+  if (els.nativePrinterStatus) els.nativePrinterStatus.textContent = getNativePrinterSetupStatus();
+  if (els.nativePrinterTransportInput) els.nativePrinterTransportInput.value = getNativePrinterTransport();
+  if (els.nativeBluetoothPrinterControls) els.nativeBluetoothPrinterControls.hidden = getNativePrinterTransport() !== "bluetooth";
+  if (els.nativeNetworkPrinterControls) els.nativeNetworkPrinterControls.hidden = getNativePrinterTransport() !== "network";
+  if (els.nativePrinterHostInput) els.nativePrinterHostInput.value = state.settings.nativePrinterHost || "";
+  if (els.nativePrinterPortInput) els.nativePrinterPortInput.value = state.settings.nativePrinterPort || "9100";
+
+  if (!els.nativePrinterDeviceList) return;
+  const devices = Array.isArray(state.nativePrinterDevices) ? state.nativePrinterDevices : [];
+  if (!devices.length) {
+    els.nativePrinterDeviceList.innerHTML = '<p class="native-printer-empty">Belum ada daftar perangkat. Tekan Muat Printer Bluetooth setelah printer dipair di Android.</p>';
+    return;
+  }
+  const selectedAddress = String(state.settings.nativePrinterAddress || "");
+  els.nativePrinterDeviceList.innerHTML = devices.map((device) => {
+    const address = escapeHtml(String(device.address || ""));
+    const name = escapeHtml(String(device.name || "Printer Bluetooth"));
+    const selected = String(device.address || "") === selectedAddress;
+    return `<button class="native-printer-device${selected ? " is-selected" : ""}" type="button" data-native-printer-address="${address}" data-native-printer-name="${name}" aria-pressed="${selected}"><strong>${name}</strong><small>${address}</small></button>`;
+  }).join("");
+}
+
+function openPrinterSetup() {
+  renderNativePrinterSetup();
+  openModal(els.printerSetupModal, isCapacitorNativeApp() ? els.refreshNativeBluetoothButton : els.printerSetupTestPrintButton);
+}
+
+async function refreshNativeBluetoothPrinters() {
+  const printer = getNativePosPrinter();
+  if (!printer || typeof printer.listBluetoothPrinters !== "function") {
+    showToast("Plugin printer native belum tersedia. Build ulang aplikasi Android terbaru.", { variant: "error" });
+    return;
+  }
+
+  if (els.refreshNativeBluetoothButton) els.refreshNativeBluetoothButton.disabled = true;
+  if (els.nativePrinterStatus) els.nativePrinterStatus.textContent = "Memuat printer Bluetooth yang sudah dipair...";
+  try {
+    const result = await printer.listBluetoothPrinters();
+    state.nativePrinterDevices = Array.isArray(result?.devices) ? result.devices : [];
+    renderNativePrinterSetup();
+    const count = state.nativePrinterDevices.length;
+    showToast(count ? `${count} perangkat Bluetooth siap dipilih.` : "Tidak ada printer Bluetooth yang sudah dipair.", { variant: count ? "success" : "error" });
+  } catch (error) {
+    state.nativePrinterDevices = [];
+    renderNativePrinterSetup();
+    showToast(error?.message || "Daftar printer Bluetooth tidak dapat dimuat.", { variant: "error" });
+  } finally {
+    if (els.refreshNativeBluetoothButton) els.refreshNativeBluetoothButton.disabled = false;
+  }
+}
+
+function selectNativeBluetoothPrinter(button) {
+  const address = String(button?.dataset?.nativePrinterAddress || "").trim();
+  if (!address) return;
+  state.settings.nativePrinterTransport = "bluetooth";
+  state.settings.nativePrinterAddress = address;
+  state.settings.nativePrinterName = String(button.dataset.nativePrinterName || "Printer Bluetooth").trim();
+  saveState();
+  renderNativePrinterSetup();
+  showToast(`${state.settings.nativePrinterName} dipilih untuk cetak thermal.`, { variant: "success" });
+}
+
+function saveNativeNetworkPrinterSettings() {
+  state.settings.nativePrinterTransport = "network";
+  state.settings.nativePrinterHost = String(els.nativePrinterHostInput?.value || "").trim();
+  state.settings.nativePrinterPort = String(els.nativePrinterPortInput?.value || "").replace(/\D/g, "") || "9100";
+  saveState();
+  renderNativePrinterSetup();
+}
+
+function normalizePosText(value) {
+  return String(value || "")
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[^\x20-\x7E\n]/g, "?");
+}
+
+function getPosColumns(receiptWidth) {
+  return String(receiptWidth || state.settings.receiptWidth) === "80" ? 48 : 32;
+}
+
+function posCurrency(value) {
+  return normalizePosText(currency.format(Number(value) || 0));
+}
+
+function appendPosDivider(encoder, columns) {
+  encoder.line("-".repeat(columns));
+}
+
+function appendPosSummaryRow(encoder, columns, label, value, { labelBold = false } = {}) {
+  const amountWidth = columns >= 48 ? 14 : 12;
+  encoder.table(
+    [
+      { width: columns - amountWidth, align: "left" },
+      { width: amountWidth, align: "right" },
+    ],
+    [[
+      (cell) => cell.bold(labelBold).text(normalizePosText(label)).bold(false),
+      (cell) => cell.bold(true).text(normalizePosText(value)).bold(false),
+    ]]
+  );
+}
+
+async function appendPosLogo(encoder, receiptWidth) {
+  try {
+    const logo = new Image();
+    const loaded = new Promise((resolve, reject) => {
+      logo.addEventListener("load", resolve, { once: true });
+      logo.addEventListener("error", () => reject(new Error("Logo thermal tidak dapat dimuat.")), { once: true });
+    });
+    logo.src = getThermalReceiptLogoSrc(receiptWidth);
+    await loaded;
+    const logoWidth = String(receiptWidth) === "80" ? 160 : 128;
+    const aspectRatio = logo.naturalWidth ? logo.naturalHeight / logo.naturalWidth : 1;
+    const logoHeight = Math.max(8, Math.round((logoWidth * aspectRatio) / 8) * 8);
+    encoder.align("center").image(logo, logoWidth, logoHeight, "threshold", 156).newline();
+  } catch (error) {
+    console.warn("Logo RAW POS dilewati", error);
+  }
+}
+
+async function receiptPosBytesFromSale(sale, { appendSeparator = false } = {}) {
+  const ReceiptEncoder = window.ReceiptPrinterEncoder;
+  if (typeof ReceiptEncoder !== "function") throw new Error("Encoder RAW POS tidak tersedia.");
+
+  const completedAt = sale.completedAt || sale.completed_at || new Date().toISOString();
+  const items = Array.isArray(sale.items) ? sale.items : [];
+  const subtotal = Number(sale.subtotal || 0);
+  const shipping = Number(sale.shipping || sale.discount || 0);
+  const total = Number(sale.total || 0);
+  const usedDeposit = Number(sale.usedDeposit || 0);
+  const receiptWidth = sale.receiptWidth || state.settings.receiptWidth;
+  const compact = (sale.receiptMode || state.settings.receiptMode || "compact") === "compact";
+  const customerName = String(sale.customerName || sale.customer_name || sale.customerAddress || sale.customer_address || "").trim();
+  const sendNote = normalizeSendNoteText(sale.sendNote || sale.send_note || "");
+  const queueInfo = getQueueInfoFromSale(sale);
+  const columns = getPosColumns(receiptWidth);
+  const cutMode = POS_PRINTER_DEFAULTS.cut;
+  const encoder = new ReceiptEncoder({
+    language: POS_PRINTER_DEFAULTS.language,
+    columns,
+    imageMode: "raster",
+    feedBeforeCut: POS_PRINTER_DEFAULTS.feedLines,
+    errors: "relaxed",
+  });
+
+  encoder.initialize().codepage("auto");
+  await appendPosLogo(encoder, receiptWidth);
+  encoder.align("center").bold(true).line(normalizePosText(sale.storeName || sale.store_name || state.settings.storeName));
+  if (!compact) encoder.line(normalizePosText(sale.storeAddress || state.settings.storeAddress));
+  encoder.bold(false);
+  encoder.newline();
+
+  if (customerName) {
+    encoder.box({ width: columns, align: "center", style: "single" }, (box) => {
+      box.bold(true).size(2, 2).text(normalizePosText(customerName)).size(1, 1).bold(false);
+    });
+  }
+
+  if (queueInfo) encoder.align("left").bold(true).line(`NO: ${normalizePosText(queueInfo.queueNo)}`).bold(false);
+  else if (sale.chatDate || sale.chat_date) encoder.align("left").line(normalizePosText(sale.chatDate || sale.chat_date));
+  if (sendNote) encoder.bold(true).line(`CATATAN KIRIM: ${normalizePosText(sendNote)}`).bold(false);
+
+  appendPosDivider(encoder, columns);
+  items.forEach((item) => {
+    const quantity = Number(item.quantity || 0);
+    const lineTotal = Number(item.lineTotal || item.line_total || Number(item.price || 0) * quantity);
+    const itemNote = String(item.note || "").trim();
+    encoder.bold(true).line(normalizePosText(getReceiptItemDisplayName(item))).bold(false);
+    if (itemNote) encoder.bold(true).line(`Catatan: ${normalizePosText(itemNote)}`).bold(false);
+    const amountWidth = columns >= 48 ? 14 : 12;
+    encoder.table(
+      [
+        { width: columns - amountWidth, align: "left" },
+        { width: amountWidth, align: "right" },
+      ],
+      [[
+        (cell) => cell.bold(true).text(String(quantity)).bold(false).text(` x ${posCurrency(item.price)}`),
+        (cell) => cell.bold(true).text(posCurrency(lineTotal)).bold(false),
+      ]]
+    );
+  });
+
+  appendPosDivider(encoder, columns);
+  appendPosSummaryRow(encoder, columns, "Subtotal", posCurrency(subtotal), { labelBold: true });
+  if (!compact || shipping) appendPosSummaryRow(encoder, columns, "Ongkir", posCurrency(shipping), { labelBold: true });
+  if (usedDeposit > 0) appendPosSummaryRow(encoder, columns, "Potongan Deposit", `-${posCurrency(usedDeposit)}`, { labelBold: true });
+  appendPosSummaryRow(encoder, columns, "Pembayaran", normalizePosText(sale.payment || state.sale.payment), { labelBold: true });
+  appendPosDivider(encoder, columns);
+  encoder.align("center").bold(true).line("TOTAL BAYAR").line(posCurrency(total - usedDeposit)).bold(false);
+  if (!compact) {
+    appendPosDivider(encoder, columns);
+    encoder.align("center").line(normalizePosText(sale.footer || state.settings.footer));
+  }
+
+  if (cutMode === "none") {
+    if (appendSeparator) appendPosDivider(encoder, columns);
+    encoder.newline();
+  } else {
+    encoder.cut(cutMode);
+  }
+
+  return encoder.encode();
+}
+
+function concatPosByteArrays(byteArrays = []) {
+  const totalLength = byteArrays.reduce((total, bytes) => total + bytes.length, 0);
+  const merged = new Uint8Array(totalLength);
+  let offset = 0;
+  byteArrays.forEach((bytes) => {
+    merged.set(bytes, offset);
+    offset += bytes.length;
+  });
+  return merged;
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return window.btoa(binary);
+}
+
+async function printSaleReceiptsViaNative(salePayloads = []) {
+  const printer = getNativePosPrinter();
+  if (!printer) throw new Error("Printer POS native belum dipasang di aplikasi ini.");
+  const connection = getNativePrinterConnectionConfig();
+  const byteArrays = await Promise.all(salePayloads.map((salePayload, index) => (
+    receiptPosBytesFromSale(salePayload, {
+      appendSeparator: POS_PRINTER_DEFAULTS.cut === "none" && index < salePayloads.length - 1,
+    })
+  )));
+  const bytes = concatPosByteArrays(byteArrays);
+  const options = {
+    ...connection,
+    dataBase64: bytesToBase64(bytes),
+    encoding: "base64",
+    language: POS_PRINTER_DEFAULTS.language,
+    cut: POS_PRINTER_DEFAULTS.cut,
+    feedLines: POS_PRINTER_DEFAULTS.feedLines,
+    jobName: salePayloads.length > 1 ? `Kasir Shanti Catering (${salePayloads.length} struk)` : "Kasir Shanti Catering",
+  };
+  if (typeof printer.printRaw === "function") await printer.printRaw(options);
+  else await printer.print(options);
+  const receiptCopy = salePayloads.length > 1 ? `${salePayloads.length} struk` : "Struk";
+  showToast(`${receiptCopy} dikirim ke printer POS.`, { variant: "success" });
+  return "native";
+}
+
+async function printSaleReceiptInBrowser(salePayload) {
   applyReceiptSettingsStyles(salePayload);
   const html = receiptHtmlFromSale(salePayload).trim();
   
@@ -10174,16 +10622,195 @@ async function printSaleReceipt(salePayload = getActiveReceiptPayload()) {
   const heightPx = receipt ? receipt.getBoundingClientRect().height : measure.getBoundingClientRect().height;
   measure.remove();
   
-  const heightMm = Math.max(Math.ceil((heightPx * 25.4) / 96) + 2, 42);
+  const heightMm = getReceiptPageHeightMm(heightPx);
 
   await printReceiptHtmlInFrame([html], heightMm, salePayload);
 }
 
-async function printSaleReceiptsBatch(salePayloads = []) {
+async function printSaleReceiptsBatchInBrowser(salePayloads = []) {
   if (!salePayloads.length) return;
+  const receiptOptions = salePayloads[0];
+  applyReceiptSettingsStyles(receiptOptions);
   const htmlList = salePayloads.map((salePayload) => receiptHtmlFromSale(salePayload));
   const totalHeightMm = measureReceiptBatchPageHeight(htmlList);
-  await printReceiptHtmlInFrame(htmlList, totalHeightMm, salePayloads[0]);
+  await printReceiptHtmlInFrame(htmlList, totalHeightMm, receiptOptions);
+}
+
+async function printSaleReceipt(salePayload = getActiveReceiptPayload()) {
+  if (isCapacitorNativeApp()) {
+    try {
+      return await printSaleReceiptsViaNative([salePayload]);
+    } catch (error) {
+      console.error("Cetak POS native gagal", error);
+      showToast(`${error?.message || "Printer POS native belum siap."} Preview struk dibuka.`, { variant: "error" });
+      openReceiptPreview(salePayload);
+      return "preview";
+    }
+  }
+
+  await printSaleReceiptInBrowser(salePayload);
+  return "browser";
+}
+
+async function printSaleReceiptsBatch(salePayloads = []) {
+  if (!salePayloads.length) return "browser";
+  if (isCapacitorNativeApp()) {
+    try {
+      return await printSaleReceiptsViaNative(salePayloads);
+    } catch (error) {
+      console.error("Cetak POS native batch gagal", error);
+      showToast(`${error?.message || "Printer POS native belum siap."} Preview struk pertama dibuka.`, { variant: "error" });
+      openReceiptPreview(salePayloads[0]);
+      return "preview";
+    }
+  }
+
+  await printSaleReceiptsBatchInBrowser(salePayloads);
+  return "browser";
+}
+
+function kitchenOrderTicketHtml(ticket) {
+  const itemRows = ticket.itemTotals
+    .map((item) => `
+      <div class="kot-item-row">
+        <strong class="kot-item-name">${escapeHtml(item.name)}</strong>
+        <strong class="kot-item-quantity">${formatKitchenQuantity(item.quantity)}x</strong>
+      </div>
+    `)
+    .join("");
+  const noteRows = ticket.notedItems
+    .map((item) => `<p class="kot-note-row"><strong>${formatKitchenQuantity(item.quantity)}x ${escapeHtml(item.name)}:</strong> ${escapeHtml(item.note)}</p>`)
+    .join("");
+
+  return `
+    <header class="kot-header receipt-center">
+      <h3 class="kot-title">KOT</h3>
+      <p class="kot-date">${escapeHtml(ticket.dateLabel)}</p>
+    </header>
+    <div class="receipt-line"></div>
+    <section class="kot-items" aria-label="Total item dapur">
+      ${itemRows || '<p class="receipt-center">Belum ada item</p>'}
+    </section>
+    ${noteRows ? `
+      <div class="receipt-line"></div>
+      <section class="kot-notes" aria-label="Catatan item">
+        <h4>CATATAN ITEM</h4>
+        ${noteRows}
+      </section>
+    ` : ""}
+    <div class="receipt-line"></div>
+    <p class="kot-total"><strong>TOTAL ITEM</strong><strong>${formatKitchenQuantity(ticket.itemCount)}</strong></p>
+  `;
+}
+
+async function kitchenOrderTicketPosBytes(ticket) {
+  const ReceiptEncoder = window.ReceiptPrinterEncoder;
+  if (typeof ReceiptEncoder !== "function") throw new Error("Encoder RAW POS tidak tersedia.");
+
+  const columns = getPosColumns(state.settings.receiptWidth);
+  const encoder = new ReceiptEncoder({
+    language: POS_PRINTER_DEFAULTS.language,
+    columns,
+    imageMode: "raster",
+    feedBeforeCut: POS_PRINTER_DEFAULTS.feedLines,
+    errors: "relaxed",
+  });
+
+  encoder.initialize().codepage("auto");
+  encoder.align("center").bold(true).line("KOT").bold(false).line(normalizePosText(ticket.dateLabel)).newline();
+  appendPosDivider(encoder, columns);
+  ticket.itemTotals.forEach((item) => {
+    encoder.table(
+      [
+        { width: Math.max(8, columns - 6), align: "left" },
+        { width: 6, align: "right" },
+      ],
+      [[
+        (cell) => cell.bold(true).text(normalizePosText(item.name)).bold(false),
+        (cell) => cell.bold(true).text(`${formatKitchenQuantity(item.quantity)}x`).bold(false),
+      ]]
+    );
+  });
+
+  if (ticket.notedItems.length) {
+    appendPosDivider(encoder, columns);
+    encoder.align("left").bold(true).line("CATATAN ITEM").bold(false);
+    ticket.notedItems.forEach((item) => {
+      encoder.bold(true).line(normalizePosText(`${formatKitchenQuantity(item.quantity)}x ${item.name}: ${item.note}`)).bold(false);
+    });
+  }
+
+  appendPosDivider(encoder, columns);
+  encoder.table(
+    [
+      { width: Math.max(8, columns - 10), align: "left" },
+      { width: 10, align: "right" },
+    ],
+    [[
+      (cell) => cell.bold(true).text("TOTAL ITEM").bold(false),
+      (cell) => cell.bold(true).text(formatKitchenQuantity(ticket.itemCount)).bold(false),
+    ]]
+  );
+
+  if (POS_PRINTER_DEFAULTS.cut === "none") encoder.newline();
+  else encoder.cut(POS_PRINTER_DEFAULTS.cut);
+  return encoder.encode();
+}
+
+async function printKitchenOrderTicketInBrowser(ticket) {
+  const receiptOptions = {
+    receiptWidth: state.settings.receiptWidth,
+    receiptFontSize: state.settings.receiptFontSize,
+  };
+  applyReceiptSettingsStyles(receiptOptions);
+  const html = kitchenOrderTicketHtml(ticket).trim();
+  const measure = document.createElement("div");
+  measure.className = "receipt-print-measure";
+  measure.innerHTML = `<article class="receipt-paper kitchen-order-ticket">${html}</article>`;
+  document.body.appendChild(measure);
+  const receipt = measure.querySelector(".receipt-paper");
+  const heightPx = receipt ? receipt.getBoundingClientRect().height : measure.getBoundingClientRect().height;
+  measure.remove();
+  await printReceiptHtmlInFrame([`<div class="kitchen-order-ticket">${html}</div>`], getReceiptPageHeightMm(heightPx), receiptOptions);
+}
+
+async function printKitchenOrderTicketViaNative(ticket) {
+  const printer = getNativePosPrinter();
+  if (!printer) throw new Error("Printer POS native belum dipasang di aplikasi ini.");
+  const connection = getNativePrinterConnectionConfig();
+  const bytes = await kitchenOrderTicketPosBytes(ticket);
+  const options = {
+    ...connection,
+    dataBase64: bytesToBase64(bytes),
+    encoding: "base64",
+    language: POS_PRINTER_DEFAULTS.language,
+    cut: POS_PRINTER_DEFAULTS.cut,
+    feedLines: POS_PRINTER_DEFAULTS.feedLines,
+    jobName: "KOT Shanti Catering",
+  };
+  if (typeof printer.printRaw === "function") await printer.printRaw(options);
+  else await printer.print(options);
+}
+
+async function printKitchenOrderTicket() {
+  const ticket = buildKitchenOrderTicket();
+  if (!ticket.itemTotals.length) {
+    showToast("Belum ada item pada rentang ini untuk dicetak.", { variant: "error", title: "KOT" });
+    return;
+  }
+
+  if (isCapacitorNativeApp()) {
+    try {
+      await printKitchenOrderTicketViaNative(ticket);
+      showToast("KOT dikirim ke printer POS.", { variant: "success", title: "KOT" });
+      return;
+    } catch (error) {
+      console.error("Cetak KOT native gagal", error);
+      showToast(`${error?.message || "Printer POS native belum siap."} Dialog cetak browser dibuka.`, { variant: "error", title: "KOT" });
+    }
+  }
+
+  await printKitchenOrderTicketInBrowser(ticket);
 }
 
 function getTestReceiptPayload() {
@@ -11969,11 +12596,12 @@ async function completeSale() {
   if (!canCompleteSale()) return;
 
   const salePayload = buildSalePayload();
+  let savedSale;
   els.completeSaleButton.disabled = true;
   setSyncStatus("Menyimpan transaksi ke database SQL...");
 
   try {
-    const savedSale = await saveSaleToDatabase(salePayload);
+    savedSale = await saveSaleToDatabase(salePayload);
     if (savedSale.receiptNo) salePayload.receiptNo = savedSale.receiptNo;
     if (savedSale.usedDeposit) salePayload.usedDeposit = savedSale.usedDeposit;
   } catch (error) {
@@ -12004,21 +12632,34 @@ async function completeSale() {
 
   if (!state.settings.autoPrint) {
     preparePrintReceipt(salePayload);
-    setSyncStatus("Transaksi selesai. Auto print mati, tekan Cetak Struk kalau perlu.");
+    setSyncStatus(savedSale?.offline
+      ? "Transaksi tersimpan di perangkat dan menunggu sinkronisasi Supabase. Auto print mati, tekan Cetak Struk kalau perlu."
+      : "Transaksi selesai. Auto print mati, tekan Cetak Struk kalau perlu.");
     els.completeSaleButton.disabled = false;
     return;
   }
 
   if (state.settings.printFlow === "preview") {
     openReceiptPreview(salePayload);
-    setSyncStatus("Transaksi selesai. Preview struk dibuka, tekan Cetak Struk saat siap.");
+    setSyncStatus(savedSale?.offline
+      ? "Transaksi tersimpan di perangkat dan menunggu sinkronisasi Supabase. Preview struk dibuka."
+      : "Transaksi selesai. Preview struk dibuka, tekan Cetak Struk saat siap.");
     els.completeSaleButton.disabled = false;
     return;
   }
 
-  setSyncStatus("Transaksi tersimpan. Membuka dialog cetak struk...");
-  await printSaleReceipt(salePayload);
-  setSyncStatus("Transaksi selesai. Pilih printer thermal 58mm/80mm di dialog print.");
+  const syncPrefix = savedSale?.offline
+    ? "Transaksi tersimpan di perangkat dan menunggu sinkronisasi Supabase."
+    : "Transaksi tersimpan.";
+  setSyncStatus(isCapacitorNativeApp()
+    ? `${syncPrefix} Mengirim struk ke printer POS perangkat...`
+    : `${syncPrefix} Membuka dialog cetak struk...`);
+  const printTransport = await printSaleReceipt(salePayload);
+  setSyncStatus(printTransport === "native"
+    ? `${syncPrefix} Struk POS sudah dikirim ke printer perangkat.`
+    : printTransport === "preview"
+      ? `${syncPrefix} Printer POS native belum disetel, preview struk dibuka.`
+      : `${syncPrefix} Pilih printer thermal 58mm/80mm di dialog print.`);
   els.completeSaleButton.disabled = false;
 }
 
@@ -12216,6 +12857,7 @@ function bindEvents() {
   });
   els.refreshSalesButton.addEventListener("click", loadSalesDashboard);
   els.openSalesDashboardButton.addEventListener("click", openSalesDashboard);
+  els.printKitchenOrderTicketButton?.addEventListener("click", printKitchenOrderTicket);
   els.openCustomerDataButton.addEventListener("click", openCustomerDataManager);
   els.refreshCustomersButton.addEventListener("click", async () => {
     setCustomerDataStatus("Memuat ulang data customer...");
@@ -12904,16 +13546,26 @@ function bindEvents() {
   els.openReceiptSettingsButton.addEventListener("click", () => {
     openModal(els.receiptSettingsModal, els.storeNameInput);
   });
-  els.openPrinterSetupButton.addEventListener("click", () => {
-    openModal(els.printerSetupModal, els.printerSetupTestPrintButton);
-  });
-  els.openPrinterSetupFromSettingsButton.addEventListener("click", () => {
-    openModal(els.printerSetupModal, els.printerSetupTestPrintButton);
-  });
+  els.openPrinterSetupButton.addEventListener("click", openPrinterSetup);
+  els.openPrinterSetupFromSettingsButton.addEventListener("click", openPrinterSetup);
   els.printerSetupModal.addEventListener("click", (event) => {
     if (event.target === els.printerSetupModal) {
       els.printerSetupModal.close();
     }
+  });
+  els.nativePrinterTransportInput?.addEventListener("change", () => {
+    state.settings.nativePrinterTransport = els.nativePrinterTransportInput.value === "network" ? "network" : "bluetooth";
+    saveState();
+    renderNativePrinterSetup();
+  });
+  els.refreshNativeBluetoothButton?.addEventListener("click", refreshNativeBluetoothPrinters);
+  els.nativePrinterDeviceList?.addEventListener("click", (event) => {
+    const deviceButton = event.target.closest("[data-native-printer-address]");
+    if (deviceButton) selectNativeBluetoothPrinter(deviceButton);
+  });
+  [els.nativePrinterHostInput, els.nativePrinterPortInput].filter(Boolean).forEach((input) => {
+    input.addEventListener("change", saveNativeNetworkPrinterSettings);
+    input.addEventListener("blur", saveNativeNetworkPrinterSettings);
   });
   els.printerSetupTestPrintButton.addEventListener("click", () => {
     printSaleReceipt(getTestReceiptPayload());
@@ -13001,7 +13653,16 @@ function bindEvents() {
     if (event.key === "Escape") closeDailyMenuCalendar();
   });
 
-  [els.storeNameInput, els.storeAddressInput, els.footerInput, els.receiptWidthInput, els.receiptFontSizeInput, els.printFlowInput, els.receiptModeInput, els.autoPrintInput].forEach((input) => {
+  [
+    els.storeNameInput,
+    els.storeAddressInput,
+    els.footerInput,
+    els.receiptWidthInput,
+    els.receiptFontSizeInput,
+    els.printFlowInput,
+    els.receiptModeInput,
+    els.autoPrintInput,
+  ].filter(Boolean).forEach((input) => {
     input.addEventListener("input", () => {
       state.settings.storeName = els.storeNameInput.value;
       state.settings.storeAddress = els.storeAddressInput.value;
@@ -13018,6 +13679,10 @@ function bindEvents() {
   window.addEventListener("online", () => {
     refreshTodayDateIfChanged();
     updateConnectionUI();
+    flushOfflineSyncOutbox().then((synced) => {
+      if (synced) loadSalesDashboard();
+    });
+    saveProductsToDatabase({ toast: false });
     if (state.sync.autoSync && state.sync.sheetUrl) syncGoogleSheet({ silent: true });
   });
 
@@ -13032,26 +13697,6 @@ function bindEvents() {
 
   window.setInterval(refreshTodayDateIfChanged, 60000);
   window.setInterval(checkBackendConnection, 15000);
-}
-
-function initSmoothScrolling() {
-  const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-  if (prefersReducedMotion || typeof window.Lenis !== "function") return;
-
-  const lenis = new window.Lenis({
-    autoRaf: true,
-    autoToggle: false,
-    anchors: true,
-    allowNestedScroll: true,
-    lerp: 0.13,
-    wheelMultiplier: 0.82,
-    touchMultiplier: 1,
-    smoothWheel: true,
-    syncTouch: false,
-    stopInertiaOnNavigate: true,
-  });
-
-  window.kasirSmoothScroll = lenis;
 }
 
 function makeTomOption(value, text = value, meta = "", keywords = "", type = "suggestion") {
@@ -13554,7 +14199,7 @@ function initTomSelectEnhancements() {
   };
 }
 
-if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+if (!isCapacitorNativeApp() && "serviceWorker" in navigator && location.protocol.startsWith("http")) {
   navigator.serviceWorker.register("service-worker.js").then((reg) => {
     reg.addEventListener("updatefound", () => {
       const newWorker = reg.installing;
@@ -13584,7 +14229,6 @@ loadState();
 applyTheme();
 renderSettings();
 setupModalScrollLock();
-initSmoothScrolling();
 syncManualStockInputState();
 bindEvents();
 initTomSelectEnhancements();
@@ -13594,6 +14238,9 @@ updateConnectionUI();
 startAutoSync();
 loadProductsFromDatabase({ toast: false });
 loadSalesDashboard();
+flushOfflineSyncOutbox({ toast: false }).then((synced) => {
+  if (synced) loadSalesDashboard();
+});
 
 // === CATATAN PIUTANG & DEPOSIT MANAGEMENT ===
 
