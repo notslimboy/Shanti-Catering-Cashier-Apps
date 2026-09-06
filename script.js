@@ -119,7 +119,7 @@ const RECEIPT_FONT_SIZES = {
 const DEFAULT_CATEGORY = "Lainnya";
 const AI_BULK_PROMPT = `Ringkas chat WhatsApp ini menjadi CSV saja, tanpa markdown.
 Kolom wajib:
-customer,chatDate,payment,ongkir,item,quantity,unit,harga,note,sendNote
+customer,chatDate,payment,ongkir,item,quantity,unit,varian,harga,note,sendNote
 
 Aturan:
 - Satu baris = satu item pesanan.
@@ -127,14 +127,16 @@ Aturan:
 - customer adalah nama kontak WA yang sudah berisi alamat/patokan pelanggan.
 - Jika chat menyebut harga custom seperti "Sop Iga 50K", isi kolom harga dengan 50000 dan item tetap "Sop Iga".
 - Jika chat menyebut jumlah satuan seperti "Perkedel 10 biji", isi item "Perkedel", quantity 10, dan unit "biji".
+- Jika chat menyebut porsi separuh/setengah/1/2, isi varian "Separuh" dan quantity 1. CSV juga boleh memakai quantity 0,5; sistem akan memilih varian Separuh.
+- Jika chat menyebut harga custom, isi varian "Custom input" dan harga customnya.
 - Catatan seperti "sambal pisah", "tidak pakai udang", atau "caonya kotak-kotak" harus masuk ke kolom note pada item yang sesuai.
 - Instruksi kirim/pickup seperti "kirim ke Direktorat ITS", "ambil gojek", atau "titip satpam" harus masuk ke kolom sendNote, bukan note.
 - Jika ada produk yang sama tetapi memiliki catatan/varian/keterangan yang berbeda (contoh: "2x Siomay tanpa pare" dan "1x Siomay pake pare"), produk tersebut HARUS ditulis sebagai baris terpisah di CSV dengan catatan masing-masing. JANGAN PERNAH menggabungkan kuantitasnya atau menggabungkan catatan mereka menjadi satu baris (seperti "3x Siomay, catatan: tanpa pare; pake pare").
 - Abaikan obrolan yang bukan pesanan, gabungkan revisi terakhir dari customer yang sama, dan jangan menebak item kalau tidak disebut.
 
 Contoh:
-customer,chatDate,payment,ongkir,item,quantity,unit,harga,note,sendNote
-"Bu Ani - Jl Melati 12","28/5/2026 10.15","Tunai",10000,"Nasi Goreng Rumahan",20,"porsi",,"sambal pisah untuk 5 porsi","kirim ke pos satpam"`;
+customer,chatDate,payment,ongkir,item,quantity,unit,varian,harga,note,sendNote
+"Bu Ani - Jl Melati 12","28/5/2026 10.15","Tunai",10000,"Nasi Goreng Rumahan",20,"porsi",,,"sambal pisah untuk 5 porsi","kirim ke pos satpam"`;
 
 function getLocalDateKey(date = new Date()) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -4422,6 +4424,16 @@ function parseMoney(value) {
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
+function parseDraftQuantity(value) {
+  // Draft quantities accept half-portion aliases and decimal CSV values.
+  if (isHalfVariantName(value)) return 0.5;
+  return parseMoney(value);
+}
+
+function isHalfQuantity(value) {
+  return Math.abs(parseDraftQuantity(value) - 0.5) < Number.EPSILON;
+}
+
 function parseIntegerInput(value) {
   const digits = String(value ?? "").replace(/\D/g, "");
   if (!digits) return 0;
@@ -4434,6 +4446,13 @@ function formatIntegerInput(value) {
   const digits = String(value ?? "").replace(/\D/g, "");
   if (!digits) return "";
   return integerFormatter.format(Number.parseInt(digits, 10));
+}
+
+function formatDraftQuantity(value) {
+  const quantity = parseDraftQuantity(value);
+  if (!Number.isFinite(quantity) || quantity <= 0) return "";
+  if (Number.isInteger(quantity)) return String(quantity);
+  return new Intl.NumberFormat("id-ID", { useGrouping: false, maximumFractionDigits: 2 }).format(quantity);
 }
 
 function formatMoneyInput(input) {
@@ -4559,7 +4578,7 @@ function getHalfVariantPrice(price) {
 }
 
 function isHalfVariantName(value) {
-  return ["1/2", "setengah", "separuh", "halfporsi", "1/2porsi", "separuhporsi"].includes(normalizeKey(value));
+  return ["1/2", "setengah", "separuh", "halfporsi", "1/2porsi", "setengahporsi", "separuhporsi"].includes(normalizeKey(value));
 }
 
 function formatHalfVariantDisplayText(value) {
@@ -5163,13 +5182,27 @@ function parseDraftNameHints(rawName) {
     unitName = unitMatch[2].toLowerCase();
     name = name.replace(unitMatch[0], "").trim();
   }
-  const variantMatch = name.match(/^(.+?)\s+(1\/2|setengah|separuh|jumbo)$/i);
+  const variantMatch = name.match(/^(.+?)\s+(1\/2(?:\s+porsi)?|setengah(?:\s+porsi)?|separuh(?:\s+porsi)?|jumbo)$/i);
   const variantName = variantMatch ? (variantMatch[2].toLowerCase() === "jumbo" ? "Jumbo" : HALF_VARIANT_NAME) : "";
   if (variantMatch) name = variantMatch[1].trim();
   return { name, price, unitQuantity, unitName, variantName };
 }
 
-function resolveDraftProductVariant(rawName, sku = "", explicitPrice = 0, explicitUnitName = "") {
+function normalizeDraftVariantName(value) {
+  const key = normalizeKey(value);
+  if (isHalfVariantName(value)) return normalizeKey(HALF_VARIANT_NAME);
+  if (["default", "normal"].includes(key)) return "normal";
+  if (["custom", "custominput", "hargacustom", "manual"].includes(key)) return "custominput";
+  return key;
+}
+
+function findDraftVariantByName(product, rawName) {
+  const target = normalizeDraftVariantName(rawName);
+  if (!product || !target) return null;
+  return getProductVariants(product).find((variant) => normalizeDraftVariantName(variant.name) === target) || null;
+}
+
+function resolveDraftProductVariant(rawName, sku = "", explicitPrice = 0, explicitUnitName = "", explicitVariantName = "") {
   const hints = parseDraftNameHints(rawName);
   const price = parseMoney(explicitPrice) || hints.price;
   const requestedUnitName = String(explicitUnitName || hints.unitName || "").trim();
@@ -5179,8 +5212,9 @@ function resolveDraftProductVariant(rawName, sku = "", explicitPrice = 0, explic
 
   let variant = null;
   let priceMatchedVariant = null;
-  if (hints.variantName) {
-    variant = getProductVariants(product).find((item) => normalizeKey(item.name) === normalizeKey(hints.variantName));
+  const requestedVariantName = String(explicitVariantName || hints.variantName || "").trim();
+  if (requestedVariantName) {
+    variant = findDraftVariantByName(product, requestedVariantName);
   }
   if (price > 0) {
     priceMatchedVariant = findProductVariantByPrice(product, price);
@@ -5218,17 +5252,38 @@ function normalizeDraftItem(source) {
   const sku = String(readObjectValue(item, ["sku", "kode"], "")).trim();
   const price = parseMoney(readObjectValue(item, ["price", "harga"], 0));
   const explicitUnitName = String(readObjectValue(item, ["unit", "satuan", "unitName", "unit_name"], "")).trim();
+  const explicitVariantName = String(readObjectValue(item, ["variant", "varian", "variasi", "variantName", "variant_name"], "")).trim();
   const explicitProductId = String(readObjectValue(item, ["productId", "product_id"], "")).trim();
   const explicitProduct = explicitProductId ? getProduct(explicitProductId) : null;
   const explicitVariantId = String(readObjectValue(item, ["variantId", "variant_id", "variantClientId", "variant_client_id"], "")).trim();
-  const resolved = explicitProduct ? { product: explicitProduct, variant: getProductVariant(explicitProduct, explicitVariantId), finalPrice: price, unitName: explicitUnitName } : resolveDraftProductVariant(rawName, sku, price, explicitUnitName);
-  const matchedProduct = explicitProduct || resolved?.product;
-  const matchedVariant = resolved?.variant;
   const quantityValue = readObjectValue(item, ["quantity", "qty", "jumlah", "jml"], "");
-  const quantity = Math.max(1, parseIntegerInput(quantityValue) || resolved?.unitQuantity || 1);
+  const hints = parseDraftNameHints(rawName);
+  const requestedVariantName = explicitVariantName || hints.variantName;
+  const resolved = explicitProduct
+    ? {
+        product: explicitProduct,
+        variant: explicitVariantId ? getProductVariant(explicitProduct, explicitVariantId) : findDraftVariantByName(explicitProduct, requestedVariantName) || getDefaultVariant(explicitProduct),
+        finalPrice: price,
+        unitName: explicitUnitName,
+      }
+    : resolveDraftProductVariant(rawName, sku, price, explicitUnitName, explicitVariantName);
+  const matchedProduct = explicitProduct || resolved?.product;
+  let matchedVariant = resolved?.variant;
+  if (matchedProduct && isHalfQuantity(quantityValue) && !requestedVariantName) {
+    matchedVariant = findDraftVariantByName(matchedProduct, HALF_VARIANT_NAME) || matchedVariant;
+  }
+  const quantity = isHalfQuantity(quantityValue)
+    ? 1
+    : Math.max(1, parseDraftQuantity(quantityValue) || resolved?.unitQuantity || 1);
   const note = String(readObjectValue(item, ["note", "notes", "catatan", "keterangan"], "")).trim();
   const unitName = resolved?.unitName || matchedVariant?.unitName || explicitUnitName || "";
   const receiptLabel = resolved?.receiptLabel || (normalizePricingType(matchedVariant?.pricingType) === "unit" && unitName ? `${quantity} ${unitName}` : "");
+  const variantFallbackPrice = normalizePricingType(matchedVariant?.pricingType) === "custom"
+    ? 0
+    : Number(matchedVariant?.price || matchedProduct?.price || 0);
+  const unitPrice = isHalfQuantity(quantityValue) && !price
+    ? Number(matchedVariant?.price || matchedProduct?.price || 0)
+    : resolved?.finalPrice || variantFallbackPrice;
 
   return {
     id: String(readObjectValue(item, ["id"], "")) || makeId("draft-item"),
@@ -5236,7 +5291,8 @@ function normalizeDraftItem(source) {
     sku,
     productId: matchedProduct?.id || "",
     variantId: matchedVariant?.id || "",
-    unitPrice: resolved?.finalPrice || matchedVariant?.price || matchedProduct?.price || 0,
+    variantName: matchedVariant?.name || requestedVariantName || "",
+    unitPrice,
     unitName,
     unitQuantity: resolved?.unitQuantity || quantity,
     receiptLabel,
@@ -5260,6 +5316,7 @@ function refreshImportDraftMatches(options = {}) {
       const refreshed = normalizeDraftItem({
         ...item,
         name: item.rawName || item.name || "",
+        variant: item.variantName || item.variant_name || "",
         price: item.unitPrice || item.price || 0,
       });
       if (!refreshed.productId) return item;
@@ -5268,6 +5325,7 @@ function refreshImportDraftMatches(options = {}) {
         ...item,
         productId: refreshed.productId,
         variantId: refreshed.variantId,
+        variantName: refreshed.variantName,
         unitPrice: refreshed.unitPrice,
         unitName: refreshed.unitName,
         unitQuantity: refreshed.unitQuantity || item.unitQuantity,
@@ -5473,6 +5531,7 @@ function parseBulkSummaryCsv(text) {
     const rawName = getBulkCsvCell(row, ["item", "menu", "barang", "nama", "name", "produk"]);
     const quantity = getBulkCsvCell(row, ["quantity", "qty", "jumlah", "jml"], "1");
     const unit = getBulkCsvCell(row, ["unit", "satuan", "unitName", "unit_name"]);
+    const variant = getBulkCsvCell(row, ["variant", "varian", "variasi", "variantName", "variant_name"]);
     const price = getBulkCsvCell(row, ["price", "harga"]);
     const note = getBulkCsvCell(row, ["note", "catatan", "keterangan"]);
     const explicitSendNote = getBulkCsvCell(row, ["sendNote", "send_note", "send notes", "catatanKirim", "catatan_kirim", "tujuanKirim", "tujuan_kirim"]);
@@ -5501,7 +5560,7 @@ function parseBulkSummaryCsv(text) {
 
     const draft = draftsByKey.get(groupKey);
     draft.sendNote = mergeSendNotes(draft.sendNote, sendNote);
-    draft.items.push(normalizeDraftItem({ name: rawName, sku, quantity, unit, price, note: extractedNote.note }));
+    draft.items.push(normalizeDraftItem({ name: rawName, sku, quantity, unit, variant, price, note: extractedNote.note }));
     lastMeta = { customerName, chatDate, payment, shipping };
   });
 
@@ -5510,12 +5569,18 @@ function parseBulkSummaryCsv(text) {
   return drafts;
 }
 
+function getDraftItemUnitPrice(item, product = getProduct(item?.productId)) {
+  const variant = product ? getProductVariant(product, item?.variantId) : null;
+  const explicitPrice = parseMoney(item?.unitPrice);
+  if (normalizePricingType(variant?.pricingType) === "custom") return explicitPrice;
+  return explicitPrice || Number(variant?.price || product?.price || 0);
+}
+
 function getDraftSubtotal(draft) {
   return draft.items.reduce((sum, item) => {
     const product = getProduct(item.productId);
     if (!product) return sum;
-    const variant = getProductVariant(product, item.variantId);
-    const price = parseMoney(item.unitPrice) || Number(variant?.price || product.price || 0);
+    const price = getDraftItemUnitPrice(item, product);
     return sum + price * Number(item.quantity || 0);
   }, 0);
 }
@@ -5971,32 +6036,45 @@ function renderBulkImportReview(drafts = state.importDrafts) {
   `;
 }
 
-function getProductSelectOptions(selectedProductId, rawName = "") {
+function getBulkProductVariantOptions(product, selectedProductId = "", selectedVariantId = "") {
+  if (!product) return [];
+  const variants = getProductVariants(product);
+  const availableVariants = variants.length ? variants : [getDefaultVariant(product)].filter(Boolean);
+  const selectedProduct = String(product.id) === String(selectedProductId);
+  const defaultVariant = getDefaultVariant(product);
+
+  return availableVariants.map((variant) => {
+    const selected = selectedProduct && (
+      selectedVariantId
+        ? String(variant.id) === String(selectedVariantId)
+        : String(variant.id) === String(defaultVariant?.id)
+    ) ? "selected" : "";
+    const variantLabel = variant.isDefault ? "Normal" : variant.name;
+    const priceLabel = normalizePricingType(variant.pricingType) === "custom"
+      ? "Harga custom"
+      : currency.format(Number(variant.price || 0));
+    return `<option value="${escapeHtml(product.id)}" data-variant-id="${escapeHtml(variant.id)}" ${selected}>${escapeHtml(product.name)} · ${escapeHtml(variantLabel)} · ${escapeHtml(priceLabel)}</option>`;
+  });
+}
+
+function getProductSelectOptions(selectedProductId, rawName = "", selectedVariantId = "") {
   const cleanRawName = String(rawName || "").trim();
   const topRecommendations = cleanRawName
     ? getRankedDraftProductCandidates(state.products, cleanRawName).slice(0, 3).map((r) => r.product)
     : [];
   const options = [`<option value="">Pilih barang</option>`];
+  const renderProducts = (products) => products.flatMap((product) => getBulkProductVariantOptions(product, selectedProductId, selectedVariantId));
 
   if (topRecommendations.length > 0) {
     options.push(`<optgroup label="Saran Cocok (Fuzzy Match)">`);
-    topRecommendations.forEach((product) => {
-      const selected = product.id === selectedProductId ? "selected" : "";
-      options.push(`<option value="${escapeHtml(product.id)}" ${selected}>${escapeHtml(product.name)} · ${currency.format(product.price)}</option>`);
-    });
+    options.push(...renderProducts(topRecommendations));
     options.push(`</optgroup>`);
     
     options.push(`<optgroup label="Semua Menu">`);
-    state.products.forEach((product) => {
-      const selected = product.id === selectedProductId ? "selected" : "";
-      options.push(`<option value="${escapeHtml(product.id)}" ${selected}>${escapeHtml(product.name)} · ${currency.format(product.price)}</option>`);
-    });
+    options.push(...renderProducts(state.products));
     options.push(`</optgroup>`);
   } else {
-    state.products.forEach((product) => {
-      const selected = product.id === selectedProductId ? "selected" : "";
-      options.push(`<option value="${escapeHtml(product.id)}" ${selected}>${escapeHtml(product.name)} · ${currency.format(product.price)}</option>`);
-    });
+    options.push(...renderProducts(state.products));
   }
 
   return options.join("");
@@ -6110,7 +6188,7 @@ function renderBulkDrafts() {
         .map((item) => {
           const product = getProduct(item.productId);
           const variant = product ? getProductVariant(product, item.variantId) : null;
-          const price = parseMoney(item.unitPrice) || Number(variant?.price || product?.price || 0);
+          const price = getDraftItemUnitPrice(item, product);
           const reviewCopy = item.needsReview ? " · cek harga custom" : "";
           const variantCopy = product ? `${variant?.name || "Normal"} · ${currency.format(price)}${reviewCopy}` : "Belum cocok";
           return `
@@ -6118,12 +6196,12 @@ function renderBulkDrafts() {
               <label>
                 Barang
                 <select data-draft-item-product="${escapeHtml(item.id)}">
-                  ${getProductSelectOptions(item.productId, item.rawName)}
+                  ${getProductSelectOptions(item.productId, item.rawName, item.variantId)}
                 </select>
               </label>
               <label>
                 Jumlah
-                <input type="text" inputmode="numeric" data-draft-item-quantity="${escapeHtml(item.id)}" value="${escapeHtml(formatIntegerInput(item.quantity))}">
+                <input type="text" inputmode="decimal" data-draft-item-quantity="${escapeHtml(item.id)}" value="${escapeHtml(formatDraftQuantity(item.quantity))}">
               </label>
               <label class="bulk-item-note">
                 Catatan
@@ -6249,25 +6327,41 @@ function updateDraftField(draftId, field, value) {
   saveState();
 }
 
-function updateDraftItem(draftId, itemId, field, value) {
+function updateDraftItem(draftId, itemId, field, value, selectedVariantId = "") {
   const draft = findImportDraft(draftId);
   const item = draft?.items.find((draftItem) => draftItem.id === itemId);
   if (!item) return;
   if (field === "productId") {
     item.productId = value;
     const product = getProduct(value);
-    const variant = getDefaultVariant(product);
+    const variant = product ? getProductVariant(product, selectedVariantId) : null;
     item.variantId = variant?.id || "";
-    item.unitPrice = Number(variant?.price || product?.price || 0);
+    item.variantName = variant?.name || "";
+    item.unitPrice = normalizePricingType(variant?.pricingType) === "custom"
+      ? 0
+      : Number(variant?.price || product?.price || 0);
     item.unitName = variant?.unitName || "";
     item.unitQuantity = Number(item.quantity || 1);
     item.receiptLabel = normalizePricingType(variant?.pricingType) === "unit" && item.unitName ? `${item.unitQuantity} ${item.unitName}` : "";
     item.needsReview = false;
   }
   if (field === "quantity") {
-    item.quantity = Math.max(1, parseIntegerInput(value) || 1);
-    item.unitQuantity = item.quantity;
     const product = getProduct(item.productId);
+    const parsedQuantity = parseDraftQuantity(value);
+    if (isHalfQuantity(value) && product) {
+      const halfVariant = findDraftVariantByName(product, HALF_VARIANT_NAME);
+      if (halfVariant) {
+        item.variantId = halfVariant.id;
+        item.variantName = halfVariant.name;
+        item.unitPrice = Number(halfVariant.price || 0);
+        item.unitName = halfVariant.unitName || "";
+        item.receiptLabel = "";
+      }
+      item.quantity = 1;
+    } else {
+      item.quantity = Math.max(1, parsedQuantity || 1);
+    }
+    item.unitQuantity = item.quantity;
     const variant = product ? getProductVariant(product, item.variantId) : null;
     const unitName = item.unitName || variant?.unitName || "";
     if (normalizePricingType(variant?.pricingType) === "unit" && unitName) {
@@ -6308,7 +6402,7 @@ function getDraftCartItems(draft) {
     if (!product) return;
     const variant = getProductVariant(product, item.variantId);
     const noteText = String(item.note || "").trim();
-    const unitPrice = parseMoney(item.unitPrice) || Number(variant?.price || product.price || 0);
+    const unitPrice = getDraftItemUnitPrice(item, product);
     const key = `${product.id}_${variant?.id || ""}_${unitPrice}_${item.receiptLabel || ""}_${noteText}`;
     const existing = cartByProduct.get(key) || {
       id: makeId("cart-item"),
@@ -6595,7 +6689,7 @@ function updateBulkDraftFromTarget(target, rerender = false) {
   const itemNoteId = target.dataset.draftItemNote;
 
   if (field) updateDraftField(draftId, field, target.value);
-  else if (itemProductId) updateDraftItem(draftId, itemProductId, "productId", target.value);
+  else if (itemProductId) updateDraftItem(draftId, itemProductId, "productId", target.value, target.selectedOptions?.[0]?.dataset.variantId || "");
   else if (itemQuantityId) updateDraftItem(draftId, itemQuantityId, "quantity", target.value);
   else if (itemNoteId) updateDraftItem(draftId, itemNoteId, "note", target.value);
   else return false;
