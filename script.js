@@ -6200,6 +6200,10 @@ function renderBulkDrafts() {
                 </select>
               </label>
               <label>
+                Harga
+                <input type="text" inputmode="numeric" data-draft-item-price="${escapeHtml(item.id)}" value="${escapeHtml(formatIntegerInput(price))}">
+              </label>
+              <label>
                 Jumlah
                 <input type="text" inputmode="decimal" data-draft-item-quantity="${escapeHtml(item.id)}" value="${escapeHtml(formatDraftQuantity(item.quantity))}">
               </label>
@@ -6370,6 +6374,10 @@ function updateDraftItem(draftId, itemId, field, value, selectedVariantId = "") 
     }
   }
   if (field === "note") item.note = String(value || "").trim();
+  if (field === "unitPrice") {
+    const parsed = parseMoney(value);
+    item.unitPrice = parsed > 0 ? parsed : 0;
+  }
   saveState();
 }
 
@@ -6686,11 +6694,13 @@ function updateBulkDraftFromTarget(target, rerender = false) {
   const field = target.dataset.draftField;
   const itemProductId = target.dataset.draftItemProduct;
   const itemQuantityId = target.dataset.draftItemQuantity;
+  const itemPriceId = target.dataset.draftItemPrice;
   const itemNoteId = target.dataset.draftItemNote;
 
   if (field) updateDraftField(draftId, field, target.value);
   else if (itemProductId) updateDraftItem(draftId, itemProductId, "productId", target.value, target.selectedOptions?.[0]?.dataset.variantId || "");
   else if (itemQuantityId) updateDraftItem(draftId, itemQuantityId, "quantity", target.value);
+  else if (itemPriceId) updateDraftItem(draftId, itemPriceId, "unitPrice", target.value);
   else if (itemNoteId) updateDraftItem(draftId, itemNoteId, "note", target.value);
   else return false;
 

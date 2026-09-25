@@ -658,7 +658,8 @@ def custom_variant_client_id(product_client_id):
 
 def half_variant_price(price):
     amount = rupiah_number(price)
-    return (amount + 1) // 2
+    half = (amount + 1) // 2
+    return max(half, 10000)
 
 
 def base_variant_kind(variant, product_client_id):
