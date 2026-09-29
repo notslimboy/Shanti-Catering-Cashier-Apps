@@ -3,7 +3,9 @@ import json
 import csv
 import re
 import sqlite3
-import datetime
+import pathlib
+
+from scripts.parser_customer_reference import build_reference_rows
 
 SUPABASE_URL = "https://ddfalsclevkqhiyojngx.supabase.co"
 SUPABASE_KEY = "sb_publishable_Ve_QZUvSQgQSE9_LcEAHmw_WLaQDSrP"
@@ -121,7 +123,7 @@ def main():
         print(f"Berhasil menarik {len(customers)} customer dan {len(aliases)} alias dari Supabase.")
     except Exception as e:
         print(f"Error mengambil data dari Supabase: {e}")
-        return
+        return 1
 
     # Map aliases and tags
     aliases_by_cust = {}
@@ -137,20 +139,53 @@ def main():
     # Sort customers by ID/Name
     customers.sort(key=lambda x: x.get("name", "").lower())
 
-    # Write to customers.csv
-    csv_file = "customers.csv"
-    with open(csv_file, "w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["id", "name", "default_shipping", "tag", "aliases"])
-        for c in customers:
-            cid = str(c["id"])
-            cust_aliases = aliases_by_cust.get(cid, [])
-            explicit_tag = tag_by_cust.get(cid, "")
-            resolved_tag = resolve_customer_tag(c["name"], cust_aliases, explicit_tag)
-            aliases_str = ";".join(cust_aliases)
-            writer.writerow([c["id"], c["name"], c["default_shipping"], resolved_tag, aliases_str])
+    # Supabase is authoritative. The parser rules may still contain legacy
+    # overlays, but a compact rules file simply returns these rows unchanged.
+    base_customer_rows = []
+    for c in customers:
+        cid = str(c["id"])
+        customer_aliases = aliases_by_cust.get(cid, [])
+        explicit_tag = tag_by_cust.get(cid, "")
+        resolved_tag = resolve_customer_tag(c["name"], customer_aliases, explicit_tag)
+        base_customer_rows.append({
+            "id": cid,
+            "name": c["name"],
+            "default_shipping": str(c.get("default_shipping") or 0),
+            "tag": resolved_tag,
+            "aliases": ";".join(customer_aliases),
+        })
+    parser_reference, parser_warnings = build_reference_rows(
+        base_customer_rows,
+        pathlib.Path("instruksi_ai_parser.md"),
+    )
 
-    print(f"File CSV berhasil ditulis ke: {csv_file}")
+    # Write to customers.csv
+    csv_file = pathlib.Path("customers.csv")
+    temp_csv_file = csv_file.with_suffix(".csv.tmp")
+    try:
+        with temp_csv_file.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=["id", "name", "default_shipping", "tag", "aliases"],
+                lineterminator="\n",
+            )
+            writer.writeheader()
+            writer.writerows(parser_reference)
+        temp_csv_file.replace(csv_file)
+    except Exception as e:
+        temp_csv_file.unlink(missing_ok=True)
+        print(f"Error menulis snapshot customer: {e}")
+        return 1
+
+    print(
+        f"File CSV parser berhasil ditulis ke: {csv_file} "
+        f"({len(parser_reference)} customer, {len(parser_warnings)} warning)"
+    )
+    for warning in parser_warnings:
+        print(
+            f"WARNING {warning['type']}: {warning['customer']} "
+            f"({warning['detail']})"
+        )
 
     # Also sync to local SQLite
     print("Sinkronisasi ke SQLite lokal (kasir-bento.sqlite3)...")
@@ -200,6 +235,7 @@ def main():
         print(f"Error sinkronisasi SQLite: {e}")
     finally:
         conn.close()
+    return 0
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

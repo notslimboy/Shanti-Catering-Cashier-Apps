@@ -715,17 +715,20 @@ The app can turn externally summarized WhatsApp-style orders into draft transact
 Expected CSV format:
 
 ```csv
-customer,chatDate,payment,ongkir,item,quantity,note
-"Bu Ani - Jl Melati 12","28/5/2026 10.15","Tunai",10000,"Nasi Goreng Rumahan",20,"sambal pisah untuk 5 porsi"
+customer,chatDate,payment,ongkir,item,quantity,harga,note,sendNote
+"Bu Ani - Jl Melati 12","28/05/2026 10.15.00","Tunai",10000,"Nasi Goreng Rumahan",20,,"sambal pisah untuk 5 porsi","antar ke satpam"
 ```
 
 CSV rules:
 
 - `customer` is the WhatsApp contact name and should be treated as the delivery address/customer identifier. Do not add a separate `address` field unless a future feature explicitly changes this model.
-- Repeat `customer`, `chatDate`, `payment`, and `ongkir` for every item row from the same customer. The parser can inherit repeated metadata when rows are grouped, but generated CSV should be explicit for admin readability.
+- Repeat `customer`, `chatDate`, `payment`, `ongkir`, and `sendNote` for every item row from the same customer. The parser can inherit repeated metadata when rows are grouped, but generated CSV should be explicit for admin readability.
+- `harga` stays blank for current-menu items. Fill it only for an explicit custom/manual price.
 - `note` belongs to the item row, e.g. `mie tidak pakai udang`, `bakso sambal pisah`, or `es cao kotak-kotak`.
+- `sendNote` contains delivery/pickup/destination instructions, e.g. `antar ke satpam`, `ambil gojek`, or `kirim ke Direktorat ITS`.
 - Use `ongkir` for shipping/delivery fee. Old `diskon` language should not be used for this workflow.
-- Payment defaults to `Tunai` if omitted.
+- Source CSV payment is blank unless it is explicitly confirmed by chat. The app may preselect `Tunai` while a draft is edited.
+- Before a parser agent writes an order file, it must follow `_forAI/ORDER_PARSING_GUARDRAILS.md` and `../instruksi_ai_parser.md`.
 - Imported item names are matched against products by SKU/name/alias and price context when available.
 - If there are duplicate menu names or ambiguous item matches, the draft should show a warning/action instead of silently choosing the wrong product.
 
