@@ -16,8 +16,7 @@ __pycache__/
 orders-*.csv
 sales-*.csv
 customers-*.csv
-orderan/*.csv
-orderan/hasil-parser/
+orderan/
 _chat*.txt
 backups/
 scratch/ui-ux-pro-max-skill/
@@ -40,6 +39,10 @@ scratch/
 .agents/
 orders_*.csv
 Chat*.txt
-!Chat1.txt
 clean_menu_sheet.csv
 .DS_Store
+
+# Data sensitif customer (jangan pernah di-push)
+*.sqlite3
+customers.csv
+untagged-customers*.csv
