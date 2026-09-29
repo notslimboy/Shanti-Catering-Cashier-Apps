@@ -17,6 +17,7 @@ orders-*.csv
 sales-*.csv
 customers-*.csv
 orderan/*.csv
+orderan/hasil-parser/
 _chat*.txt
 backups/
 scratch/ui-ux-pro-max-skill/
@@ -39,5 +40,6 @@ scratch/
 .agents/
 orders_*.csv
 Chat*.txt
+!Chat1.txt
 clean_menu_sheet.csv
 .DS_Store
